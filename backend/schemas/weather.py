@@ -126,3 +126,50 @@ class AlertResponse(BaseModel):
     active_count: int = Field(default=0, description="Count of currently active alerts")
     source: str = Field(default="IMD Official", description="Source authority attribution")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+
+
+class HistoricalRecordItemSchema(BaseModel):
+    """Normalized individual historical weather record item."""
+    observed_at: str = Field(description="ISO 8601 UTC timestamp of observation")
+    temperature: float = Field(description="Temperature in Celsius (°C)")
+    humidity: float = Field(description="Relative humidity %")
+    rain_probability: float = Field(default=0.0, description="Rain probability %")
+    wind_speed: float = Field(description="Wind speed in km/h")
+    rainfall_mm: float = Field(default=0.0, description="Precipitation amount in mm")
+    condition: str = Field(description="Observed weather condition string")
+    source: str = Field(description="Historical provider source name")
+    retrieved_at: str = Field(description="Ingestion/Retrieval ISO 8601 UTC timestamp")
+
+
+class HistoricalWeatherResponse(BaseModel):
+    """Normalized Historical Weather API Response Contract."""
+    location: str = Field(description="Location name string")
+    latitude: float
+    longitude: float
+    start_date: str = Field(description="Query range start date YYYY-MM-DD")
+    end_date: str = Field(description="Query range end date YYYY-MM-DD")
+    metric: str = Field(default="all", description="Target metric or 'all'")
+    summary: Dict[str, Any] = Field(default_factory=dict, description="Aggregated statistics (averages, totals, extremes)")
+    records: List[HistoricalRecordItemSchema] = Field(default_factory=list, description="Historical observations list")
+    count: int = Field(default=0, description="Total number of observation records returned")
+    source: str = Field(default="NASA POWER / IMD Archive", description="Historical provider attribution")
+    units: WeatherUnitsSchema = Field(default_factory=WeatherUnitsSchema)
+    retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+
+
+class ClimateTrendResponse(BaseModel):
+    """Normalized Climate Trend API Response Contract."""
+    location: str = Field(description="Location name string")
+    latitude: float
+    longitude: float
+    period: str = Field(description="Multi-year period e.g. 2015-2025")
+    start_year: int
+    end_year: int
+    metric: str
+    trend: str = Field(description="Overall direction e.g., increasing, stable, decreasing")
+    temperature_delta_c: float = Field(description="Net temperature change in Celsius")
+    rainfall_variability: str = Field(description="Qualitative rainfall variability indicator")
+    analysis: str = Field(description="Detailed meteorological climate trend summary")
+    source: str = Field(default="NASA POWER Climate Archive", description="Provider source name")
+    retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+

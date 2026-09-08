@@ -10,7 +10,10 @@ from backend.schemas.weather import (
     DailyForecastItemSchema,
     ForecastResponse,
     AlertItemSchema,
-    AlertResponse
+    AlertResponse,
+    HistoricalRecordItemSchema,
+    HistoricalWeatherResponse,
+    ClimateTrendResponse
 )
 
 __all__ = [
@@ -23,5 +26,8 @@ __all__ = [
     "DailyForecastItemSchema",
     "ForecastResponse",
     "AlertItemSchema",
-    "AlertResponse"
+    "AlertResponse",
+    "HistoricalRecordItemSchema",
+    "HistoricalWeatherResponse",
+    "ClimateTrendResponse"
 ]

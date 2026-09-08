@@ -14,6 +14,7 @@ from backend.services.geocoding_service import GeocodingService
 from backend.services.current_weather_service import CurrentWeatherService
 from backend.services.forecast_service import ForecastService
 from backend.services.alert_service import AlertService
+from backend.services.historical_weather_service import HistoricalWeatherService
 from backend.services.base_provider import BaseWeatherProvider
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
@@ -49,6 +50,10 @@ class WeatherManager:
         self.alert_service = AlertService(
             primary_provider=self.imd,
             secondary_provider=self.open_meteo,
+            geocoding_service=self.geocoding
+        )
+        self.historical_service = HistoricalWeatherService(
+            historical_provider=self.nasa_power,
             geocoding_service=self.geocoding
         )
 
@@ -100,14 +105,14 @@ class WeatherManager:
         location_name: str = "Coimbatore",
         start_date: str = "2020-01-01",
         end_date: str = "2025-01-01",
-        metric: str = "rainfall"
+        metric: str = "rainfall",
+        db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
         """Returns historical weather data."""
-        loc = await self.geocoding.resolve_location(location_name)
-        hist = await self.nasa_power.get_historical_weather(
-            loc["latitude"], loc["longitude"], start_date, end_date, metric
+        res = await self.historical_service.fetch_historical_weather(
+            lat, lon, location_name, start_date, end_date, metric, db_session
         )
-        return hist.model_dump()
+        return res.model_dump()
 
     async def get_trends(
         self,
@@ -119,11 +124,10 @@ class WeatherManager:
         metric: str = "temperature"
     ) -> Dict[str, Any]:
         """Returns multi-year climate trend analysis."""
-        loc = await self.geocoding.resolve_location(location_name)
-        trends = await self.nasa_power.get_climate_trend(
-            loc["latitude"], loc["longitude"], start_year, end_year, metric
+        res = await self.historical_service.fetch_climate_trends(
+            lat, lon, location_name, start_year, end_year, metric
         )
-        return trends.model_dump()
+        return res.model_dump()
 
     async def get_ai_weather_input(
         self,
