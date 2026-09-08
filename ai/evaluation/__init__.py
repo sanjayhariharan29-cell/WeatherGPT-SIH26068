@@ -32,6 +32,14 @@ from ai.evaluation.schemas import (
     SafetyMetrics,
 )
 
+from ai.evaluation.safety_evaluator import (
+    SevereSafetyReport,
+    SevereSafetyScenario,
+    SevereWeatherSafetyEvaluator,
+    build_safety_benchmark_dataset,
+    run_severe_weather_safety_benchmark,
+)
+
 __all__ = [
     "load_nlu_dataset",
     "load_hazard_dataset",
@@ -58,4 +66,9 @@ __all__ = [
     "MultilingualMetrics",
     "LatencyMetrics",
     "BenchmarkReport",
+    "SevereSafetyScenario",
+    "SevereSafetyReport",
+    "SevereWeatherSafetyEvaluator",
+    "build_safety_benchmark_dataset",
+    "run_severe_weather_safety_benchmark",
 ]

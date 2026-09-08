@@ -144,39 +144,43 @@ class AIService:
 
         # Graceful degradation if weather data is entirely unavailable
         if not data_available or primary_obs is None:
-            logger.warning(f"[{req_id}] Weather data unavailable for '{location_name}'. Returning safe fallback.")
-            return self._build_unavailable_response(
-                req=req,
-                location_name=location_name,
-                req_id=req_id,
-                persona=persona_enum.value,
-                duration_ms=(time.perf_counter() - start_time) * 1000
-            )
+            if active_alerts:
+                logger.warning(f"[{req_id}] Primary observation unavailable, but active official warning present for '{location_name}'. Proceeding through safety pipeline.")
+            else:
+                logger.warning(f"[{req_id}] Weather data unavailable for '{location_name}'. Returning safe fallback.")
+                return self._build_unavailable_response(
+                    req=req,
+                    location_name=location_name,
+                    req_id=req_id,
+                    persona=persona_enum.value,
+                    duration_ms=(time.perf_counter() - start_time) * 1000
+                )
 
         # 9. Retrieve Secondary Observation for consensus/agreement scoring
         secondary_obs: Optional[AIWeatherRecord] = None
-        try:
-            loc = await self.weather_mgr.geocoding.resolve_location(location_name)
-            sec_lat = lat if lat is not None else loc["latitude"]
-            sec_lon = lon if lon is not None else loc["longitude"]
-            sec_norm = await self.weather_mgr.open_meteo.get_current_weather(
-                sec_lat, sec_lon, loc["name"]
-            )
-            secondary_obs = AIWeatherRecord(
-                location=primary_obs.location,
-                observed_at=datetime.fromisoformat(sec_norm.observed_at),
-                retrieved_at=datetime.fromisoformat(sec_norm.retrieved_at),
-                temperature=sec_norm.temperature_c,
-                humidity=sec_norm.humidity_pct,
-                rain_probability=sec_norm.rain_probability_pct,
-                wind_speed=sec_norm.wind_speed_kmh,
-                weather_condition=sec_norm.condition,
-                source=sec_norm.source,
-                rainfall_amount_mm=sec_norm.rainfall_mm
-            )
-        except Exception as sec_err:
-            logger.debug(f"[{req_id}] Secondary weather observation unavailable: {sec_err}")
-            secondary_obs = None
+        if primary_obs is not None:
+            try:
+                loc = await self.weather_mgr.geocoding.resolve_location(location_name)
+                sec_lat = lat if lat is not None else loc["latitude"]
+                sec_lon = lon if lon is not None else loc["longitude"]
+                sec_norm = await self.weather_mgr.open_meteo.get_current_weather(
+                    sec_lat, sec_lon, loc["name"]
+                )
+                secondary_obs = AIWeatherRecord(
+                    location=primary_obs.location,
+                    observed_at=datetime.fromisoformat(sec_norm.observed_at),
+                    retrieved_at=datetime.fromisoformat(sec_norm.retrieved_at),
+                    temperature=sec_norm.temperature_c,
+                    humidity=sec_norm.humidity_pct,
+                    rain_probability=sec_norm.rain_probability_pct,
+                    wind_speed=sec_norm.wind_speed_kmh,
+                    weather_condition=sec_norm.condition,
+                    source=sec_norm.source,
+                    rainfall_amount_mm=sec_norm.rainfall_mm
+                )
+            except Exception as sec_err:
+                logger.debug(f"[{req_id}] Secondary weather observation unavailable: {sec_err}")
+                secondary_obs = None
 
         # 10. Execute WeatherGPTPipeline with Grounded Memory Summary
         pipeline_result = self.pipeline.process_query(
@@ -230,7 +234,7 @@ class AIService:
             "wind_speed": primary_obs.wind_speed,
             "condition": primary_obs.weather_condition,
             "rainfall_mm": primary_obs.rainfall_amount_mm or 0.0
-        }
+        } if primary_obs else None
 
         alerts_list: List[Dict[str, Any]] = [
             {

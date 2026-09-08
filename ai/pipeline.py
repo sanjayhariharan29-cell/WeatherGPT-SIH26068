@@ -29,7 +29,7 @@ class WeatherGPTPipeline:
     def process_query(
         self,
         message: str,
-        weather: WeatherRecord,
+        weather: Optional[WeatherRecord] = None,
         forecast: Optional[List[ForecastItem]] = None,
         active_alerts: Optional[List[OfficialAlert]] = None,
         secondary_weather: Optional[WeatherRecord] = None,
@@ -137,7 +137,17 @@ class WeatherGPTPipeline:
                 target_language=target_lang,
             )
 
-        # 7. Return payload conforming to docs/08_Api_Contracts.md:230
+        # 7. Record Structured Safety Telemetry (Phase 14 Step 18)
+        fallback_used = (not validation.is_valid or validation.fallback_required or raw_answer != final_answer)
+        safety_telemetry = {
+            "warning_present": len(reasoning.active_warnings) > 0,
+            "hazard_present": len(reasoning.detected_hazards) > 0,
+            "advisory_priority": advisory.priority.value if hasattr(advisory, "priority") else "normal",
+            "validation_status": validation.status.value,
+            "fallback_used": fallback_used,
+        }
+
+        # 8. Return payload conforming to docs/08_Api_Contracts.md:230 & Phase 14
         return {
             "conversation_id": conversation_id,
             "answer": final_answer,
@@ -150,8 +160,8 @@ class WeatherGPTPipeline:
                 "consistency": reasoning.source_agreement.value,
                 "consistency_score": reasoning.consistency_score
             },
-            "source": ", ".join(reasoning.sources_used),
-            "data_timestamp": weather.retrieved_at.isoformat(),
+            "source": ", ".join(reasoning.sources_used) if reasoning.sources_used else "None",
+            "data_timestamp": weather.retrieved_at.isoformat() if weather else reasoning.evaluated_at.isoformat(),
             "validation": {
                 "passed": validation.is_valid,
                 "status": validation.status.value,
@@ -159,5 +169,6 @@ class WeatherGPTPipeline:
                 "warnings": validation.warnings,
                 "checked_fields": validation.checked_fields,
                 "issues": validation.issues
-            }
+            },
+            "safety_telemetry": safety_telemetry
         }

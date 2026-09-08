@@ -43,19 +43,50 @@ class WeatherReasoner:
         active_alerts = active_alerts or []
         forecast = forecast or []
 
+        # Filter active alerts: expired warnings must NEVER be treated as currently active (Phase 14 Step 13)
+        valid_active_alerts: List[OfficialAlert] = []
+        for alert in active_alerts:
+            exp = alert.expires_at
+            ref = now
+            if exp:
+                if exp.tzinfo is not None and ref.tzinfo is None:
+                    ref = ref.replace(tzinfo=timezone.utc)
+                elif exp.tzinfo is None and ref.tzinfo is not None:
+                    exp = exp.replace(tzinfo=timezone.utc)
+                if exp > ref:
+                    valid_active_alerts.append(alert)
+            else:
+                valid_active_alerts.append(alert)
+
         # 1. Handle Case Where Weather Data is Missing / Null
         if not primary_weather:
             all_hazards = detect_hazards(
                 current_weather=None,
                 forecast=forecast,
-                active_alerts=active_alerts
+                active_alerts=valid_active_alerts
             )
             ai_detected_hazards = [
                 h for h in all_hazards if not h.is_official_warning and not h.hazard_type.startswith("OFFICIAL_WARNING_")
             ]
+            loc_name = "Unknown"
+            if valid_active_alerts and valid_active_alerts[0].affected_locations:
+                loc_name = valid_active_alerts[0].affected_locations[0]
+
+            overall_risk = RiskLevelEnum.LOW
+            for alert in valid_active_alerts:
+                if alert.severity == RiskLevelEnum.EXTREME:
+                    overall_risk = RiskLevelEnum.EXTREME
+                    break
+                elif alert.severity == RiskLevelEnum.HIGH and overall_risk != RiskLevelEnum.EXTREME:
+                    overall_risk = RiskLevelEnum.HIGH
+                elif alert.severity == RiskLevelEnum.MEDIUM and overall_risk == RiskLevelEnum.LOW:
+                    overall_risk = RiskLevelEnum.MEDIUM
+
+            sources_used = [valid_active_alerts[0].source] if valid_active_alerts else []
+
             return WeatherReasoningResult(
                 evaluated_at=now,
-                location="Unknown",
+                location=loc_name,
                 freshness=FreshnessStatusEnum.STALE,
                 data_age_minutes=999,
                 data_complete=False,
@@ -63,12 +94,12 @@ class WeatherReasoner:
                 source_agreement=SourceAgreementEnum.SINGLE_SOURCE,
                 consistency_score=0,
                 contradictions=[],
-                active_warnings=active_alerts,
+                active_warnings=valid_active_alerts,
                 detected_hazards=all_hazards,
                 ai_detected_hazards=ai_detected_hazards,
-                overall_risk=RiskLevelEnum.LOW if not active_alerts else active_alerts[0].severity,
+                overall_risk=overall_risk,
                 uncertainty_note="Primary weather observation data is unavailable.",
-                sources_used=[]
+                sources_used=sources_used
             )
 
         # 2. Freshness Check
@@ -91,14 +122,14 @@ class WeatherReasoner:
             primary=primary_weather,
             secondary=secondary_weather,
             forecast=forecast,
-            active_alerts=active_alerts
+            active_alerts=valid_active_alerts
         )
 
         # 6. Hazard Detection
         all_hazards = detect_hazards(
             current_weather=primary_weather,
             forecast=forecast,
-            active_alerts=active_alerts
+            active_alerts=valid_active_alerts
         )
 
         # Separate AI-detected hazards from official authoritative warnings
@@ -109,7 +140,7 @@ class WeatherReasoner:
         # 7. Determine Overall Risk Level
         # Official warnings take unconditional priority in determining risk severity
         overall_risk = RiskLevelEnum.LOW
-        for alert in active_alerts:
+        for alert in valid_active_alerts:
             if alert.severity == RiskLevelEnum.EXTREME:
                 overall_risk = RiskLevelEnum.EXTREME
                 break
@@ -119,7 +150,7 @@ class WeatherReasoner:
                 overall_risk = RiskLevelEnum.MEDIUM
 
         # If no official warning, derive from AI-detected hazards
-        if not active_alerts:
+        if not valid_active_alerts:
             for h in ai_detected_hazards:
                 if h.severity == RiskLevelEnum.EXTREME:
                     overall_risk = RiskLevelEnum.EXTREME
@@ -133,7 +164,7 @@ class WeatherReasoner:
         consistency_score = calculate_consistency_score(
             agreement=agreement,
             freshness=freshness_status,
-            has_active_warning=bool(active_alerts),
+            has_active_warning=bool(valid_active_alerts),
             data_complete=is_complete,
             contradiction_count=len(contradictions)
         )
@@ -163,7 +194,7 @@ class WeatherReasoner:
             source_agreement=agreement,
             consistency_score=consistency_score,
             contradictions=contradictions,
-            active_warnings=active_alerts,
+            active_warnings=valid_active_alerts,
             detected_hazards=all_hazards,
             ai_detected_hazards=ai_detected_hazards,
             overall_risk=overall_risk,
