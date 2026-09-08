@@ -55,10 +55,13 @@ class WeatherGPTPipeline:
         )
 
         # 3. Decision Engine: Persona-tailored advice in target language
+        from ai.llm.multilingual import resolve_target_language
+        target_lang = resolve_target_language(nlu.detected_language, message)
+
         advisory = DecisionEngine.generate_advisory(
             reasoning=reasoning,
             persona=resolved_persona,
-            target_language=nlu.detected_language,
+            target_language=target_lang,
             nlu=nlu,
             weather=weather,
             forecast=forecast
@@ -66,12 +69,12 @@ class WeatherGPTPipeline:
 
         # 4. RAG Safety Knowledge & Reference Retrieval
         hazard_types = [h.hazard_type for h in reasoning.detected_hazards]
-        safety_notes = retrieve_safety_guidance(hazard_types, language=nlu.detected_language.value)
+        safety_notes = retrieve_safety_guidance(hazard_types, language=target_lang.value)
         
         from ai.rag import get_knowledge_retriever
         retriever = get_knowledge_retriever()
         search_query = f"{message} {' '.join(hazard_types)}"
-        lang_filter = nlu.detected_language.value if nlu.detected_language.value in ("en", "ta") else None
+        lang_filter = target_lang.value if target_lang.value in ("en", "ta") else None
         ref_chunks = retriever.retrieve(search_query, top_k=2, language=lang_filter)
 
         # 5. Grounded LLM Generation

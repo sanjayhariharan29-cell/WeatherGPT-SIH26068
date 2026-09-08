@@ -2,7 +2,8 @@
 
 Converts verified meteorological findings (telemetry, reasoner consistency,
 calibrated hazards, and official IMD warnings) into deterministic, actionable,
-persona-specific recommendations per docs/09_AI_Design.md and docs/10_Demo_Scenarious.md.
+persona-specific recommendations in English, Tamil, and Hindi per docs/09_AI_Design.md
+and docs/10_Demo_Scenarious.md.
 
 Strict Division of Responsibility:
 - The Advisory Engine decides WHAT KIND OF ADVICE IS APPROPRIATE (priority, timing,
@@ -79,7 +80,7 @@ class DecisionEngine:
                 return TimeContextEnum.TOMORROW
             if any(term in t for term in ("tonight", "evening", "afternoon", "in 2 hours", "next few hours")):
                 return TimeContextEnum.NEXT_FEW_HOURS
-            if any(term in t for term in ("now", "currently", "ippo", "present")):
+            if any(term in t for term in ("now", "currently", "ippo", "present", "ab")):
                 return TimeContextEnum.NOW
             if any(term in d for term in ("next week", "later")):
                 return TimeContextEnum.LATER
@@ -152,9 +153,10 @@ class DecisionEngine:
         warning_present = active_warning is not None
 
         is_tamil = target_language in (LanguageEnum.TA, LanguageEnum.TANGLISH)
+        is_hindi = target_language in (LanguageEnum.HI, LanguageEnum.HINGLISH)
+
         all_hazards = reasoning.detected_hazards or reasoning.ai_detected_hazards or []
         primary_hazard = all_hazards[0] if all_hazards else None
-        primary_hazard_type = primary_hazard.hazard_type if primary_hazard else None
 
         # Determine time context
         time_context = cls._determine_time_context(nlu, all_hazards)
@@ -184,6 +186,11 @@ class DecisionEngine:
                 advisory_text = "தற்போதைய வானிலை தகவல் முழுமையாக கிடைக்கவில்லை. அதிகாரப்பூர்வ IMD தளங்களைச் சரிபார்க்கவும்."
                 risk_summary = "முழுமையான வானிலை அளவீடுகள் இல்லை."
                 precautions = ["பாதுகாப்பான பயணத்திற்கு அதிகாரப்பூர்வ IMD அறிவிப்புகளைச் சரிபார்க்கவும்"]
+            elif is_hindi:
+                headline = "मौसम डेटा अनुपलब्ध या अधूरा"
+                advisory_text = "वर्तमान मौसम की सटीक जानकारी उपलब्ध नहीं है। आधिकारिक IMD पोर्टल देखें।"
+                risk_summary = "मौसम संबंधी संपूर्ण आंकड़े उपलब्ध नहीं हैं।"
+                precautions = ["सटीक जानकारी के लिए आधिकारिक IMD बुलेटिन देखें", "अनुपलब्ध मौसम को सुरक्षित न समझें"]
             else:
                 headline = "Weather Data Incomplete or Unavailable"
                 advisory_text = "Reliable meteorological observations are currently unavailable for this location."
@@ -281,6 +288,17 @@ class DecisionEngine:
                         "நீர் தேங்கிய சாலைகள் மற்றும் தாழ்வான பகுதிகளைத் தவிர்க்கவும்",
                         "அதிகாரப்பூர்வ கல்வி நிறுவன அறிவிப்புகளைத் தொடர்ந்து கண்காணிக்கவும்"
                     ]
+                elif is_hindi:
+                    headline = "मौसम चेतावनी — स्कूल/कॉलेज यात्रा में सावधानी बरतें"
+                    advisory_text = (
+                        "भारी बारिश या गंभीर मौसम की संभावना है। "
+                        "अनावश्यक बाहरी यात्रा से बचें और कक्षाओं व छुट्टी से संबंधित संस्थान की आधिकारिक घोषणाओं पर नजर रखें।"
+                    )
+                    precautions = [
+                        "रेनकोट या छाता साथ रखें",
+                        "जलभराव वाले रास्तों और खुले नालों से बचें",
+                        "संस्थान की आधिकारिक सूचनाएं देखें (WeatherGPT छुट्टियां घोषित नहीं करता)"
+                    ]
                 else:
                     headline = "High Weather Risk — Commute Precaution Advised"
                     advisory_text = (
@@ -299,6 +317,10 @@ class DecisionEngine:
                     headline = "மிதமான மழை வாய்ப்பு — பயணத்திற்கு தயாராக இருங்கள்"
                     advisory_text = "மழை பெய்ய வாய்ப்புள்ளது. பொதுப்போக்குவரத்து காலதாமதத்திற்கு திட்டமிடுங்கள்."
                     precautions = ["குடை எடுத்துச் செல்லவும்", "பயணத்தை முன்கூட்டியே தொடங்கவும்"]
+                elif is_hindi:
+                    headline = "मध्यम बारिश की संभावना — यात्रा के लिए तैयार रहें"
+                    advisory_text = "हल्की से मध्यम बारिश की संभावना है। यात्रा में थोड़ी देरी हो सकती है।"
+                    precautions = ["छाता साथ रखें", "समय से पहले निकलें"]
                 else:
                     headline = "Moderate Rain Expected — Prepare for Commute"
                     advisory_text = "Precipitation is likely. Anticipate minor transit delays during morning/evening commute."
@@ -310,6 +332,10 @@ class DecisionEngine:
                     headline = "சாதகமான வானிலை"
                     advisory_text = "வானிலை பொதுவாக சாதகமாக உள்ளது. இயல்பான பயணத்தை மேற்கொள்ளலாம்."
                     precautions = ["வழக்கமான பயண ஏற்பாடுகள் போதுமானது"]
+                elif is_hindi:
+                    headline = "अनुकूल मौसम"
+                    advisory_text = "मौसम साफ और यात्रा व कैंपस गतिविधियों के लिए अनुकूल है।"
+                    precautions = ["सामान्य दिनचर्या लागू होती है"]
                 else:
                     headline = "Normal Weather Conditions"
                     advisory_text = "Weather conditions are stable for travel and outdoor campus activities."
@@ -328,6 +354,15 @@ class DecisionEngine:
                         "தாழ்வான பாலங்கள் மற்றும் நீர் தேங்கிய சுரங்கப்பாதைகளைத் தவிர்க்கவும்",
                         "மழைக்கால பாதுகாப்பு கியர் மற்றும் குடையை உடன் வைத்திருக்கவும்"
                     ]
+                elif is_hindi:
+                    headline = "यातायात चेतावनी — भारी बारिश और जलभराव का खतरा"
+                    advisory_text = "गंभीर मौसम के कारण सड़क और रेल यातायात में देरी हो सकती है। सुरक्षित रहें।"
+                    precautions = [
+                        "यात्रा के लिए 20-30 मिनट अतिरिक्त समय लें",
+                        "जलभराव वाले अंडरपास, सबवे और खुले नालों से बचें",
+                        "मेट्रो व बस के ताजा अपडेट देखें",
+                        "रेनकोट या छाता साथ रखें"
+                    ]
                 else:
                     headline = "Commute Alert — Travel Delays & Waterlogging Risk"
                     advisory_text = "Hazardous weather conditions detected. Significant road transit and rail delays expected."
@@ -344,6 +379,10 @@ class DecisionEngine:
                     headline = "பயண ஆலோசனை — மிதமான மழை வாய்ப்பு"
                     advisory_text = "மழை காரணமாக போக்குவரத்து தாமதமாகலாம். முன்கூட்டியே புறப்படவும்."
                     precautions = ["குடை அல்லது மழைக்கோட்டு எடுத்துச் செல்லவும்", "கூடுதல் பயண நேரத்தை திட்டமிடவும்"]
+                elif is_hindi:
+                    headline = "यात्रा सलाह — मध्यम बारिश की संभावना"
+                    advisory_text = "बारिश के कारण सड़कों पर फिसलन और यातायात धीमा हो सकता है।"
+                    precautions = ["छाता या रेनकोट साथ रखें", "अतिरिक्त समय लेकर चलें"]
                 else:
                     headline = "Commute Advisory — Moderate Rain Expected"
                     advisory_text = "Wet road surfaces and minor transit delays expected along commuter routes."
@@ -358,6 +397,10 @@ class DecisionEngine:
                     headline = "சாதகமான போக்குவரத்து வானிலை"
                     advisory_text = "பயணத்திற்கான வானிலை சாதகமாக உள்ளது. போக்குவரத்து வழக்கம் போல் இயங்கும்."
                     precautions = ["வழக்கமான பயண ஏற்பாடுகள் போதுமானது"]
+                elif is_hindi:
+                    headline = "सामान्य यातायात स्थिति"
+                    advisory_text = "मौसम साफ है और आवागमन सामान्य रहने की उम्मीद है।"
+                    precautions = ["सामान्य यात्रा दिनचर्या लागू होती है", "सड़क व यातायात स्थिति सामान्य"]
                 else:
                     headline = "Normal Commute Conditions"
                     advisory_text = "Weather conditions are clear and conducive to normal transit and road travel."
@@ -379,6 +422,17 @@ class DecisionEngine:
                         "படகு மற்றும் வலைகளைப் பாதுகாப்பான மேடான இடங்களில் கட்டவும்",
                         "மீன்வளத்துறை மற்றும் IMD வானிலை எச்சரிக்கைகளைக் கேட்கவும்"
                     ]
+                elif is_hindi:
+                    headline = "समुद्री मौसम चेतावनी — समुद्र में न जाएं"
+                    advisory_text = (
+                        "तेज हवाएं और समुद्र में ऊंची लहरें उठने की आशंका है। "
+                        "मछुआरों को समुद्र में न जाने की सख्त सलाह दी जाती है।"
+                    )
+                    precautions = [
+                        "गहरे समुद्र में मछली पकड़ने न जाएं",
+                        "नावों और जालों को सुरक्षित ऊंचे स्थानों पर बांधें",
+                        "तटीय रेडियो और IMD समुद्री बुलेटिन को सुनते रहें"
+                    ]
                 else:
                     headline = "Marine Weather Alert — Avoid Venturing into Sea"
                     advisory_text = (
@@ -397,6 +451,10 @@ class DecisionEngine:
                     headline = "சாதகமான கடல் நிலை"
                     advisory_text = "தற்போது கடல் கொந்தளிப்புக்கான எச்சரிக்கைகள் இல்லை. எச்சரிக்கையுடன் தொழிலை மேற்கொள்ளவும்."
                     precautions = ["வானொலி தொடர்பு சாதனங்களை தயாராக வைத்திருக்கவும்"]
+                elif is_hindi:
+                    headline = "अनुकूल समुद्री स्थिति"
+                    advisory_text = "हवा की गति और समुद्र की स्थिति सामान्य परिचालन सीमा के भीतर है।"
+                    precautions = ["मानक लाइफ जैकेट और संचार उपकरण तैयार रखें"]
                 else:
                     headline = "Favorable Marine Conditions"
                     advisory_text = "Wind speed and sea state are currently within normal operational limits."
@@ -415,6 +473,14 @@ class DecisionEngine:
                         "உரங்கள் அல்லது பூச்சிக்கொல்லி தெளிப்பதை ஒத்திவைக்கவும்",
                         "அறுவடை செய்த பயிர்களைப் பாதுகாப்பான இடங்களில் சேமிக்கவும்"
                     ]
+                elif is_hindi:
+                    headline = "कृषि सलाह — भारी बारिश की चेतावनी"
+                    advisory_text = "भारी बारिश के कारण खेतों में जलभराव हो सकता है। उचित जल निकासी की व्यवस्था करें।"
+                    precautions = [
+                        "सिंचाई तुरंत रोक दें",
+                        "उर्वरक और कीटनाशक छिड़काव स्थगित करें",
+                        "कटी हुई फसलों को सुरक्षित ढके हुए स्थान पर रखें"
+                    ]
                 else:
                     headline = "Agricultural Advisory — Heavy Precipitation Ahead"
                     advisory_text = "Heavy rainfall can lead to field inundation and nutrient runoff."
@@ -430,6 +496,10 @@ class DecisionEngine:
                     headline = "விவசாய ஆலோசனை — மிதமான மழை வாய்ப்பு"
                     advisory_text = "மிதமான மழை எதிர்பார்க்கப்படுகிறது. பாசன அளவைக் குறைக்கவும்."
                     precautions = ["பாசனத்தை தற்காலிகமாக குறைக்கவும்", "வடிகால் பாதைகளைச் சரிபார்க்கவும்"]
+                elif is_hindi:
+                    headline = "कृषि सलाह — मध्यम बारिश की संभावना"
+                    advisory_text = "मध्यम बारिश की संभावना है। सिंचाई की आवश्यकता को तदनुसार समायोजित करें।"
+                    precautions = ["नियमित सिंचाई स्थगित रखें", "खेतों के निकास मार्ग खुले रखें"]
                 else:
                     headline = "Agricultural Advisory — Moderate Showers"
                     advisory_text = "Moderate showers expected. Regulate irrigation to avoid excessive soil moisture."
@@ -444,6 +514,10 @@ class DecisionEngine:
                     headline = "இயல்பான விவசாய வானிலை"
                     advisory_text = "விவசாய பணிகளுக்கு வானிலை ஏற்றதாக உள்ளது."
                     precautions = ["வழக்கமான பாசன அட்டவணையைப் பின்பற்றவும்"]
+                elif is_hindi:
+                    headline = "सामान्य कृषि मौसम"
+                    advisory_text = "फसल प्रबंधन और खेती के सामान्य कार्यों के लिए मौसम अनुकूल है।"
+                    precautions = ["सामान्य सिंचाई चक्र जारी रखें"]
                 else:
                     headline = "Standard Agricultural Conditions"
                     advisory_text = "Favorable conditions for routine cultivation and field management."
@@ -462,6 +536,14 @@ class DecisionEngine:
                         "நெடுஞ்சாலை பயணங்களின் போது வேகத்தைக் குறைத்து ஓட்டவும்",
                         "அவசர மருத்துவ மற்றும் உணவுப் பொருட்களை எடுத்துச் செல்லவும்"
                     ]
+                elif is_hindi:
+                    headline = "यात्रा चेतावनी — खराब मौसम"
+                    advisory_text = "मौसम खराब होने के कारण लंबी दूरी की यात्रा में रुकावट आ सकती है।"
+                    precautions = [
+                        "हाइवे और ट्रेन के ताजा शेड्यूल चेक करें",
+                        "गाड़ी चलाते समय गति धीमी रखें",
+                        "बाढ़ संभावित रास्तों से बचें"
+                    ]
                 else:
                     headline = "Travel Alert — Severe Weather Ahead"
                     advisory_text = "Severe weather conditions detected across travel corridors. Significant delays anticipated."
@@ -477,6 +559,10 @@ class DecisionEngine:
                     headline = "பயணத்திற்கான சாதகமான வானிலை"
                     advisory_text = "பயணங்களுக்கு வானிலை சாதகமாக உள்ளது."
                     precautions = ["வழக்கமான பயண ஏற்பாடுகள் போதுமானது"]
+                elif is_hindi:
+                    headline = "यात्रा के लिए अनुकूल मौसम"
+                    advisory_text = "यात्रा और आउटडोर गतिविधियों के लिए मौसम अच्छा है।"
+                    precautions = ["सामान्य यात्रा कार्यक्रम लागू होता है"]
                 else:
                     headline = "Favorable Travel Conditions"
                     advisory_text = "Favorable conditions for intercity and outdoor travel."
@@ -495,6 +581,14 @@ class DecisionEngine:
                         "நீர் இறைக்கும் இயந்திரங்கள் மற்றும் தற்காலிக முகாம்களைத் தயார் செய்யவும்",
                         "IMD மற்றும் மாநில அவசர கட்டுப்பாட்டு மைய அறிவிப்புகளைத் தொடர்ந்து கண்காணிக்கவும்"
                     ]
+                elif is_hindi:
+                    headline = "आपदा प्रबंधन सतर्कता चेतावनी"
+                    advisory_text = "गंभीर मौसम के प्रभाव को देखते हुए आपातकालीन दल स्टैंडबाय पर रहें।"
+                    precautions = [
+                        "निचले संवेदनशील क्षेत्रों की निगरानी करें",
+                        "जल निकासी पंप और राहत सामग्री तैयार रखें",
+                        "IMD रडार और आधिकारिक चेतावनी बुलेटिन ट्रैक करें"
+                    ]
                 else:
                     headline = "Disaster Response Alert — Standby Mobilization"
                     advisory_text = "High-impact hazard criteria met. Pre-position emergency dewatering and rescue assets."
@@ -510,6 +604,10 @@ class DecisionEngine:
                     headline = "இயல்பான பேரிடர் கண்காணிப்பு"
                     advisory_text = "தற்போது தீவிர வானிலை அச்சுறுத்தல்கள் இல்லை. வழக்கமான கண்காணிப்பு தொடர்கிறது."
                     precautions = ["வழக்கமான கண்காணிப்பு நடைமுறைகளைப் பின்பற்றவும்"]
+                elif is_hindi:
+                    headline = "सामान्य निगरानी स्थिति"
+                    advisory_text = "कोई सक्रिय आपदा खतरा नहीं है। नियमित निगरानी जारी रखें।"
+                    precautions = ["मानक स्थिति निगरानी बनाए रखें", "कोई आपातकालीन लामबंदी आवश्यक नहीं"]
                 else:
                     headline = "Routine Situational Monitoring"
                     advisory_text = "No active disaster hazards detected. Maintain routine background surveillance."
@@ -528,6 +626,14 @@ class DecisionEngine:
                         "Keep emergency lights and phones charged",
                         "Follow official government guidelines"
                     ]
+                elif is_hindi:
+                    headline = "गंभीर मौसम चेतावनी सक्रिय"
+                    advisory_text = "खराब मौसम की स्थिति बनी हुई है। अनावश्यक यात्रा से बचें और स्थानीय प्रशासन के निर्देशों का पालन करें।"
+                    precautions = [
+                        "तूफान के दौरान घर के अंदर रहें",
+                        "इमरजेंसी लाइट और फोन चार्ज रखें",
+                        "सरकारी दिशा-निर्देशों का पालन करें"
+                    ]
                 else:
                     headline = "Severe Weather Alert Active"
                     advisory_text = "Adverse weather conditions detected. Avoid non-essential travel and follow local authority advisories."
@@ -543,6 +649,10 @@ class DecisionEngine:
                     headline = "மிதமான வானிலை எச்சரிக்கை"
                     advisory_text = "வானிலையில் மாற்றங்கள் உள்ளன. எச்சரிக்கையுடன் செயல்படவும்."
                     precautions = ["குடை எடுத்துச் செல்லவும்", "வானிலை மாற்றங்களைக் கவனிக்கவும்"]
+                elif is_hindi:
+                    headline = "मध्यम मौसम सलाह"
+                    advisory_text = "मौसम में बदलाव संभव है। बुनियादी सावधानी बरतें।"
+                    precautions = ["छाता साथ रखें", "मौसम पर नजर रखें"]
                 else:
                     headline = "Moderate Weather Conditions"
                     advisory_text = "Variable weather conditions expected. Carry basic outdoor protection."
@@ -554,6 +664,10 @@ class DecisionEngine:
                     headline = "மிதமான வானிலை"
                     advisory_text = "தீவிர வானிலை ஆபத்துகள் ஏதுமில்லை."
                     precautions = ["Standard outdoor precautions"]
+                elif is_hindi:
+                    headline = "सुखद / सामान्य मौसम"
+                    advisory_text = "आपके क्षेत्र में कोई गंभीर मौसम खतरा नहीं है।"
+                    precautions = ["मानक बाहरी सावधानियां"]
                 else:
                     headline = "Pleasant / Moderate Weather"
                     advisory_text = "No severe weather hazards detected for your area."
@@ -561,7 +675,12 @@ class DecisionEngine:
 
         # If source conflict detected, append conservative note to risk summary
         if "SOURCE_DISAGREEMENT" in reason_codes:
-            risk_summary += " (Note: Disagreement detected across observation sources; exercising conservative caution.)"
+            if is_tamil:
+                risk_summary += " (குறிப்பு: வானிலை தகவல் மூலங்களுக்கிடையே முரண்பாடு உள்ளது; எச்சரிக்கையுடன் செயல்படவும்.)"
+            elif is_hindi:
+                risk_summary += " (नोट: मौसम स्रोतों के बीच भिन्नता पाई गई है; सतर्कता बरतने की सलाह दी जाती है।)"
+            else:
+                risk_summary += " (Note: Disagreement detected across observation sources; exercising conservative caution.)"
 
         timestamp_str = f"Data updated {reasoning.data_age_minutes}m ago ({reasoning.freshness.value})"
         source_str = f"Source: {', '.join(reasoning.sources_used) if reasoning.sources_used else 'IMD'}"

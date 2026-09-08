@@ -62,8 +62,11 @@ class GroundedLLMGenerator:
             reference_knowledge=reference_knowledge
         )
 
+        from ai.llm.multilingual import resolve_target_language
+        target_lang = resolve_target_language(nlu.detected_language, nlu.original_text)
+
         system_prompt = SYSTEM_INSTRUCTION.format(
-            target_language=nlu.detected_language.value,
+            target_language=target_lang.value,
             persona=advisory.persona.value,
             source=", ".join(reasoning.sources_used)
         )
@@ -133,16 +136,17 @@ class GroundedLLMGenerator:
         context: Optional[GroundedContext] = None
     ) -> str:
         """Deterministic, grounded template generator for offline/resilience/guard failure use."""
-        is_tamil = nlu.detected_language in (LanguageEnum.TA, LanguageEnum.TANGLISH)
+        from ai.llm.multilingual import resolve_target_language, translate_condition
+        target_lang = resolve_target_language(nlu.detected_language, nlu.original_text)
         loc = reasoning.location
-
-        temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "கிடைக்கவில்லை" if is_tamil else "unavailable"
-        rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "கிடைக்கவில்லை" if is_tamil else "unavailable"
-        cond_str = weather.weather_condition if (weather and weather.weather_condition) else "தெரியவில்லை" if is_tamil else "unavailable"
 
         lines: List[str] = []
 
-        if is_tamil:
+        if target_lang == LanguageEnum.TA:
+            temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "கிடைக்கவில்லை"
+            rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "கிடைக்கவில்லை"
+            cond_str = translate_condition(weather.weather_condition, LanguageEnum.TA) if weather else "தெரியவில்லை"
+
             if reasoning.active_warnings:
                 alert = reasoning.active_warnings[0]
                 lines.append(f"⚠️ [அதிகாரப்பூர்வ IMD எச்சரிக்கை] {alert.title}: {alert.description}")
@@ -159,7 +163,38 @@ class GroundedLLMGenerator:
             lines.append(
                 f"\n(தகவல் மூலம்: {', '.join(reasoning.sources_used)} | புதுப்பிக்கப்பட்டது {reasoning.data_age_minutes} நிமிடங்களுக்கு முன் | தர நம்பகத்தன்மை: {reasoning.consistency_score}/100)"
             )
+        elif target_lang == LanguageEnum.HI:
+            temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "उपलब्ध नहीं"
+            rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "उपलब्ध नहीं"
+            cond_str = translate_condition(weather.weather_condition, LanguageEnum.HI) if weather else "उपलब्ध नहीं"
+
+            if reasoning.active_warnings:
+                alert = reasoning.active_warnings[0]
+                lines.append(f"⚠️ [आधिकारिक IMD चेतावनी] {alert.title}: {alert.description}")
+
+            if weather and weather.temperature is not None and weather.rain_probability is not None:
+                lines.append(
+                    f"{loc} में वर्तमान तापमान {temp_str} है और बारिश की संभावना {rain_str} है (मौसम: {cond_str})।"
+                )
+            else:
+                lines.append(
+                    f"{loc} में वर्तमान अवलोकन डेटा आंशिक रूप से अनुपलब्ध है (तापमान: {temp_str}, बारिश की संभावना: {rain_str})।"
+                )
+
+            lines.append(f"\nसलाह: {advisory.advisory_text}")
+
+            if advisory.key_precautions:
+                precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
+                lines.append(f"\nमुख्य सावधानियां:{precautions_str}")
+
+            lines.append(
+                f"\n(स्रोत: {', '.join(reasoning.sources_used)} | {reasoning.data_age_minutes} मिनट पहले अपडेट किया गया | डेटा गुणवत्ता स्कोर: {reasoning.consistency_score}/100)"
+            )
         else:
+            temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "unavailable"
+            rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "unavailable"
+            cond_str = weather.weather_condition if (weather and weather.weather_condition) else "unavailable"
+
             if reasoning.active_warnings:
                 alert = reasoning.active_warnings[0]
                 lines.append(f"⚠️ [OFFICIAL IMD WARNING] {alert.title}: {alert.description}")

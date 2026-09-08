@@ -35,6 +35,17 @@ def verify_grounding(response_text: str, context: GroundedContext) -> Tuple[bool
             "warning has been cancelled",
             "alert is false",
             "ignore the warning",
+            # Tamil
+            "எச்சரிக்கை இல்லை",
+            "ஆபத்து இல்லை",
+            "முற்றிலும் பாதுகாப்பானது",
+            "எச்சரிக்கையை புறக்கணிக்கவும்",
+            # Hindi
+            "कोई चेतावनी नहीं",
+            "कोई खतरा नहीं",
+            "बिल्कुल सुरक्षित",
+            "चेतावनी रद्द",
+            "चेतावनी को नजरअंदाज करें",
         ]
         for phrase in contradiction_phrases:
             if phrase in text_lower:
@@ -53,6 +64,16 @@ def verify_grounding(response_text: str, context: GroundedContext) -> Tuple[bool
             "official evacuation order",
             "official warning issued",
             "official warning active",
+            # Tamil
+            "சிவப்பு எச்சரிக்கை",
+            "ரெட் அலர்ட்",
+            "ஆரஞ்சு எச்சரிக்கை",
+            "அதிகாரப்பூர்வ வெளியேற்ற உத்தரவு",
+            # Hindi
+            "रेड अलर्ट",
+            "लाल चेतावनी",
+            "ऑरेंज चेतावनी",
+            "आधिकारिक निकासी आदेश",
         ]
         for phrase in invented_warning_phrases:
             if phrase in text_lower:
