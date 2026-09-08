@@ -146,10 +146,14 @@ class WeatherReasoningResult(BaseModel):
     location: str
     freshness: FreshnessStatusEnum
     data_age_minutes: int
+    data_complete: bool = True
+    missing_fields: List[str] = Field(default_factory=list)
     source_agreement: SourceAgreementEnum
     consistency_score: int = Field(ge=0, le=100, description="0-100 composite indicator")
+    contradictions: List[str] = Field(default_factory=list)
     active_warnings: List[OfficialAlert] = Field(default_factory=list)
     detected_hazards: List[HazardDetection] = Field(default_factory=list)
+    ai_detected_hazards: List[HazardDetection] = Field(default_factory=list)
     overall_risk: RiskLevelEnum
     uncertainty_note: Optional[str] = None
     sources_used: List[str] = Field(default_factory=list)

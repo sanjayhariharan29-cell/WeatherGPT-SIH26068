@@ -39,7 +39,9 @@ from ai.reasoner import (
     WeatherReasoner,
     calculate_consistency_score,
     check_data_freshness,
+    detect_contradictions,
     detect_hazards,
+    evaluate_completeness,
     evaluate_source_agreement,
 )
 from ai.decision import DecisionEngine
@@ -89,6 +91,8 @@ __all__ = [
     "detect_hazards",
     "evaluate_source_agreement",
     "calculate_consistency_score",
+    "detect_contradictions",
+    "evaluate_completeness",
     # Decision
     "DecisionEngine",
     # Validator
