@@ -183,6 +183,20 @@ class WeatherGPTApiClient {
     return await this.request(`/locations/search?q=${encodeURIComponent(query)}`);
   }
 
+  async resolveLocation(query = null, latitude = null, longitude = null) {
+    return await this.request("/locations/resolve", {
+      method: "POST",
+      body: JSON.stringify({ query, latitude, longitude })
+    });
+  }
+
+  async reverseGeocode(latitude, longitude, accuracy = null) {
+    return await this.request("/locations/reverse", {
+      method: "POST",
+      body: JSON.stringify({ latitude, longitude, accuracy })
+    });
+  }
+
   // Conversational Chat API Methods
   async sendChatMessage(message, persona = "student", locationName = "Coimbatore", conversationId = null, language = "ta") {
     const payload = {

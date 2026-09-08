@@ -32,6 +32,11 @@ from backend.schemas.auth import (
     SavedLocationCreate,
     SavedLocationResponse
 )
+from backend.schemas.locations import (
+    LocationResolveRequest,
+    ReverseGeocodeRequest,
+    LocationDetailResponse
+)
 
 __all__ = [
     "CurrentWeatherResponse",
@@ -59,5 +64,8 @@ __all__ = [
     "UserUpdateRequest",
     "UserPreferenceSchema",
     "SavedLocationCreate",
-    "SavedLocationResponse"
+    "SavedLocationResponse",
+    "LocationResolveRequest",
+    "ReverseGeocodeRequest",
+    "LocationDetailResponse"
 ]

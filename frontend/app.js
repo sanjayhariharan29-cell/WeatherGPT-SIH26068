@@ -89,6 +89,11 @@ function setupEventListeners() {
   document.getElementById("locationSelect").addEventListener("change", () => loadCurrentWeather(true));
   document.getElementById("personaSelect").addEventListener("change", () => loadCurrentWeather(true));
   
+  const geoBtn = document.getElementById("geoBtn");
+  if (geoBtn) {
+    geoBtn.addEventListener("click", handleDeviceGeolocation);
+  }
+
   const refreshBtn = document.getElementById("refreshBtn");
   if (refreshBtn) {
     refreshBtn.addEventListener("click", () => loadCurrentWeather(true));
@@ -105,6 +110,72 @@ function setupEventListeners() {
   });
 
   document.getElementById("voiceBtn").addEventListener("click", handleVoiceClick);
+}
+
+// Device Geolocation Handler (GPS / Mobile Location)
+function handleDeviceGeolocation() {
+  const geoBtn = document.getElementById("geoBtn");
+  if (!navigator.geolocation) {
+    alert("Geolocation is not supported by your browser or device. Please select location manually.");
+    return;
+  }
+
+  if (geoBtn) geoBtn.textContent = "🛰️ Locating...";
+
+  navigator.geolocation.getCurrentPosition(
+    async (position) => {
+      if (geoBtn) geoBtn.textContent = "📍 GPS";
+      const lat = position.coords.latitude;
+      const lon = position.coords.longitude;
+      const accuracy = position.coords.accuracy;
+
+      try {
+        const locDetail = await window.apiClient.reverseGeocode(lat, lon, accuracy);
+        const locSelect = document.getElementById("locationSelect");
+        
+        // Check if option already exists
+        let optionExists = false;
+        for (let i = 0; i < locSelect.options.length; i++) {
+          if (locSelect.options[i].value.toLowerCase() === locDetail.name.toLowerCase()) {
+            locSelect.selectedIndex = i;
+            optionExists = true;
+            break;
+          }
+        }
+
+        if (!optionExists) {
+          const newOpt = document.createElement("option");
+          newOpt.value = locDetail.name;
+          newOpt.textContent = `📍 ${locDetail.name} (GPS)`;
+          locSelect.appendChild(newOpt);
+          locSelect.value = locDetail.name;
+        }
+
+        loadCurrentWeather(true);
+      } catch (err) {
+        alert(`Location resolved to (${lat.toFixed(2)}, ${lon.toFixed(2)}). Loading weather telemetry.`);
+        loadCurrentWeather(true);
+      }
+    },
+    (error) => {
+      if (geoBtn) geoBtn.textContent = "📍 GPS";
+      switch (error.code) {
+        case error.PERMISSION_DENIED:
+          alert("Location permission denied. Please select location manually from the dropdown.");
+          break;
+        case error.TIMEOUT:
+          alert("Device location request timed out. Please select location manually.");
+          break;
+        case error.POSITION_UNAVAILABLE:
+          alert("Location information unavailable on this device. Please select location manually.");
+          break;
+        default:
+          alert("Could not determine device location. Using manual location selection.");
+          break;
+      }
+    },
+    { timeout: 8000, enableHighAccuracy: true }
+  );
 }
 
 function setupAutoRefresh() {

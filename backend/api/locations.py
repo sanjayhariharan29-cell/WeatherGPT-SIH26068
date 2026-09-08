@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy.orm import Session
 
@@ -6,6 +6,11 @@ from backend.db.session import get_db
 from backend.db.models import User, SavedLocation
 from backend.services.geocoding_service import GeocodingService
 from backend.schemas.auth import SavedLocationCreate, SavedLocationResponse
+from backend.schemas.locations import (
+    LocationResolveRequest,
+    ReverseGeocodeRequest,
+    LocationDetailResponse
+)
 from backend.core.security import get_current_user
 
 router = APIRouter(prefix="/locations", tags=["Locations"])
@@ -17,6 +22,28 @@ async def search_locations(q: str = Query("Coimbatore", description="Search quer
     results = await geocoding.search_locations(q)
     return {"results": results}
 
+@router.post("/resolve", response_model=LocationDetailResponse)
+async def resolve_location(req: LocationResolveRequest):
+    """Resolves location query string or coordinates into location metadata and timezone."""
+    if req.latitude is not None and req.longitude is not None:
+        try:
+            return await geocoding.reverse_geocode(req.latitude, req.longitude)
+        except ValueError as e:
+            raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+    
+    if req.query:
+        return await geocoding.resolve_location(req.query)
+
+    return await geocoding.resolve_location("Coimbatore")
+
+@router.post("/reverse", response_model=LocationDetailResponse)
+async def reverse_geocode_location(req: ReverseGeocodeRequest):
+    """Converts device GPS coordinates into location name, district, state, and timezone."""
+    try:
+        return await geocoding.reverse_geocode(req.latitude, req.longitude, req.accuracy)
+    except ValueError as e:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(e))
+
 @router.post("/saved", response_model=SavedLocationResponse, status_code=status.HTTP_201_CREATED)
 async def create_saved_location(
     req: SavedLocationCreate,
@@ -24,6 +51,10 @@ async def create_saved_location(
     db: Session = Depends(get_db)
 ):
     """Protected endpoint: Saves a preferred location for the authenticated user."""
+    # Coordinate validation
+    if not (-90.0 <= req.latitude <= 90.0) or not (-180.0 <= req.longitude <= 180.0):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="Invalid latitude or longitude coordinates.")
+
     loc = SavedLocation(
         user_id=current_user.id,
         name=req.name,
