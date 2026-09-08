@@ -135,9 +135,15 @@ class NLUResult(BaseModel):
 
 class HazardDetection(BaseModel):
     hazard_type: str
-    detected: bool
+    detected: bool = True
     severity: RiskLevelEnum
     details: str
+    evidence: List[str] = Field(default_factory=list)
+    source: Optional[str] = None
+    is_official_warning: bool = False
+    current_or_forecast: str = Field(default="current", description="'current', 'forecast', or 'both'")
+    effective_from: Optional[datetime] = None
+    effective_until: Optional[datetime] = None
 
 
 class WeatherReasoningResult(BaseModel):

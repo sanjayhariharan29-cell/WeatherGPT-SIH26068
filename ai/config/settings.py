@@ -38,13 +38,24 @@ class MeteorologicalThresholds:
     heavy_rain_prob_threshold: float = 80.0
     moderate_rain_prob_threshold: float = 60.0
     heavy_rain_mm_threshold: float = 64.5
+    extreme_rain_mm_threshold: float = 204.5
+    very_heavy_rain_mm_threshold: float = 115.6
+    moderate_rain_mm_threshold: float = 15.6
 
     # Wind speed thresholds (km/h)
     gale_wind_threshold: float = 62.0
     strong_wind_threshold: float = 40.0
+    severe_gale_wind_threshold: float = 88.0
 
     # Temperature threshold (°C)
     heatwave_temp_threshold: float = 40.0
+    severe_heatwave_temp_threshold: float = 45.0
+    coldwave_temp_threshold: float = 10.0
+    severe_coldwave_temp_threshold: float = 4.0
+
+    # Visibility thresholds (meters)
+    low_visibility_meters_threshold: float = 1000.0
+    dense_fog_visibility_meters_threshold: float = 200.0
 
 
 @dataclass

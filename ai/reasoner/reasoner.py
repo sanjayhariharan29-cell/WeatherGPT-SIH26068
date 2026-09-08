@@ -45,6 +45,14 @@ class WeatherReasoner:
 
         # 1. Handle Case Where Weather Data is Missing / Null
         if not primary_weather:
+            all_hazards = detect_hazards(
+                current_weather=None,
+                forecast=forecast,
+                active_alerts=active_alerts
+            )
+            ai_detected_hazards = [
+                h for h in all_hazards if not h.is_official_warning and not h.hazard_type.startswith("OFFICIAL_WARNING_")
+            ]
             return WeatherReasoningResult(
                 evaluated_at=now,
                 location="Unknown",
@@ -56,8 +64,8 @@ class WeatherReasoner:
                 consistency_score=0,
                 contradictions=[],
                 active_warnings=active_alerts,
-                detected_hazards=[],
-                ai_detected_hazards=[],
+                detected_hazards=all_hazards,
+                ai_detected_hazards=ai_detected_hazards,
                 overall_risk=RiskLevelEnum.LOW if not active_alerts else active_alerts[0].severity,
                 uncertainty_note="Primary weather observation data is unavailable.",
                 sources_used=[]
@@ -95,7 +103,7 @@ class WeatherReasoner:
 
         # Separate AI-detected hazards from official authoritative warnings
         ai_detected_hazards = [
-            h for h in all_hazards if not h.hazard_type.startswith("OFFICIAL_WARNING_")
+            h for h in all_hazards if not h.is_official_warning and not h.hazard_type.startswith("OFFICIAL_WARNING_")
         ]
 
         # 7. Determine Overall Risk Level
