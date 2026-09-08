@@ -1,7 +1,7 @@
 """Master Weather Service Manager.
 
 Orchestrates IMD (Primary), Open-Meteo (Secondary), NASA POWER (Climate/Historical),
-CurrentWeatherService, ForecastService, and Geocoding services behind a unified architecture.
+CurrentWeatherService, ForecastService, AlertService, and Geocoding services behind a unified architecture.
 """
 
 from typing import Dict, Any, List, Optional, Tuple
@@ -13,6 +13,7 @@ from backend.services.nasa_power_adapter import NasaPowerAdapter
 from backend.services.geocoding_service import GeocodingService
 from backend.services.current_weather_service import CurrentWeatherService
 from backend.services.forecast_service import ForecastService
+from backend.services.alert_service import AlertService
 from backend.services.base_provider import BaseWeatherProvider
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
@@ -41,6 +42,11 @@ class WeatherManager:
             geocoding_service=self.geocoding
         )
         self.forecast_service = ForecastService(
+            primary_provider=self.imd,
+            secondary_provider=self.open_meteo,
+            geocoding_service=self.geocoding
+        )
+        self.alert_service = AlertService(
             primary_provider=self.imd,
             secondary_provider=self.open_meteo,
             geocoding_service=self.geocoding
@@ -79,19 +85,13 @@ class WeatherManager:
         self,
         lat: Optional[float] = None,
         lon: Optional[float] = None,
-        location_name: str = "Coimbatore"
+        location_name: str = "Coimbatore",
+        active_only: bool = True,
+        db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
         """Returns official meteorological alerts."""
-        loc = await self.geocoding.resolve_location(location_name)
-        latitude = lat if lat is not None else loc["latitude"]
-        longitude = lon if lon is not None else loc["longitude"]
-
-        alerts = await self.imd.get_official_alerts(latitude, longitude, loc["name"])
-        return {
-            "location": loc["name"],
-            "alerts": [alert.model_dump() for alert in alerts],
-            "source": f"{self.imd.name} Official"
-        }
+        res = await self.alert_service.fetch_alerts(lat, lon, location_name, active_only, db_session)
+        return res.model_dump()
 
     async def get_history(
         self,
@@ -138,8 +138,6 @@ class WeatherManager:
 
         ai_obs = await self.current_service.get_ai_weather_record(latitude, longitude, loc["name"])
         ai_forecasts = await self.forecast_service.get_ai_forecast_items(latitude, longitude, loc["name"])
-        alerts = await self.imd.get_official_alerts(latitude, longitude, loc["name"])
-
-        ai_alerts = [a.to_ai_official_alert() for a in alerts]
+        ai_alerts = await self.alert_service.get_ai_official_alerts(latitude, longitude, loc["name"])
 
         return ai_obs, ai_forecasts, ai_alerts

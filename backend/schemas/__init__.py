@@ -8,7 +8,9 @@ from backend.schemas.weather import (
     WeatherUnitsSchema,
     ForecastItemSchema,
     DailyForecastItemSchema,
-    ForecastResponse
+    ForecastResponse,
+    AlertItemSchema,
+    AlertResponse
 )
 
 __all__ = [
@@ -19,5 +21,7 @@ __all__ = [
     "WeatherUnitsSchema",
     "ForecastItemSchema",
     "DailyForecastItemSchema",
-    "ForecastResponse"
+    "ForecastResponse",
+    "AlertItemSchema",
+    "AlertResponse"
 ]

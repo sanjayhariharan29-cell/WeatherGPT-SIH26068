@@ -1,4 +1,4 @@
-"""Pydantic API Response Schemas for Current Weather, Forecast Engine, and Weather Services."""
+"""Pydantic API Response Schemas for Current Weather, Forecast Engine, Alert Engine, and Weather Services."""
 
 from typing import Dict, Any, List, Optional
 from pydantic import BaseModel, Field
@@ -97,4 +97,32 @@ class ForecastResponse(BaseModel):
     source: str = Field(description="Forecast provider attribution")
     units: WeatherUnitsSchema = Field(default_factory=WeatherUnitsSchema)
     issued_at: str = Field(description="Forecast issuance ISO 8601 UTC timestamp")
+    retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+
+
+class AlertItemSchema(BaseModel):
+    """Normalized official severe weather alert item schema."""
+    alert_type: str = Field(description="Category e.g., heavy_rain_cyclone, thunderstorm_warning")
+    severity: str = Field(description="Standardized severity: low, medium, high, extreme")
+    title: str = Field(description="Warning title narrative")
+    description: str = Field(description="Detailed official warning description")
+    instructions: Optional[str] = Field(default=None, description="Official emergency safety instructions")
+    area: Optional[str] = Field(default=None, description="Affected geographical zone/district")
+    source: str = Field(default="IMD", description="Official meteorological authority")
+    is_official: bool = Field(default=True, description="Flag confirming official meteorological warning")
+    is_active: bool = Field(default=True, description="Flag indicating currently active warning")
+    issued_at: str = Field(description="Issuance ISO 8601 UTC timestamp")
+    expires_at: str = Field(description="Expiration ISO 8601 UTC timestamp")
+    updated_at: Optional[str] = Field(default=None, description="Update ISO 8601 UTC timestamp")
+    retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+
+
+class AlertResponse(BaseModel):
+    """Normalized Weather Alert Engine API Response Contract."""
+    location: str = Field(description="Location name string")
+    latitude: float
+    longitude: float
+    alerts: List[AlertItemSchema] = Field(default_factory=list, description="Official severe weather alerts")
+    active_count: int = Field(default=0, description="Count of currently active alerts")
+    source: str = Field(default="IMD Official", description="Source authority attribution")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")

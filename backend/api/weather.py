@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.services.weather_manager import WeatherManager
-from backend.schemas.weather import CurrentWeatherResponse, ForecastResponse
+from backend.schemas.weather import CurrentWeatherResponse, ForecastResponse, AlertResponse
 from backend.db.session import get_db
 
 router = APIRouter(prefix="/weather", tags=["Weather"])
@@ -61,14 +61,27 @@ async def get_weather_forecast(
         raise HTTPException(status_code=500, detail=f"Forecast retrieval error: {str(e)}")
 
 
-@router.get("/alerts")
+@router.get("/alerts", response_model=AlertResponse)
 async def get_weather_alerts(
-    lat: Optional[float] = Query(None, description="Latitude"),
-    lon: Optional[float] = Query(None, description="Longitude"),
-    location: str = Query("Coimbatore", description="Location name")
+    lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
+    lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
+    location: str = Query("Coimbatore", description="Location name"),
+    active_only: bool = Query(True, description="Filter currently active alerts only"),
+    db: Session = Depends(get_db)
 ):
     """Returns official IMD disaster warnings and safety alerts."""
-    return await manager.get_alerts(lat, lon, location)
+    if lat is not None and (lat < -90.0 or lat > 90.0):
+        raise HTTPException(status_code=400, detail="Latitude must be between -90 and +90 degrees.")
+
+    if lon is not None and (lon < -180.0 or lon > 180.0):
+        raise HTTPException(status_code=400, detail="Longitude must be between -180 and +180 degrees.")
+
+    try:
+        return await manager.get_alerts(lat, lon, location, active_only=active_only, db_session=db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Alerts retrieval error: {str(e)}")
 
 
 @router.get("/history")
