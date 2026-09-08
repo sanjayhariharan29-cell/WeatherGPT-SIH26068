@@ -78,15 +78,24 @@ class WeatherGPTPipeline:
         ref_chunks = retriever.retrieve(search_query, top_k=2, language=lang_filter)
 
         # 5. Grounded LLM Generation
-        raw_answer = self.llm.generate(
-            nlu=nlu,
-            weather=weather,
-            reasoning=reasoning,
-            advisory=advisory,
-            forecast=forecast,
-            safety_guidance=safety_notes,
-            reference_knowledge=ref_chunks
-        )
+        try:
+            raw_answer = self.llm.generate(
+                nlu=nlu,
+                weather=weather,
+                reasoning=reasoning,
+                advisory=advisory,
+                forecast=forecast,
+                safety_guidance=safety_notes,
+                reference_knowledge=ref_chunks
+            )
+        except Exception:
+            raw_answer = self.llm._generate_fallback(
+                nlu=nlu,
+                weather=weather,
+                reasoning=reasoning,
+                advisory=advisory,
+                target_language=target_lang,
+            )
 
         # 6. Response Validation & Hallucination Guard
         validation = ResponseValidator.validate_response(

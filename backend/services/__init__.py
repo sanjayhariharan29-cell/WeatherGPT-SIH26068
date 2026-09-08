@@ -9,6 +9,7 @@ from backend.services.current_weather_service import CurrentWeatherService
 from backend.services.forecast_service import ForecastService
 from backend.services.alert_service import AlertService
 from backend.services.historical_weather_service import HistoricalWeatherService
+from backend.services.chat_integration_service import ChatIntegrationService
 from backend.services.weather_manager import WeatherManager
 from backend.services.cache import ProviderCache, provider_cache
 from backend.services.exceptions import (
@@ -37,6 +38,7 @@ __all__ = [
     "ForecastService",
     "AlertService",
     "HistoricalWeatherService",
+    "ChatIntegrationService",
     "WeatherManager",
     "ProviderCache",
     "provider_cache",

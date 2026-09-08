@@ -1,0 +1,238 @@
+"""AI Integration Service Layer for WeatherGPT.
+
+Connects backend weather data layer (current weather, forecast, official warnings,
+historical archives) directly to Person 1's AI reasoning, hazard detection, advisory,
+RAG safety retrieval, and grounded LLM generation pipeline.
+"""
+
+from datetime import datetime, timezone
+from typing import Dict, Any, List, Optional
+from sqlalchemy.orm import Session
+
+from backend.services.weather_manager import WeatherManager
+from backend.services.exceptions import ProviderError
+from backend.db.models import Conversation, Message, Advisory
+from ai.pipeline import WeatherGPTPipeline
+from ai.models import (
+    WeatherRecord as AIWeatherRecord,
+    ForecastItem as AIForecastItem,
+    OfficialAlert as AIOfficialAlert,
+    LocationInfo as AILocationInfo,
+    PersonaEnum,
+    RiskLevelEnum
+)
+
+
+class ChatIntegrationService:
+    """Service layer connecting backend weather data engines to Person 1's AI Pipeline."""
+
+    def __init__(
+        self,
+        weather_manager: Optional[WeatherManager] = None,
+        ai_pipeline: Optional[WeatherGPTPipeline] = None
+    ):
+        self.weather_mgr = weather_manager or WeatherManager()
+        self.ai_pipeline = ai_pipeline or WeatherGPTPipeline()
+
+    def validate_coordinates(self, lat: Optional[float], lon: Optional[float]) -> None:
+        """Validates latitude and longitude geographic bounds."""
+        if lat is not None:
+            if not isinstance(lat, (int, float)) or lat < -90.0 or lat > 90.0:
+                raise ValueError(f"Invalid latitude {lat}. Latitude must be between -90 and +90 degrees.")
+
+        if lon is not None:
+            if not isinstance(lon, (int, float)) or lon < -180.0 or lon > 180.0:
+                raise ValueError(f"Invalid longitude {lon}. Longitude must be between -180 and +180 degrees.")
+
+    async def handle_chat_request(
+        self,
+        message: str,
+        location_name: str = "Coimbatore",
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        persona: str = "student",
+        language: str = "ta",
+        conversation_id: Optional[str] = None,
+        db_session: Optional[Session] = None
+    ) -> Dict[str, Any]:
+        """Orchestrates location resolution, backend weather data retrieval, AI reasoning, and persistence."""
+        # 1. Validate Input Coordinates
+        self.validate_coordinates(lat, lon)
+
+        # 2. Resolve Geocoding Location
+        loc = await self.weather_mgr.geocoding.resolve_location(location_name)
+        resolved_lat = lat if lat is not None else loc["latitude"]
+        resolved_lon = lon if lon is not None else loc["longitude"]
+        resolved_name = loc["name"]
+        now_dt = datetime.now(timezone.utc)
+
+        # 3. Fetch Weather Intelligence (Current, Forecast, Alerts)
+        is_data_available = True
+        data_error_detail: Optional[str] = None
+
+        try:
+            current_resp = await self.weather_mgr.current_service.fetch_current_weather(
+                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
+            )
+
+            primary_obs = AIWeatherRecord(
+                location=AILocationInfo(
+                    name=current_resp.location.name,
+                    latitude=current_resp.location.latitude,
+                    longitude=current_resp.location.longitude,
+                    district=current_resp.location.district,
+                    state=current_resp.location.state
+                ),
+                observed_at=datetime.fromisoformat(current_resp.observed_at),
+                retrieved_at=datetime.fromisoformat(current_resp.retrieved_at),
+                temperature=current_resp.weather.temperature,
+                humidity=current_resp.weather.humidity,
+                rain_probability=current_resp.weather.rain_probability,
+                wind_speed=current_resp.weather.wind_speed,
+                weather_condition=current_resp.weather.condition,
+                source=current_resp.source,
+                rainfall_amount_mm=current_resp.weather.rainfall_mm
+            )
+
+            secondary_obs = AIWeatherRecord(
+                location=primary_obs.location,
+                observed_at=primary_obs.observed_at,
+                retrieved_at=primary_obs.retrieved_at,
+                temperature=current_resp.comparison.secondary_temperature,
+                humidity=70.0,
+                rain_probability=current_resp.comparison.secondary_rain_probability,
+                wind_speed=15.0,
+                weather_condition=current_resp.weather.condition,
+                source="Open-Meteo Secondary"
+            )
+
+            forecast_items = await self.weather_mgr.forecast_service.get_ai_forecast_items(
+                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
+            )
+
+            official_alerts = await self.weather_mgr.alert_service.get_ai_official_alerts(
+                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
+            )
+
+            weather_summary = current_resp.weather.model_dump()
+            alerts_summary = [a.model_dump() for a in official_alerts]
+
+        except (ProviderError, Exception) as exc:
+            # Handle Provider Failure / Data Unavailability cleanly
+            is_data_available = False
+            data_error_detail = str(exc)
+
+            loc_info = AILocationInfo(name=resolved_name, latitude=resolved_lat, longitude=resolved_lon)
+            primary_obs = AIWeatherRecord(
+                location=loc_info,
+                observed_at=now_dt,
+                retrieved_at=now_dt,
+                temperature=0.0,
+                humidity=0.0,
+                rain_probability=0.0,
+                wind_speed=0.0,
+                weather_condition="Data Unavailable",
+                source="DATA_UNAVAILABLE"
+            )
+            secondary_obs = None
+            forecast_items = []
+            official_alerts = []
+            weather_summary = {
+                "temperature": None,
+                "humidity": None,
+                "rain_probability": None,
+                "wind_speed": None,
+                "condition": "Data Unavailable"
+            }
+            alerts_summary = []
+
+        # 4. Resolve Persona Enum
+        persona_enum = None
+        if persona.lower() in [p.value for p in PersonaEnum]:
+            persona_enum = PersonaEnum(persona.lower())
+        else:
+            persona_enum = PersonaEnum.GENERAL
+
+        conv_id = conversation_id or "default"
+
+        # 5. Process through Person 1's WeatherGPTPipeline
+        pipeline_result = self.ai_pipeline.process_query(
+            message=message,
+            weather=primary_obs,
+            forecast=forecast_items,
+            active_alerts=official_alerts,
+            secondary_weather=secondary_obs,
+            persona=persona_enum,
+            conversation_id=conv_id
+        )
+
+        # Explicitly distinguish DATA_UNAVAILABLE from NO_HAZARD_DETECTED
+        data_status = "OK" if is_data_available else "DATA_UNAVAILABLE"
+
+        # 6. Database Persistence
+        if db_session is not None:
+            if not conversation_id:
+                conv = Conversation(title=message[:30])
+                db_session.add(conv)
+                db_session.commit()
+                db_session.refresh(conv)
+                conv_id = conv.id
+
+            # Store User Message
+            user_msg = Message(
+                conversation_id=conv_id,
+                sender="user",
+                content=message,
+                language=pipeline_result["language"],
+                created_at=now_dt
+            )
+            db_session.add(user_msg)
+            db_session.commit()
+
+            # Store Bot Message
+            bot_msg = Message(
+                conversation_id=conv_id,
+                sender="bot",
+                content=pipeline_result["answer"],
+                intent=pipeline_result["intent"],
+                language=pipeline_result["language"],
+                risk_level=pipeline_result["risk"]["level"],
+                data_timestamp=now_dt
+            )
+            db_session.add(bot_msg)
+            db_session.commit()
+            db_session.refresh(bot_msg)
+
+            # Store Advisory details
+            advisory_record = Advisory(
+                message_id=bot_msg.id,
+                persona=persona,
+                target_activity="weather_decision",
+                risk_level=pipeline_result["risk"]["level"],
+                recommendation=pipeline_result["answer"]
+            )
+            db_session.add(advisory_record)
+            db_session.commit()
+
+        # 7. Construct Final Response Payload
+        return {
+            "conversation_id": conv_id,
+            "answer": pipeline_result["answer"],
+            "language": pipeline_result["language"],
+            "intent": pipeline_result["intent"],
+            "location": resolved_name,
+            "persona": persona_enum.value,
+            "risk": pipeline_result["risk"],
+            "weather_summary": weather_summary,
+            "forecast_count": len(forecast_items),
+            "alerts": alerts_summary,
+            "source": pipeline_result["source"],
+            "data_quality": {
+                "is_data_available": is_data_available,
+                "data_status": data_status,
+                "consistency_score": pipeline_result["risk"]["consistency_score"],
+                "error_detail": data_error_detail
+            },
+            "data_timestamp": pipeline_result["data_timestamp"],
+            "validation": pipeline_result["validation"]
+        }
