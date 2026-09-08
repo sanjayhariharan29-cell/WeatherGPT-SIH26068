@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>WeatherGPT — Conversational Meteorological Decision Engine (IMD / MoES)</title>
+  <meta name="description" content="AI-powered conversational platform for weather forecasting, alerts, and climate intelligence. Ministry of Earth Sciences / IMD.">
+  <!-- Google Fonts -->
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+
+  <div class="app-container">
+    <!-- Top Header -->
+    <header class="header-glass">
+      <div class="brand">
+        <div class="logo-icon">🌤️</div>
+        <div>
+          <h1 class="brand-title">WeatherGPT</h1>
+          <p class="brand-subtitle">MoES / IMD Meteorological Decision Engine</p>
+        </div>
+      </div>
+      <div class="controls-group">
+        <select id="locationSelect" class="styled-select" aria-label="Select Location">
+          <option value="Coimbatore">📍 Coimbatore</option>
+          <option value="Nagapattinam">📍 Nagapattinam (Hero Alert)</option>
+          <option value="Chennai">📍 Chennai</option>
+          <option value="Madurai">📍 Madurai</option>
+          <option value="Tiruchirappalli">📍 Trichy</option>
+        </select>
+        <select id="personaSelect" class="styled-select" aria-label="Select Persona">
+          <option value="student">🎓 Student</option>
+          <option value="fisherman">🎣 Fisherman</option>
+          <option value="farmer">🌾 Farmer</option>
+          <option value="traveller">🧳 Traveller</option>
+          <option value="disaster_response">🚨 Disaster Response</option>
+        </select>
+      </div>
+    </header>
+
+    <!-- Main Content Area -->
+    <main class="main-content">
+
+      <!-- Official Warning Banner -->
+      <div id="alertBanner" class="alert-banner hidden">
+        <div class="alert-header">
+          <span class="alert-badge">⚠️ OFFICIAL IMD WARNING</span>
+          <span id="alertTime" class="alert-time">Valid until 08:00 PM</span>
+        </div>
+        <h3 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h3>
+        <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
+      </div>
+
+      <!-- Current Weather Overview Card -->
+      <section class="weather-card glass-panel">
+        <div class="card-header">
+          <div>
+            <span class="location-badge" id="currentLocationName">Coimbatore, TN</span>
+            <span class="source-tag" id="currentSourceTag">Authoritative Source: IMD</span>
+          </div>
+          <span class="timestamp-tag" id="currentObsTime">Updated 10:10 AM</span>
+        </div>
+
+        <div class="weather-main-grid">
+          <div class="temp-box">
+            <span class="temp-val" id="tempVal">29</span><span class="temp-unit">°C</span>
+            <div class="condition-badge" id="conditionText">🌧️ Moderate Rain</div>
+          </div>
+          <div class="metrics-grid">
+            <div class="metric-item">
+              <span class="metric-label">Precipitation</span>
+              <span class="metric-val" id="rainProbVal">65%</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Wind Speed</span>
+              <span class="metric-val" id="windVal">18 km/h</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Humidity</span>
+              <span class="metric-val" id="humidityVal">72%</span>
+            </div>
+            <div class="metric-item">
+              <span class="metric-label">Multi-Source Agreement</span>
+              <span class="metric-val agreement-high" id="agreementVal">92% High</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- View Selector Tabs -->
+      <div class="tabs-nav">
+        <button class="tab-btn active" data-tab="chatTab">💬 Conversational AI</button>
+        <button class="tab-btn" data-tab="forecastTab">📅 Forecast & Trends</button>
+        <button class="tab-btn" data-tab="disasterTab">🚨 Disaster Risk Register</button>
+      </div>
+
+      <!-- Tab 1: Conversational AI -->
+      <section id="chatTab" class="tab-content active">
+        <!-- Quick Action Chips -->
+        <div class="chips-scroll">
+          <button class="chip-btn" onclick="sendQuickQuery('Naalaiku morning college pogalama?')">🎓 Naalaiku morning college pogalama?</button>
+          <button class="chip-btn" onclick="sendQuickQuery('Naalaiku kadaluku pogalama?')">🎣 Naalaiku kadaluku pogalama?</button>
+          <button class="chip-btn" onclick="sendQuickQuery('Farmer advisory for heavy rain')">🌾 Farmer crop advisory</button>
+          <button class="chip-btn" onclick="sendQuickQuery('5-year temperature trend analysis')">📊 5-year climate trend</button>
+        </div>
+
+        <!-- Chat History Window -->
+        <div id="chatHistory" class="chat-window">
+          <div class="msg-bubble bot-msg">
+            <div class="msg-author">
+              <span>🌤️ WeatherGPT Decision Engine</span>
+              <span class="msg-tag">IMD Grounded</span>
+            </div>
+            <p>Vanakkam! I am WeatherGPT, your meteorological decision assistant. Ask me anything in <strong>Tamil, Tanglish, or English</strong>!</p>
+          </div>
+        </div>
+
+        <!-- Input Area -->
+        <div class="chat-input-bar glass-panel">
+          <input type="text" id="chatInput" placeholder="Ask WeatherGPT... (e.g., Naalaiku morning college pogalama?)" autocomplete="off">
+          <button id="voiceBtn" class="icon-btn" title="Voice Input (Speech-to-Text)">🎙️</button>
+          <button id="sendBtn" class="send-btn">Send ➔</button>
+        </div>
+      </section>
+
+      <!-- Tab 2: Forecast & Trends -->
+      <section id="forecastTab" class="tab-content">
+        <div class="glass-panel forecast-section">
+          <h3>📅 Hourly & Extended Forecast</h3>
+          <div id="forecastGrid" class="forecast-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <div class="glass-panel trends-section">
+          <h3>📊 Historical Climate Trend Analysis (NASA POWER Data)</h3>
+          <div id="trendBox" class="trend-box">
+            <p class="trend-headline">📈 10-Year Temperature Trend (2015 - 2025)</p>
+            <p class="trend-text">Average annual temperature has increased by <strong>+0.85°C</strong> over the decade with an increase in high-intensity monsoonal precipitation events.</p>
+            <div class="trend-stat-row">
+              <div class="stat-pill">Avg Annual Rain: <strong>950.4 mm</strong></div>
+              <div class="stat-pill">Max 1-Day Rain: <strong>185.2 mm</strong></div>
+              <div class="stat-pill">Data Source: <strong>NASA POWER / IMD Archive</strong></div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Tab 3: Disaster Risk Register -->
+      <section id="disasterTab" class="tab-content">
+        <div class="glass-panel risk-section">
+          <h3>🚨 Active Disaster & Hazard Safety Status</h3>
+          <div id="disasterList" class="disaster-list">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+      </section>
+
+    </main>
+
+    <!-- Footer -->
+    <footer class="footer">
+      <p>WeatherGPT — Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD) | SIH26068</p>
+    </footer>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>

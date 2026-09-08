@@ -23,6 +23,12 @@ ENV/
 .DS_Store
 Thumbs.db
 
+# Local Databases
+*.db
+*.sqlite
+*.sqlite3
+
+
 # Agent Customizations & Local Rules (Do not commit to GitHub)
 .agents/
 AGENTS.md
