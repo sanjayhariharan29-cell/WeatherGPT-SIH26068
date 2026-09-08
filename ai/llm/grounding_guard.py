@@ -88,6 +88,16 @@ def verify_grounding(response_text: str, context: GroundedContext) -> Tuple[bool
         age = float(context.data_quality["data_age_minutes"])
         valid_numbers.add(age)
 
+    # Collect numbers appearing in static reference knowledge
+    for rk in context.reference_knowledge:
+        ref_text = f"{rk.get('title', '')} {rk.get('heading', '')} {rk.get('content', '')}"
+        ref_nums = re.findall(r"\b(\d+(?:\.\d+)?)\b", ref_text)
+        for rn in ref_nums:
+            try:
+                valid_numbers.add(round(float(rn), 1))
+            except ValueError:
+                pass
+
     # Extract explicit weather metric numbers from text: e.g. "45°C", "95 km/h", "120 mm"
     metric_matches = re.findall(r"(\d+(?:\.\d+)?)\s*(?:°c|celsius|km/h|mm)\b", text_lower)
     for m in metric_matches:

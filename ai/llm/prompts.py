@@ -43,7 +43,8 @@ def build_grounded_prompt(
     reasoning: WeatherReasoningResult,
     advisory: DecisionAdvisory,
     forecast: Optional[List[ForecastItem]] = None,
-    safety_guidance: Optional[List[str]] = None
+    safety_guidance: Optional[List[str]] = None,
+    reference_knowledge: Optional[List[Any]] = None
 ) -> str:
     """Builds the comprehensive grounded user prompt via the Grounded Context Builder."""
     from ai.llm.context_builder import build_grounded_context
@@ -53,6 +54,7 @@ def build_grounded_prompt(
         reasoning=reasoning,
         advisory=advisory,
         forecast=forecast,
-        safety_guidance=safety_guidance
+        safety_guidance=safety_guidance,
+        reference_knowledge=reference_knowledge
     )
     return context.formatted_prompt

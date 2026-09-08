@@ -48,7 +48,8 @@ class GroundedLLMGenerator:
         reasoning: WeatherReasoningResult,
         advisory: DecisionAdvisory,
         forecast: Optional[List[ForecastItem]] = None,
-        safety_guidance: Optional[List[str]] = None
+        safety_guidance: Optional[List[str]] = None,
+        reference_knowledge: Optional[List[Any]] = None
     ) -> GroundedResponse:
         """Generates a verified, grounded natural language answer conforming to GroundedResponse contract."""
         context = build_grounded_context(
@@ -57,7 +58,8 @@ class GroundedLLMGenerator:
             reasoning=reasoning,
             advisory=advisory,
             forecast=forecast,
-            safety_guidance=safety_guidance
+            safety_guidance=safety_guidance,
+            reference_knowledge=reference_knowledge
         )
 
         system_prompt = SYSTEM_INSTRUCTION.format(
@@ -108,7 +110,8 @@ class GroundedLLMGenerator:
         reasoning: WeatherReasoningResult,
         advisory: DecisionAdvisory,
         forecast: Optional[List[ForecastItem]] = None,
-        safety_guidance: Optional[List[str]] = None
+        safety_guidance: Optional[List[str]] = None,
+        reference_knowledge: Optional[List[Any]] = None
     ) -> str:
         """String generation interface preserving complete backward compatibility."""
         return self.generate_response(
@@ -117,7 +120,8 @@ class GroundedLLMGenerator:
             reasoning=reasoning,
             advisory=advisory,
             forecast=forecast,
-            safety_guidance=safety_guidance
+            safety_guidance=safety_guidance,
+            reference_knowledge=reference_knowledge
         ).answer
 
     def _generate_fallback(

@@ -61,9 +61,15 @@ class WeatherGPTPipeline:
             target_language=nlu.detected_language
         )
 
-        # 4. RAG Safety Knowledge Retrieval
+        # 4. RAG Safety Knowledge & Reference Retrieval
         hazard_types = [h.hazard_type for h in reasoning.detected_hazards]
         safety_notes = retrieve_safety_guidance(hazard_types, language=nlu.detected_language.value)
+        
+        from ai.rag import get_knowledge_retriever
+        retriever = get_knowledge_retriever()
+        search_query = f"{message} {' '.join(hazard_types)}"
+        lang_filter = nlu.detected_language.value if nlu.detected_language.value in ("en", "ta") else None
+        ref_chunks = retriever.retrieve(search_query, top_k=2, language=lang_filter)
 
         # 5. Grounded LLM Generation
         raw_answer = self.llm.generate(
@@ -72,7 +78,8 @@ class WeatherGPTPipeline:
             reasoning=reasoning,
             advisory=advisory,
             forecast=forecast,
-            safety_guidance=safety_notes
+            safety_guidance=safety_notes,
+            reference_knowledge=ref_chunks
         )
 
         # 6. Response Validation & Hallucination Guard

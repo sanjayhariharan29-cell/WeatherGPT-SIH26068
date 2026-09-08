@@ -35,6 +35,7 @@ class GroundedContext:
     missing_fields: List[str]
     advisory_facts: Dict[str, Any]
     formatted_prompt: str
+    reference_knowledge: List[Dict[str, Any]] = field(default_factory=list)
 
 
 def build_grounded_context(
@@ -43,7 +44,8 @@ def build_grounded_context(
     reasoning: WeatherReasoningResult,
     advisory: DecisionAdvisory,
     forecast: Optional[List[ForecastItem]] = None,
-    safety_guidance: Optional[List[str]] = None
+    safety_guidance: Optional[List[str]] = None,
+    reference_knowledge: Optional[List[Any]] = None
 ) -> GroundedContext:
     """Builds the comprehensive grounded context object and formatted prompt."""
     forecast = forecast or []
@@ -244,6 +246,32 @@ def build_grounded_context(
         for sg in safety_guidance:
             lines.append(f"• {sg}")
 
+    # 7. Static Meteorological Reference Knowledge (RAG Knowledge Base)
+    ref_facts: List[Dict[str, Any]] = []
+    if reference_knowledge:
+        for rk in reference_knowledge:
+            if hasattr(rk, "chunk"):
+                ref_facts.append({
+                    "title": rk.chunk.title,
+                    "heading": rk.chunk.heading,
+                    "content": rk.chunk.content,
+                    "source": rk.chunk.source,
+                    "topic": rk.chunk.topic,
+                    "relevance_score": rk.relevance_score
+                })
+            elif isinstance(rk, dict):
+                ref_facts.append(rk)
+
+    lines.append("")
+    lines.append("--- 7. STATIC METEOROLOGICAL REFERENCE KNOWLEDGE (RAG STATIC CORPUS) ---")
+    lines.append("[DISCLAIMER: Static educational definitions, standard classifications, and background SOPs. NOT live observations.]")
+    if ref_facts:
+        for rf in ref_facts:
+            lines.append(f"• [{rf.get('source', 'Reference')}] {rf.get('heading', rf.get('title', ''))} (Relevance: {rf.get('relevance_score', 0.0):.2f}):")
+            lines.append(f"  {rf.get('content', '')}")
+    else:
+        lines.append("Static Reference Knowledge: NONE_RETRIEVED")
+
     lines.extend([
         "",
         "=================================================================",
@@ -267,5 +295,6 @@ def build_grounded_context(
         data_quality=data_quality,
         missing_fields=missing_fields,
         advisory_facts=advisory_facts,
-        formatted_prompt=formatted_prompt
+        formatted_prompt=formatted_prompt,
+        reference_knowledge=ref_facts
     )
