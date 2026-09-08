@@ -4,41 +4,51 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
+from backend.config.settings import settings
+from backend.config.logging import logger
+from backend.middleware.error_handler import register_exception_handlers
 from backend.db.init_db import init_db
 from backend.api import health, auth, weather, locations, users, chat, voice
 
-# Automatically initialize tables
+# Initialize Database on Module Import
 init_db()
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
+    logger.info("Starting WeatherGPT Backend Server...")
     init_db()
     yield
+    logger.info("Shutting down WeatherGPT Backend Server...")
 
 app = FastAPI(
-    title="WeatherGPT — SIH26068 Backend",
+    title=f"{settings.APP_NAME} Backend",
     description="Conversational AI for Weather Forecasting, Alerts, and Climate Information (Ministry of Earth Sciences / IMD)",
     version="1.0.0",
+    docs_url="/docs" if settings.DEBUG else None,
+    redoc_url="/redoc" if settings.DEBUG else None,
     lifespan=lifespan
 )
 
-# CORS Middleware Setup
+# Register Centralized Sanitized Exception Handlers
+register_exception_handlers(app)
+
+# Configurable CORS Middleware Setup
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=settings.ALLOWED_ORIGINS,
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
 
 # Include API Routers under /api/v1
-app.include_router(health.router, prefix="/api/v1")
-app.include_router(auth.router, prefix="/api/v1")
-app.include_router(weather.router, prefix="/api/v1")
-app.include_router(locations.router, prefix="/api/v1")
-app.include_router(users.router, prefix="/api/v1")
-app.include_router(chat.router, prefix="/api/v1")
-app.include_router(voice.router, prefix="/api/v1")
+app.include_router(health.router, prefix=settings.API_V1_PREFIX)
+app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
+app.include_router(weather.router, prefix=settings.API_V1_PREFIX)
+app.include_router(locations.router, prefix=settings.API_V1_PREFIX)
+app.include_router(users.router, prefix=settings.API_V1_PREFIX)
+app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
+app.include_router(voice.router, prefix=settings.API_V1_PREFIX)
 
 # Mount Static Frontend Directory if present
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
@@ -47,4 +57,4 @@ if os.path.exists(frontend_dir):
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=True)
+    uvicorn.run("backend.main:app", host="0.0.0.0", port=8000, reload=settings.DEBUG)
