@@ -27,7 +27,9 @@ from ai.models import (
     PersonaEnum,
     RiskLevelEnum,
     TimeContextEnum,
+    ValidationCategoryEnum,
     ValidationResult,
+    ValidationStatusEnum,
     WeatherReasoningResult,
     WeatherRecord,
 )
@@ -85,6 +87,8 @@ __all__ = [
     "AdvisoryPriorityEnum",
     "TimeContextEnum",
     "ValidationResult",
+    "ValidationStatusEnum",
+    "ValidationCategoryEnum",
     # NLU
     "parse_query",
     "detect_language",

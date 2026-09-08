@@ -129,15 +129,21 @@ class GroundedLLMGenerator:
 
     def _generate_fallback(
         self,
-        nlu: NLUResult,
+        nlu: Optional[NLUResult],
         weather: Optional[WeatherRecord],
         reasoning: WeatherReasoningResult,
         advisory: DecisionAdvisory,
-        context: Optional[GroundedContext] = None
+        context: Optional[GroundedContext] = None,
+        target_language: Optional[LanguageEnum] = None
     ) -> str:
         """Deterministic, grounded template generator for offline/resilience/guard failure use."""
         from ai.llm.multilingual import resolve_target_language, translate_condition
-        target_lang = resolve_target_language(nlu.detected_language, nlu.original_text)
+        if target_language:
+            target_lang = target_language
+        elif nlu:
+            target_lang = resolve_target_language(nlu.detected_language, nlu.original_text)
+        else:
+            target_lang = LanguageEnum.EN
         loc = reasoning.location
 
         lines: List[str] = []

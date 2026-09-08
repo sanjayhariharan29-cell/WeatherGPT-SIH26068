@@ -224,12 +224,44 @@ class DecisionAdvisory(BaseModel):
     evidence: List[str] = Field(default_factory=list)
 
 
+class ValidationStatusEnum(str, Enum):
+    PASS = "PASS"
+    PASS_WITH_WARNING = "PASS_WITH_WARNING"
+    REJECT = "REJECT"
+    FALLBACK = "FALLBACK"
+
+
+class ValidationCategoryEnum(str, Enum):
+    UNSUPPORTED_NUMBER = "UNSUPPORTED_NUMBER"
+    UNSUPPORTED_LOCATION = "UNSUPPORTED_LOCATION"
+    UNSUPPORTED_TIME = "UNSUPPORTED_TIME"
+    UNSUPPORTED_SOURCE = "UNSUPPORTED_SOURCE"
+    UNSUPPORTED_HAZARD = "UNSUPPORTED_HAZARD"
+    SEVERITY_DOWNGRADE = "SEVERITY_DOWNGRADE"
+    WARNING_CONTRADICTION = "WARNING_CONTRADICTION"
+    MISSING_WARNING = "MISSING_WARNING"
+    FABRICATED_DATA = "FABRICATED_DATA"
+    FABRICATED_ACTION = "FABRICATED_ACTION"
+    FALSE_CERTAINTY = "FALSE_CERTAINTY"
+    UNIT_MISMATCH = "UNIT_MISMATCH"
+    LANGUAGE_MISMATCH = "LANGUAGE_MISMATCH"
+    UNAUTHORIZED_DECLARATION = "UNAUTHORIZED_DECLARATION"
+
+
 class ValidationResult(BaseModel):
     is_valid: bool
-    hallucination_detected: bool
-    warning_consistency_passed: bool
+    hallucination_detected: bool = False
+    warning_consistency_passed: bool = True
     issues: List[str] = Field(default_factory=list)
     verified_claims: List[str] = Field(default_factory=list)
+
+    # Phase 9 Unified Safety Gate Fields
+    status: ValidationStatusEnum = ValidationStatusEnum.PASS
+    violations: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    checked_fields: List[str] = Field(default_factory=list)
+    fallback_required: bool = False
+    violation_categories: List[str] = Field(default_factory=list)
 
 
 class GroundedResponse(BaseModel):

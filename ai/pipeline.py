@@ -93,18 +93,22 @@ class WeatherGPTPipeline:
             response_text=raw_answer,
             reasoning=reasoning,
             weather=weather,
-            forecast=forecast
+            forecast=forecast,
+            advisory=advisory,
+            nlu=nlu,
+            target_language=target_lang,
         )
 
         final_answer = raw_answer
-        if not validation.is_valid:
+        if not validation.is_valid or validation.fallback_required:
             # If the LLM response violated grounding or warning constraints,
             # fall back immediately to the deterministic grounded advisory
             final_answer = self.llm._generate_fallback(
                 nlu=nlu,
                 weather=weather,
                 reasoning=reasoning,
-                advisory=advisory
+                advisory=advisory,
+                target_language=target_lang,
             )
 
         # 7. Return payload conforming to docs/08_Api_Contracts.md:230
@@ -124,6 +128,10 @@ class WeatherGPTPipeline:
             "data_timestamp": weather.retrieved_at.isoformat(),
             "validation": {
                 "passed": validation.is_valid,
+                "status": validation.status.value,
+                "violations": validation.violations,
+                "warnings": validation.warnings,
+                "checked_fields": validation.checked_fields,
                 "issues": validation.issues
             }
         }
