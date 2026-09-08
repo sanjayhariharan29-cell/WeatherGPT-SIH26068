@@ -189,7 +189,8 @@ class ChatIntegrationService:
             persona=persona_enum,
             conversation_id=conv_id,
             target_language=language,
-            context_summary=resolved.context_summary
+            context_summary=resolved.context_summary,
+            request_id=request_id
         )
 
         # Update Short-Term Conversational Memory
@@ -292,5 +293,9 @@ class ChatIntegrationService:
                 "error_detail": data_error_detail
             },
             "data_timestamp": pipeline_result["data_timestamp"],
-            "validation": pipeline_result["validation"]
+            "validation": pipeline_result["validation"],
+            "safety_telemetry": pipeline_result.get("safety_telemetry"),
+            "hazards": pipeline_result.get("hazards", []),
+            "advisory": pipeline_result.get("advisory", {}),
+            "fallback_used": pipeline_result.get("fallback_used", False)
         }

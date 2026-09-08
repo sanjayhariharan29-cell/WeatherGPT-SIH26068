@@ -192,7 +192,8 @@ class AIService:
             persona=persona_enum,
             conversation_id=conv_id,
             target_language=resolved.resolved_language,
-            context_summary=resolved.context_summary
+            context_summary=resolved.context_summary,
+            request_id=req_id
         )
 
         # 11. Update Short-Term Conversational Memory State
@@ -268,8 +269,9 @@ class AIService:
             f"lang={pipeline_result['language']}"
         )
 
-        # 9. Format response matching ChatResponse schema
+        # 9. Format response matching ChatResponse schema & Step 20
         return {
+            "request_id": req_id,
             "conversation_id": conv_id,
             "answer": pipeline_result["answer"],
             "language": pipeline_result["language"],
@@ -278,10 +280,20 @@ class AIService:
             "persona": pipeline_result.get("persona", persona_enum.value),
             "risk": pipeline_result["risk"],
             "weather_summary": weather_summary,
+            "forecast_count": len(forecast_items),
             "alerts": alerts_list,
             "source": pipeline_result["source"],
+            "data_quality": pipeline_result.get("data_quality", {
+                "is_data_available": True,
+                "data_status": "OK",
+                "consistency_score": pipeline_result.get("risk", {}).get("consistency_score", 1.0)
+            }),
             "data_timestamp": pipeline_result["data_timestamp"],
-            "validation": pipeline_result.get("validation")
+            "validation": pipeline_result.get("validation"),
+            "safety_telemetry": pipeline_result.get("safety_telemetry"),
+            "hazards": pipeline_result.get("hazards", []),
+            "advisory": pipeline_result.get("advisory", {}),
+            "fallback_used": pipeline_result.get("fallback_used", False)
         }
 
     def _persist_chat_records(

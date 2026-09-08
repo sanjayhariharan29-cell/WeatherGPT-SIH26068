@@ -40,6 +40,14 @@ from ai.evaluation.safety_evaluator import (
     run_severe_weather_safety_benchmark,
 )
 
+from ai.evaluation.pipeline_evaluator import (
+    FullPipelineReport,
+    FullPipelineScenario,
+    FullPipelineEvaluator,
+    build_pipeline_benchmark_dataset,
+    run_full_pipeline_benchmark,
+)
+
 __all__ = [
     "load_nlu_dataset",
     "load_hazard_dataset",
@@ -71,4 +79,9 @@ __all__ = [
     "SevereWeatherSafetyEvaluator",
     "build_safety_benchmark_dataset",
     "run_severe_weather_safety_benchmark",
+    "FullPipelineScenario",
+    "FullPipelineReport",
+    "FullPipelineEvaluator",
+    "build_pipeline_benchmark_dataset",
+    "run_full_pipeline_benchmark",
 ]
