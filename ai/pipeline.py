@@ -34,7 +34,8 @@ class WeatherGPTPipeline:
         active_alerts: Optional[List[OfficialAlert]] = None,
         secondary_weather: Optional[WeatherRecord] = None,
         persona: Optional[PersonaEnum] = None,
-        conversation_id: str = "default"
+        conversation_id: str = "default",
+        target_language: Optional[Any] = None
     ) -> Dict[str, Any]:
         """Runs the complete conversational pipeline from user text to validated answer."""
         forecast = forecast or []
@@ -56,7 +57,21 @@ class WeatherGPTPipeline:
 
         # 3. Decision Engine: Persona-tailored advice in target language
         from ai.llm.multilingual import resolve_target_language
-        target_lang = resolve_target_language(nlu.detected_language, message)
+        from ai.models import LanguageEnum
+        explicit_pref = None
+        if isinstance(target_language, str):
+            try:
+                explicit_pref = LanguageEnum(target_language.lower())
+            except Exception:
+                explicit_pref = None
+        elif isinstance(target_language, LanguageEnum):
+            explicit_pref = target_language
+
+        target_lang = resolve_target_language(
+            nlu_lang=nlu.detected_language,
+            query_text=message,
+            explicit_preference=explicit_pref
+        )
 
         advisory = DecisionEngine.generate_advisory(
             reasoning=reasoning,

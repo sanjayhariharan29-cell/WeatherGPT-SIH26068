@@ -6,7 +6,7 @@ Person 1's NLU, Weather Reasoner, Hazard Detection, Advisory Engine, RAG, and Gr
 
 from typing import Optional, Dict, Any
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
 from backend.db.session import get_db
@@ -18,16 +18,24 @@ chat_service = ChatIntegrationService()
 
 class LocationPayload(BaseModel):
     name: str = "Coimbatore"
-    latitude: Optional[float] = 11.0168
-    longitude: Optional[float] = 76.9558
+    latitude: Optional[float] = None
+    longitude: Optional[float] = None
 
 
 class ChatRequest(BaseModel):
-    message: str
+    message: str = Field(..., min_length=1, max_length=2000)
     language: str = "ta"
     persona: str = "student"
     location: Optional[LocationPayload] = None
     conversation_id: Optional[str] = None
+
+    @field_validator("message")
+    @classmethod
+    def validate_message_not_empty(cls, v: str) -> str:
+        cleaned = v.strip()
+        if not cleaned:
+            raise ValueError("Message cannot be empty or only whitespace.")
+        return cleaned
 
 
 @router.post("/chat")
@@ -43,18 +51,13 @@ async def chat_endpoint(req: ChatRequest, db: Session = Depends(get_db)):
     if lon is not None and (lon < -180.0 or lon > 180.0):
         raise HTTPException(status_code=400, detail="Longitude must be between -180 and +180 degrees.")
 
-    try:
-        return await chat_service.handle_chat_request(
-            message=req.message,
-            location_name=loc_name,
-            lat=lat,
-            lon=lon,
-            persona=req.persona,
-            language=req.language,
-            conversation_id=req.conversation_id,
-            db_session=db
-        )
-    except ValueError as e:
-        raise HTTPException(status_code=400, detail=str(e))
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=f"Chat processing error: {str(e)}")
+    return await chat_service.handle_chat_request(
+        message=req.message,
+        location_name=loc_name,
+        lat=lat,
+        lon=lon,
+        persona=req.persona,
+        language=req.language,
+        conversation_id=req.conversation_id,
+        db_session=db
+    )

@@ -15,6 +15,13 @@ from backend.schemas.weather import (
     HistoricalWeatherResponse,
     ClimateTrendResponse
 )
+from backend.schemas.chat import (
+    LocationPayload,
+    ChatRequest,
+    RiskSummary,
+    ValidationSummary,
+    ChatResponse
+)
 
 __all__ = [
     "CurrentWeatherResponse",
@@ -29,5 +36,10 @@ __all__ = [
     "AlertResponse",
     "HistoricalRecordItemSchema",
     "HistoricalWeatherResponse",
-    "ClimateTrendResponse"
+    "ClimateTrendResponse",
+    "LocationPayload",
+    "ChatRequest",
+    "RiskSummary",
+    "ValidationSummary",
+    "ChatResponse"
 ]

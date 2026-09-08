@@ -60,7 +60,14 @@ class ChatIntegrationService:
         self.validate_coordinates(lat, lon)
 
         # 2. Resolve Geocoding Location
-        loc = await self.weather_mgr.geocoding.resolve_location(location_name)
+        target_loc_name = location_name
+        if not lat and not lon and (not location_name or location_name.lower() == "coimbatore"):
+            from ai.nlu import parse_query
+            nlu_loc = parse_query(message).entities.location
+            if nlu_loc:
+                target_loc_name = nlu_loc
+
+        loc = await self.weather_mgr.geocoding.resolve_location(target_loc_name)
         resolved_lat = lat if lat is not None else loc["latitude"]
         resolved_lon = lon if lon is not None else loc["longitude"]
         resolved_name = loc["name"]
@@ -163,7 +170,8 @@ class ChatIntegrationService:
             active_alerts=official_alerts,
             secondary_weather=secondary_obs,
             persona=persona_enum,
-            conversation_id=conv_id
+            conversation_id=conv_id,
+            target_language=language
         )
 
         # Explicitly distinguish DATA_UNAVAILABLE from NO_HAZARD_DETECTED
@@ -171,12 +179,11 @@ class ChatIntegrationService:
 
         # 6. Database Persistence
         if db_session is not None:
-            if not conversation_id:
-                conv = Conversation(title=message[:30])
+            existing_conv = db_session.query(Conversation).filter(Conversation.id == conv_id).first()
+            if not existing_conv:
+                conv = Conversation(id=conv_id, title=message[:30])
                 db_session.add(conv)
                 db_session.commit()
-                db_session.refresh(conv)
-                conv_id = conv.id
 
             # Store User Message
             user_msg = Message(

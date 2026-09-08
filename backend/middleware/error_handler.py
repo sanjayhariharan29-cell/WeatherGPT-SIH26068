@@ -5,6 +5,8 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 from backend.config.logging import logger
 from backend.config.settings import settings
 
+from fastapi.encoders import jsonable_encoder
+
 def register_exception_handlers(app: FastAPI):
     """Registers global exception handlers to sanitize production error responses."""
 
@@ -30,7 +32,7 @@ def register_exception_handlers(app: FastAPI):
                 "error": {
                     "code": "INVALID_REQUEST",
                     "message": "Input validation failed",
-                    "details": exc.errors() if settings.DEBUG else "Invalid payload parameters"
+                    "details": jsonable_encoder(exc.errors()) if settings.DEBUG else "Invalid payload parameters"
                 }
             }
         )
