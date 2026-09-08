@@ -55,6 +55,7 @@ class ChatIntegrationService:
         language: str = "ta",
         conversation_id: Optional[str] = None,
         request_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
         """Orchestrates location resolution, backend weather data retrieval, AI reasoning, and persistence."""
@@ -227,8 +228,11 @@ class ChatIntegrationService:
         if db_session is not None:
             existing_conv = db_session.query(Conversation).filter(Conversation.id == conv_id).first()
             if not existing_conv:
-                conv = Conversation(id=conv_id, title=message[:30])
+                conv = Conversation(id=conv_id, title=message[:30], user_id=user_id)
                 db_session.add(conv)
+                db_session.commit()
+            elif user_id and not existing_conv.user_id:
+                existing_conv.user_id = user_id
                 db_session.commit()
 
             # Store User Message

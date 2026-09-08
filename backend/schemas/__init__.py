@@ -22,6 +22,16 @@ from backend.schemas.chat import (
     ValidationSummary,
     ChatResponse
 )
+from backend.schemas.auth import (
+    RegisterRequest,
+    LoginRequest,
+    UserResponse,
+    TokenResponse,
+    UserUpdateRequest,
+    UserPreferenceSchema,
+    SavedLocationCreate,
+    SavedLocationResponse
+)
 
 __all__ = [
     "CurrentWeatherResponse",
@@ -41,5 +51,13 @@ __all__ = [
     "ChatRequest",
     "RiskSummary",
     "ValidationSummary",
-    "ChatResponse"
+    "ChatResponse",
+    "RegisterRequest",
+    "LoginRequest",
+    "UserResponse",
+    "TokenResponse",
+    "UserUpdateRequest",
+    "UserPreferenceSchema",
+    "SavedLocationCreate",
+    "SavedLocationResponse"
 ]

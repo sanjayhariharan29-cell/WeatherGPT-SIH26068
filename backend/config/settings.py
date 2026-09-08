@@ -24,7 +24,9 @@ class Settings(BaseModel):
             if origin.strip()
         ]
     )
-    SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY", "dev-secret-key-change-in-production"))
+    SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY", "weathergpt-super-secret-production-key-sih26068-min-32-chars"))
+    JWT_ALGORITHM: str = Field(default_factory=lambda: os.getenv("JWT_ALGORITHM", "HS256"))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default_factory=lambda: int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")))
 
     # Logging Settings
     LOG_LEVEL: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))

@@ -30,10 +30,33 @@ class User(Base):
     password_hash = Column(String(255), nullable=False)
     language = Column(String(10), default="ta")
     persona = Column(String(50), default="student")
+    role = Column(String(20), default="user", nullable=False)
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
+    saved_locations = relationship("SavedLocation", back_populates="user", cascade="all, delete-orphan")
+
+
+class RevokedToken(Base):
+    __tablename__ = "revoked_tokens"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    jti = Column(String(255), unique=True, index=True, nullable=False)
+    revoked_at = Column(DateTime(timezone=True), default=utc_now)
+
+
+class SavedLocation(Base):
+    __tablename__ = "saved_locations"
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    name = Column(String(100), nullable=False)
+    latitude = Column(Float, nullable=False)
+    longitude = Column(Float, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    user = relationship("User", back_populates="saved_locations")
 
 
 class UserPreference(Base):
