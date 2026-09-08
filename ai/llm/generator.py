@@ -1,11 +1,13 @@
 """LLM Generation Engine for WeatherGPT.
 
-Integrates with Google Gemini while providing a resilient,
+Uses provider abstraction (Gemini / Mock) with a resilient,
 deterministic template fallback for offline/test environments.
 """
 
-import os
 from typing import Optional
+from ai.config import AIConfig, get_ai_config
+from ai.llm.prompts import SYSTEM_INSTRUCTION, build_grounded_prompt
+from ai.llm.provider import BaseLLMProvider, GeminiLLMProvider, get_llm_provider
 from ai.models import (
     DecisionAdvisory,
     LanguageEnum,
@@ -13,23 +15,27 @@ from ai.models import (
     WeatherReasoningResult,
     WeatherRecord,
 )
-from ai.llm.prompts import SYSTEM_INSTRUCTION, build_grounded_prompt
 
 
 class GroundedLLMGenerator:
-    """Orchestrates grounded response generation using Gemini or fallback generator."""
+    """Orchestrates grounded response generation using provider abstraction or fallback generator."""
 
-    def __init__(self, api_key: Optional[str] = None):
-        self.api_key = api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        self._client = None
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        provider: Optional[BaseLLMProvider] = None,
+        config: Optional[AIConfig] = None
+    ):
+        self.config = config or get_ai_config()
+        if api_key:
+            self.config.llm.api_key = api_key
 
-        if self.api_key:
-            try:
-                import google.generativeai as genai
-                genai.configure(api_key=self.api_key)
-                self._client = genai.GenerativeModel("gemini-1.5-flash")
-            except Exception:
-                self._client = None
+        if provider:
+            self.provider = provider
+        elif self.config.llm.api_key:
+            self.provider = GeminiLLMProvider(self.config.llm)
+        else:
+            self.provider = get_llm_provider(self.config.llm)
 
     def generate(
         self,
@@ -46,21 +52,20 @@ class GroundedLLMGenerator:
             advisory=advisory
         )
 
-        if self._client:
-            try:
-                system_prompt = SYSTEM_INSTRUCTION.format(
-                    target_language=nlu.detected_language.value,
-                    persona=advisory.persona.value,
-                    source=", ".join(reasoning.sources_used)
-                )
-                response = self._client.generate_content(
-                    f"{system_prompt}\n\n{prompt}"
-                )
-                if response and response.text:
-                    return response.text.strip()
-            except Exception:
-                # Graceful fallback to deterministic generator
-                pass
+        system_prompt = SYSTEM_INSTRUCTION.format(
+            target_language=nlu.detected_language.value,
+            persona=advisory.persona.value,
+            source=", ".join(reasoning.sources_used)
+        )
+
+        # Attempt generation via configured provider
+        if self.provider:
+            response_text = self.provider.generate_text(
+                system_prompt=system_prompt,
+                user_prompt=prompt
+            )
+            if response_text and response_text.strip():
+                return response_text.strip()
 
         # Deterministic Grounded Generation Fallback
         return self._generate_fallback(nlu, weather, reasoning, advisory)
@@ -76,7 +81,6 @@ class GroundedLLMGenerator:
         is_tamil = nlu.detected_language in (LanguageEnum.TA, LanguageEnum.TANGLISH)
         loc = reasoning.location
 
-        # Build condition string
         temp_str = f"{weather.temperature:.0f}°C" if weather else "N/A"
         rain_str = f"{weather.rain_probability:.0f}%" if weather else "N/A"
         cond_str = weather.weather_condition if weather else "Clear"
