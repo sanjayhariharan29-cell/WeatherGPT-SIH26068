@@ -32,6 +32,7 @@ from ai.nlu import (
     classify_intent,
     detect_language,
     extract_entities,
+    normalize_query,
     parse_query,
 )
 from ai.reasoner import (
@@ -81,6 +82,7 @@ __all__ = [
     "detect_language",
     "classify_intent",
     "extract_entities",
+    "normalize_query",
     # Reasoner
     "WeatherReasoner",
     "check_data_freshness",

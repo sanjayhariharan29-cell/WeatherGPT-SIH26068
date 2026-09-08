@@ -25,6 +25,7 @@ class LanguageEnum(str, Enum):
     TA = "ta"
     TANGLISH = "tanglish"
     HI = "hi"
+    HINGLISH = "hinglish"
     UNKNOWN = "unknown"
 
 
@@ -115,17 +116,21 @@ class ExtractedEntities(BaseModel):
     location: Optional[str] = None
     date: Optional[str] = None
     time: Optional[str] = None
+    time_range: Optional[str] = None
     weather_variable: Optional[str] = None
+    hazard: Optional[str] = None
     persona: Optional[PersonaEnum] = None
     activity: Optional[str] = None
 
 
 class NLUResult(BaseModel):
     original_text: str
+    normalized_text: Optional[str] = None
     detected_language: LanguageEnum
     intent: IntentEnum
     entities: ExtractedEntities
     confidence: float = Field(ge=0.0, le=1.0)
+    ambiguity: Optional[str] = None
 
 
 class HazardDetection(BaseModel):
