@@ -510,6 +510,46 @@ body {
    MOBILE FOUNDATION & RESPONSIVE STYLES (PHASE 11)
    ============================================================ */
 
+/* Data Freshness & Quality Badges */
+.freshness-tag {
+  font-size: 11px;
+  font-weight: 700;
+  padding: 3px 8px;
+  border-radius: 6px;
+  margin-left: 6px;
+  text-transform: uppercase;
+}
+
+.freshness-tag.fresh {
+  background: rgba(16, 185, 129, 0.2);
+  color: #34d399;
+  border: 1px solid rgba(16, 185, 129, 0.4);
+}
+
+.freshness-tag.stale {
+  background: rgba(245, 158, 11, 0.2);
+  color: #fbbf24;
+  border: 1px solid rgba(245, 158, 11, 0.4);
+}
+
+.freshness-tag.partial {
+  background: rgba(59, 130, 246, 0.2);
+  color: #60a5fa;
+  border: 1px solid rgba(59, 130, 246, 0.4);
+}
+
+.freshness-tag.unavailable {
+  background: rgba(244, 63, 94, 0.2);
+  color: #f87171;
+  border: 1px solid rgba(244, 63, 94, 0.4);
+}
+
+/* Alert Severity Modifier Badges */
+.alert-badge.extreme { background: #be123c; color: #ffffff; }
+.alert-badge.high { background: #e11d48; color: #ffffff; }
+.alert-badge.moderate { background: #d97706; color: #ffffff; }
+.alert-badge.advisory { background: #2563eb; color: #ffffff; }
+
 /* Touch Target Size Rules (WCAG 2.1 AA - Min 44px x 44px) */
 button,
 select,

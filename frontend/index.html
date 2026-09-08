@@ -48,30 +48,46 @@
           <option value="traveller">🧳 Traveller</option>
           <option value="disaster_response">🚨 Disaster Response</option>
         </select>
+        <button id="refreshBtn" class="icon-btn" title="Refresh Weather Telemetry" aria-label="Refresh Weather Telemetry">🔄</button>
       </div>
     </header>
 
-    <!-- Official Warning Banner -->
-    <div id="alertBanner" class="alert-banner hidden" role="region" aria-label="Official Warning Banner">
+    <!-- Official Warning Banner (Top Priority Visual Component) -->
+    <div id="alertBanner" class="alert-banner hidden" role="region" aria-label="Official Warning Banner" aria-live="assertive">
       <div class="alert-header">
-        <span class="alert-badge">⚠️ OFFICIAL IMD WARNING</span>
+        <span id="alertSeverityBadge" class="alert-badge">⚠️ OFFICIAL IMD WARNING</span>
         <span id="alertTime" class="alert-time">Valid until 08:00 PM</span>
       </div>
       <h2 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h2>
       <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
+      <div style="margin-top:6px; font-size:11px; color:#cbd5e1;" id="alertSourceTag">Source: India Meteorological Department (IMD)</div>
     </div>
 
     <!-- Main Mobile Content Area -->
     <main class="main-content" id="mainContent" role="main">
 
-      <!-- Screen 1: Home (Default Mobile View) -->
-      <section id="screen-home" class="screen-container active" role="region" aria-label="Home Screen">
-        <!-- Current Weather Overview Card -->
-        <section class="weather-card glass-panel" aria-label="Current Weather Overview">
+      <!-- Screen 1: Home Dashboard (Default View) -->
+      <section id="screen-home" class="screen-container active" role="region" aria-label="Home Weather Dashboard">
+        
+        <!-- Dashboard Loading Skeleton -->
+        <div id="dashboardSkeleton" class="glass-panel hidden" aria-label="Loading Telemetry">
+          <div class="spinner"></div>
+          <p style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:8px;">Fetching Live Meteorological Telemetry...</p>
+        </div>
+
+        <!-- Dashboard Error Card -->
+        <div id="dashboardErrorCard" class="error-card hidden" role="alert">
+          <p id="dashboardErrorText">Failed to retrieve weather data.</p>
+          <button id="dashboardRetryBtn" class="retry-btn">🔄 Retry Connection</button>
+        </div>
+
+        <!-- Current Weather Live Overview Card -->
+        <section id="weatherCardContainer" class="weather-card glass-panel" aria-label="Current Weather Overview" aria-live="polite">
           <div class="card-header">
             <div>
               <span class="location-badge" id="currentLocationName">Coimbatore, TN</span>
-              <span class="source-tag" id="currentSourceTag">Authoritative Source: IMD</span>
+              <span class="source-tag" id="currentSourceTag">Source: IMD</span>
+              <span class="freshness-tag fresh" id="dataFreshnessTag">Fresh Telemetry</span>
             </div>
             <span class="timestamp-tag" id="currentObsTime">Updated 10:10 AM</span>
           </div>
@@ -79,7 +95,7 @@
           <div class="weather-main-grid">
             <div class="temp-box">
               <div>
-                <span class="temp-val" id="tempVal">29</span><span class="temp-unit">°C</span>
+                <span class="temp-val" id="tempVal">29</span><span class="temp-unit" id="tempUnit">°C</span>
               </div>
               <div class="condition-badge" id="conditionText">🌧️ Moderate Rain</div>
             </div>
@@ -98,7 +114,7 @@
               </div>
               <div class="metric-item">
                 <span class="metric-label">Multi-Source Agreement</span>
-                <span class="metric-val agreement-high" id="agreementVal">92% High</span>
+                <span class="metric-val agreement-high" id="agreementVal">High Agreement</span>
               </div>
             </div>
           </div>
@@ -137,11 +153,27 @@
         </div>
       </section>
 
-      <!-- Screen 3: Weather (Forecast & Climate Trends) -->
+      <!-- Screen 3: Weather (Timeline Forecast & Climate Trends) -->
       <section id="screen-weather" class="screen-container" role="region" aria-label="Forecast Screen">
+        
+        <!-- Categorized Forecast Timelines -->
         <div class="glass-panel forecast-section">
-          <h3>📅 Hourly & Daily Forecast</h3>
-          <div id="forecastGrid" class="forecast-grid">
+          <h3>🕒 Today's Hourly Forecast</h3>
+          <div id="forecastGridToday" class="forecast-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <div class="glass-panel forecast-section">
+          <h3>🌅 Tomorrow's Forecast</h3>
+          <div id="forecastGridTomorrow" class="forecast-grid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <div class="glass-panel forecast-section">
+          <h3>📅 Extended Future Forecast</h3>
+          <div id="forecastGridFuture" class="forecast-grid">
             <!-- Dynamically populated -->
           </div>
         </div>
