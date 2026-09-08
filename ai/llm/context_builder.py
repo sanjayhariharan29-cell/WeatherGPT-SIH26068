@@ -145,6 +145,11 @@ def build_grounded_context(
         "key_precautions": advisory.key_precautions,
         "source_attribution": advisory.source_attribution,
         "timestamp_info": advisory.timestamp_info,
+        "advisory_type": advisory.advisory_type.value if hasattr(advisory.advisory_type, "value") else str(advisory.advisory_type),
+        "priority": advisory.priority.value if hasattr(advisory.priority, "value") else str(advisory.priority),
+        "time_context": advisory.time_context.value if hasattr(advisory.time_context, "value") else str(advisory.time_context),
+        "reason_codes": advisory.reason_codes,
+        "risk_summary": advisory.risk_summary,
     }
 
     # -----------------------------------------------------------------
@@ -237,7 +242,11 @@ def build_grounded_context(
     lines.append("--- 6. REASONER ADVISORY & SAFETY GUIDANCE ---")
     lines.extend([
         f"Overall Weather Risk: {advisory_facts['risk_level']}",
+        f"Advisory Type: {advisory_facts.get('advisory_type', 'WEATHER_SUMMARY')}",
+        f"Action Priority: {advisory_facts.get('priority', 'LOW')}",
+        f"Temporal Window: {advisory_facts.get('time_context', 'TODAY')}",
         f"Headline: {advisory_facts['headline']}",
+        f"Risk Summary: {advisory_facts.get('risk_summary', '')}",
         f"Advisory Guidance: {advisory_facts['advisory_text']}",
         f"Key Action Items: {'; '.join(advisory_facts['key_precautions'])}",
     ])

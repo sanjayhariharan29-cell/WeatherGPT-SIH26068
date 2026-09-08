@@ -13,6 +13,8 @@ from ai.config import (
     get_ai_config,
 )
 from ai.models import (
+    AdvisoryPriorityEnum,
+    AdvisoryTypeEnum,
     DecisionAdvisory,
     ExtractedEntities,
     ForecastItem,
@@ -24,6 +26,7 @@ from ai.models import (
     OfficialAlert,
     PersonaEnum,
     RiskLevelEnum,
+    TimeContextEnum,
     ValidationResult,
     WeatherReasoningResult,
     WeatherRecord,
@@ -78,6 +81,9 @@ __all__ = [
     "HazardDetection",
     "WeatherReasoningResult",
     "DecisionAdvisory",
+    "AdvisoryTypeEnum",
+    "AdvisoryPriorityEnum",
+    "TimeContextEnum",
     "ValidationResult",
     # NLU
     "parse_query",

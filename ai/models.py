@@ -13,11 +13,47 @@ from pydantic import BaseModel, Field
 
 class PersonaEnum(str, Enum):
     GENERAL = "general"
+    GENERAL_USER = "general"
     STUDENT = "student"
     FARMER = "farmer"
     FISHERMAN = "fisherman"
     TRAVELLER = "traveller"
+    TRAVELER = "traveller"
+    COMMUTER = "commuter"
     DISASTER_RESPONSE = "disaster_response"
+
+
+class AdvisoryTypeEnum(str, Enum):
+    WEATHER_SUMMARY = "weather_summary"
+    RAIN_CAUTION = "rain_caution"
+    EXTREME_RAIN_ALERT = "extreme_rain_alert"
+    WIND_CAUTION = "wind_caution"
+    HEAT_CAUTION = "heat_caution"
+    COLD_CAUTION = "cold_caution"
+    THUNDERSTORM_CAUTION = "thunderstorm_caution"
+    VISIBILITY_CAUTION = "visibility_caution"
+    TRAVEL_CAUTION = "travel_caution"
+    OUTDOOR_ACTIVITY_CAUTION = "outdoor_activity_caution"
+    FARM_ACTIVITY_CAUTION = "farm_activity_caution"
+    FISHING_CAUTION = "fishing_caution"
+    OFFICIAL_WARNING = "official_warning"
+    DATA_UNAVAILABLE = "data_unavailable"
+
+
+class AdvisoryPriorityEnum(str, Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+class TimeContextEnum(str, Enum):
+    NOW = "now"
+    NEXT_FEW_HOURS = "next_few_hours"
+    TODAY = "today"
+    TOMORROW = "tomorrow"
+    LATER = "later"
 
 
 class LanguageEnum(str, Enum):
@@ -176,6 +212,16 @@ class DecisionAdvisory(BaseModel):
     official_warning_title: Optional[str] = None
     source_attribution: str
     timestamp_info: str
+
+    # Phase 7 Structured Decision Fields
+    advisory_type: AdvisoryTypeEnum = AdvisoryTypeEnum.WEATHER_SUMMARY
+    priority: AdvisoryPriorityEnum = AdvisoryPriorityEnum.LOW
+    time_context: TimeContextEnum = TimeContextEnum.TODAY
+    reason_codes: List[str] = Field(default_factory=list)
+    risk_summary: str = ""
+    action_guidance: List[str] = Field(default_factory=list)
+    source_basis: List[str] = Field(default_factory=list)
+    evidence: List[str] = Field(default_factory=list)
 
 
 class ValidationResult(BaseModel):

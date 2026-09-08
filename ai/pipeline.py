@@ -58,7 +58,10 @@ class WeatherGPTPipeline:
         advisory = DecisionEngine.generate_advisory(
             reasoning=reasoning,
             persona=resolved_persona,
-            target_language=nlu.detected_language
+            target_language=nlu.detected_language,
+            nlu=nlu,
+            weather=weather,
+            forecast=forecast
         )
 
         # 4. RAG Safety Knowledge & Reference Retrieval
