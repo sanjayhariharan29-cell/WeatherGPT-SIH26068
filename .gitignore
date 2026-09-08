@@ -22,3 +22,9 @@ ENV/
 # OS files
 .DS_Store
 Thumbs.db
+
+# Agent Customizations & Local Rules (Do not commit to GitHub)
+.agents/
+AGENTS.md
+GEMINI.md
+
