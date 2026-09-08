@@ -21,6 +21,7 @@ from ai.models import (
     PersonaEnum,
     RiskLevelEnum
 )
+from ai.memory import memory_manager, ContextResolver, ConversationTurn
 
 
 class ChatIntegrationService:
@@ -59,8 +60,22 @@ class ChatIntegrationService:
         # 1. Validate Input Coordinates
         self.validate_coordinates(lat, lon)
 
-        # 2. Resolve Geocoding Location
-        target_loc_name = location_name
+        # 2. Resolve Geocoding Location & Conversational Context
+        conv_id = conversation_id or "default"
+        if ContextResolver.is_reset_query(message):
+            memory_manager.reset_context(conv_id)
+
+        ctx = memory_manager.get_context(conv_id)
+        explicit_loc = location_name if location_name and location_name.lower() != "coimbatore" else None
+        resolved = ContextResolver.resolve_query(
+            message=message,
+            context=ctx,
+            explicit_location=explicit_loc,
+            explicit_language=language,
+            explicit_persona=persona
+        )
+
+        target_loc_name = resolved.resolved_location
         if not lat and not lon and (not location_name or location_name.lower() == "coimbatore"):
             from ai.nlu import parse_query
             nlu_loc = parse_query(message).entities.location
@@ -164,14 +179,44 @@ class ChatIntegrationService:
 
         # 5. Process through Person 1's WeatherGPTPipeline
         pipeline_result = self.ai_pipeline.process_query(
-            message=message,
+            message=resolved.resolved_message,
             weather=primary_obs,
             forecast=forecast_items,
             active_alerts=official_alerts,
             secondary_weather=secondary_obs,
             persona=persona_enum,
             conversation_id=conv_id,
-            target_language=language
+            target_language=language,
+            context_summary=resolved.context_summary
+        )
+
+        # Update Short-Term Conversational Memory
+        user_turn = ConversationTurn(
+            role="user",
+            message=message,
+            intent=pipeline_result.get("intent"),
+            location=resolved_name,
+            language=pipeline_result.get("language")
+        )
+        assistant_turn = ConversationTurn(
+            role="assistant",
+            message=pipeline_result.get("answer", ""),
+            intent=pipeline_result.get("intent"),
+            location=resolved_name,
+            risk_level=pipeline_result.get("risk", {}).get("level"),
+            language=pipeline_result.get("language")
+        )
+        memory_manager.update_context(
+            conversation_id=conv_id,
+            user_turn=user_turn,
+            assistant_turn=assistant_turn,
+            location=resolved_name,
+            date_context=resolved.resolved_date,
+            time_context=resolved.resolved_time,
+            persona=persona_enum.value,
+            language=pipeline_result.get("language"),
+            active_topic=resolved.resolved_topic,
+            last_intent=pipeline_result.get("intent")
         )
 
         # Explicitly distinguish DATA_UNAVAILABLE from NO_HAZARD_DETECTED

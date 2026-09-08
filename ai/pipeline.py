@@ -35,7 +35,8 @@ class WeatherGPTPipeline:
         secondary_weather: Optional[WeatherRecord] = None,
         persona: Optional[PersonaEnum] = None,
         conversation_id: str = "default",
-        target_language: Optional[Any] = None
+        target_language: Optional[Any] = None,
+        context_summary: Optional[str] = None
     ) -> Dict[str, Any]:
         """Runs the complete conversational pipeline from user text to validated answer."""
         forecast = forecast or []
@@ -101,7 +102,8 @@ class WeatherGPTPipeline:
                 advisory=advisory,
                 forecast=forecast,
                 safety_guidance=safety_notes,
-                reference_knowledge=ref_chunks
+                reference_knowledge=ref_chunks,
+                context_summary=context_summary
             )
         except Exception:
             raw_answer = self.llm._generate_fallback(

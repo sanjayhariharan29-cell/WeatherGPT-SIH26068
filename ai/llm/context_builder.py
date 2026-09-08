@@ -45,7 +45,8 @@ def build_grounded_context(
     advisory: DecisionAdvisory,
     forecast: Optional[List[ForecastItem]] = None,
     safety_guidance: Optional[List[str]] = None,
-    reference_knowledge: Optional[List[Any]] = None
+    reference_knowledge: Optional[List[Any]] = None,
+    context_summary: Optional[str] = None
 ) -> GroundedContext:
     """Builds the comprehensive grounded context object and formatted prompt."""
     forecast = forecast or []
@@ -280,6 +281,12 @@ def build_grounded_context(
             lines.append(f"  {rf.get('content', '')}")
     else:
         lines.append("Static Reference Knowledge: NONE_RETRIEVED")
+
+    if context_summary:
+        lines.append("")
+        lines.append("--- 8. SHORT-TERM CONVERSATIONAL CONTEXT ---")
+        lines.append(f"Recent Context: {context_summary}")
+        lines.append("[NOTICE: Context resolves conversational references only; live meteorological truth strictly comes from sections 1-4 above.]")
 
     lines.extend([
         "",

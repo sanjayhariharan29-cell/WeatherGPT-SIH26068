@@ -26,6 +26,7 @@ from ai.models import (
     RiskLevelEnum,
     LocationInfo as AILocationInfo
 )
+from ai.memory import memory_manager, ContextResolver, ConversationTurn
 
 
 class AIService:
@@ -53,39 +54,80 @@ class AIService:
             f"persona={req.persona}, language={req.language}"
         )
 
-        # 1. Pre-parse NLU to detect explicit query entities (e.g. location mentioned in text)
-        nlu_preview = parse_query(req.message)
+        # 1. Resolve Conversation ID and Session Context
+        conv_id = req.conversation_id or f"conv_{uuid.uuid4().hex[:12]}"
 
-        # 2. Location Resolution
-        # If user explicitly specified lat/lon coordinates in payload, use them.
-        # If user provided a location name, check if it was default "Coimbatore" while query mentioned another known place.
+        # 2. Check for explicit conversation reset triggers
+        if ContextResolver.is_reset_query(req.message):
+            logger.info(f"[{req_id}] Conversation reset requested for {conv_id}")
+            memory_manager.reset_context(conv_id)
+
+        # 3. Retrieve or initialize short-term conversation context
+        context = memory_manager.get_context(conv_id)
+
+        # 4. Resolve Follow-up query, References, Entity Inheritance, and Ambiguity
+        explicit_loc: Optional[str] = None
+        if req.location and req.location.name:
+            loc_candidate = req.location.name.strip()
+            # If payload passed default Coimbatore but query itself didn't specify it, check context
+            explicit_loc = loc_candidate
+
+        resolved = ContextResolver.resolve_query(
+            message=req.message,
+            context=context,
+            explicit_location=explicit_loc,
+            explicit_language=req.language,
+            explicit_persona=req.persona
+        )
+
+        # 5. Handle Reference Ambiguity Safely (Never guess among multiple recent locations)
+        if resolved.is_ambiguous:
+            logger.info(f"[{req_id}] Ambiguous reference detected in query: {resolved.ambiguity_reason}")
+            now_iso = datetime.now(timezone.utc).isoformat()
+            amb_answer = resolved.ambiguity_reason or f"Multiple locations discussed ({', '.join(context.recent_locations)}). Please specify."
+            return {
+                "conversation_id": conv_id,
+                "answer": amb_answer,
+                "language": resolved.resolved_language,
+                "intent": "clarification",
+                "location": resolved.resolved_location,
+                "persona": resolved.resolved_persona,
+                "risk": {
+                    "level": "low",
+                    "consistency": "single_source",
+                    "consistency_score": 0.0
+                },
+                "weather_summary": None,
+                "alerts": [],
+                "source": "ContextResolver",
+                "data_timestamp": now_iso,
+                "validation": {
+                    "passed": True,
+                    "status": "AMBIGUOUS_QUERY_CLARIFIED",
+                    "violations": [],
+                    "warnings": ["Multiple locations referenced ambiguously"]
+                }
+            }
+
+        # 6. Location Resolution
         lat: Optional[float] = None
         lon: Optional[float] = None
-        location_name = "Coimbatore"
+        location_name = resolved.resolved_location
 
-        if req.location is not None:
+        if req.location is not None and req.location.latitude is not None and req.location.longitude is not None:
             lat = req.location.latitude
             lon = req.location.longitude
-            if req.location.name:
-                location_name = req.location.name.strip()
-                # If location was default Coimbatore, but user asked specifically about another city in the query:
-                if location_name.lower() == "coimbatore" and nlu_preview.entities.location:
-                    location_name = nlu_preview.entities.location
-        elif nlu_preview.entities.location:
-            location_name = nlu_preview.entities.location
 
-        # 3. Persona Resolution
+        # 7. Persona Resolution
         persona_enum = PersonaEnum.GENERAL
-        if req.persona:
-            req_persona_clean = req.persona.strip().lower()
+        if resolved.resolved_persona:
+            req_persona_clean = resolved.resolved_persona.strip().lower()
             for p in PersonaEnum:
                 if p.value == req_persona_clean:
                     persona_enum = p
                     break
-        elif nlu_preview.entities.persona:
-            persona_enum = nlu_preview.entities.persona
 
-        # 4. Weather & Forecast Ingestion via WeatherManager
+        # 8. Weather & Forecast Ingestion via WeatherManager (FRESH WEATHER TRUTH)
         data_available = True
         try:
             primary_obs, forecast_items, active_alerts = await self.weather_mgr.get_ai_weather_input(
@@ -111,7 +153,7 @@ class AIService:
                 duration_ms=(time.perf_counter() - start_time) * 1000
             )
 
-        # 5. Retrieve Secondary Observation for consensus/agreement scoring
+        # 9. Retrieve Secondary Observation for consensus/agreement scoring
         secondary_obs: Optional[AIWeatherRecord] = None
         try:
             loc = await self.weather_mgr.geocoding.resolve_location(location_name)
@@ -136,17 +178,46 @@ class AIService:
             logger.debug(f"[{req_id}] Secondary weather observation unavailable: {sec_err}")
             secondary_obs = None
 
-        # 6. Execute WeatherGPTPipeline
-        conv_id = req.conversation_id or f"conv_{uuid.uuid4().hex[:12]}"
+        # 10. Execute WeatherGPTPipeline with Grounded Memory Summary
         pipeline_result = self.pipeline.process_query(
-            message=req.message,
+            message=resolved.resolved_message,
             weather=primary_obs,
             forecast=forecast_items,
             active_alerts=active_alerts,
             secondary_weather=secondary_obs,
             persona=persona_enum,
             conversation_id=conv_id,
-            target_language=req.language
+            target_language=resolved.resolved_language,
+            context_summary=resolved.context_summary
+        )
+
+        # 11. Update Short-Term Conversational Memory State
+        user_turn = ConversationTurn(
+            role="user",
+            message=req.message,
+            intent=pipeline_result.get("intent"),
+            location=location_name,
+            language=pipeline_result.get("language")
+        )
+        assistant_turn = ConversationTurn(
+            role="assistant",
+            message=pipeline_result.get("answer", ""),
+            intent=pipeline_result.get("intent"),
+            location=location_name,
+            risk_level=pipeline_result.get("risk", {}).get("level"),
+            language=pipeline_result.get("language")
+        )
+        memory_manager.update_context(
+            conversation_id=conv_id,
+            user_turn=user_turn,
+            assistant_turn=assistant_turn,
+            location=location_name,
+            date_context=resolved.resolved_date,
+            time_context=resolved.resolved_time,
+            persona=persona_enum.value,
+            language=pipeline_result.get("language"),
+            active_topic=resolved.resolved_topic,
+            last_intent=pipeline_result.get("intent")
         )
 
         now_dt = datetime.now(timezone.utc)

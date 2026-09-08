@@ -49,7 +49,8 @@ class GroundedLLMGenerator:
         advisory: DecisionAdvisory,
         forecast: Optional[List[ForecastItem]] = None,
         safety_guidance: Optional[List[str]] = None,
-        reference_knowledge: Optional[List[Any]] = None
+        reference_knowledge: Optional[List[Any]] = None,
+        context_summary: Optional[str] = None
     ) -> GroundedResponse:
         """Generates a verified, grounded natural language answer conforming to GroundedResponse contract."""
         context = build_grounded_context(
@@ -59,7 +60,8 @@ class GroundedLLMGenerator:
             advisory=advisory,
             forecast=forecast,
             safety_guidance=safety_guidance,
-            reference_knowledge=reference_knowledge
+            reference_knowledge=reference_knowledge,
+            context_summary=context_summary
         )
 
         from ai.llm.multilingual import resolve_target_language
@@ -114,7 +116,8 @@ class GroundedLLMGenerator:
         advisory: DecisionAdvisory,
         forecast: Optional[List[ForecastItem]] = None,
         safety_guidance: Optional[List[str]] = None,
-        reference_knowledge: Optional[List[Any]] = None
+        reference_knowledge: Optional[List[Any]] = None,
+        context_summary: Optional[str] = None
     ) -> str:
         """String generation interface preserving complete backward compatibility."""
         return self.generate_response(
@@ -124,7 +127,8 @@ class GroundedLLMGenerator:
             advisory=advisory,
             forecast=forecast,
             safety_guidance=safety_guidance,
-            reference_knowledge=reference_knowledge
+            reference_knowledge=reference_knowledge,
+            context_summary=context_summary
         ).answer
 
     def _generate_fallback(
