@@ -497,52 +497,182 @@ async function loadAlerts(location) {
   }
 }
 
+let isSendingChatMessage = false;
+
+function escapeHTML(str) {
+  if (!str) return "";
+  return String(str)
+    .replace(/&/g, "&amp;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;")
+    .replace(/"/g, "&quot;")
+    .replace(/'/g, "&#039;");
+}
+
 function sendQuickQuery(queryText) {
   navigateToScreen("chat");
-  document.getElementById("chatInput").value = queryText;
+  const input = document.getElementById("chatInput");
+  if (input) input.value = queryText;
   handleUserSend();
 }
 
 async function handleUserSend() {
+  if (isSendingChatMessage) return; // Anti-duplicate send protection
+
   const input = document.getElementById("chatInput");
-  const text = input.value.trim();
+  const sendBtn = document.getElementById("sendBtn");
+  const text = input ? input.value.trim() : "";
   if (!text) return;
 
-  const location = document.getElementById("locationSelect").value;
-  const persona = document.getElementById("personaSelect").value;
+  const location = document.getElementById("locationSelect")?.value || "Coimbatore";
+  const persona = document.getElementById("personaSelect")?.value || "student";
 
-  appendMessage("user", text);
-  input.value = "";
+  // Lock UI to prevent duplicate submission
+  isSendingChatMessage = true;
+  if (input) input.disabled = true;
+  if (sendBtn) sendBtn.disabled = true;
+
+  appendUserMessage(text);
+  if (input) input.value = "";
+
+  const typingId = showTypingIndicator();
 
   try {
     const data = await window.apiClient.sendChatMessage(text, persona, location);
-    appendMessage("bot", data.answer, data.intent, data.risk?.level);
-    speakText(data.answer);
+    removeTypingIndicator(typingId);
+    appendBotMessage(data);
+    if (data.answer) speakText(data.answer);
   } catch (err) {
-    appendMessage("bot", "I apologize, weather services are temporarily unavailable. Please try again shortly.");
+    removeTypingIndicator(typingId);
+    appendFailedMessage(text, persona, location);
+  } finally {
+    isSendingChatMessage = false;
+    if (input) {
+      input.disabled = false;
+      input.focus();
+    }
+    if (sendBtn) sendBtn.disabled = false;
   }
 }
 
-function appendMessage(sender, text, intent = null, risk = null) {
+function appendUserMessage(text) {
   const history = document.getElementById("chatHistory");
-  const bubble = document.createElement("div");
-  bubble.className = `msg-bubble ${sender}-msg`;
+  if (!history) return;
 
-  if (sender === "bot") {
-    const riskTag = risk ? ` • Risk: ${risk.toUpperCase()}` : '';
-    bubble.innerHTML = `
-      <div class="msg-author">
-        <span>🌤️ WeatherGPT Engine</span>
-        <span class="msg-tag">${intent || 'Response'}${riskTag}</span>
-      </div>
-      <p>${text}</p>
-    `;
-  } else {
-    bubble.innerHTML = `<p>${text}</p>`;
-  }
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble user-msg";
+  
+  const p = document.createElement("p");
+  p.textContent = text; // Safe text rendering
+  bubble.appendChild(p);
 
   history.appendChild(bubble);
   history.scrollTop = history.scrollHeight;
+}
+
+function showTypingIndicator() {
+  const history = document.getElementById("chatHistory");
+  if (!history) return null;
+
+  const indicator = document.createElement("div");
+  const id = `typing_${Date.now()}`;
+  indicator.id = id;
+  indicator.className = "msg-bubble bot-msg typing-indicator";
+  indicator.innerHTML = `
+    <span>🌤️ WeatherGPT is thinking</span>
+    <div class="typing-dot"></div>
+    <div class="typing-dot"></div>
+  `;
+
+  history.appendChild(indicator);
+  history.scrollTop = history.scrollHeight;
+  return id;
+}
+
+function removeTypingIndicator(id) {
+  if (!id) return;
+  const elem = document.getElementById(id);
+  if (elem) elem.remove();
+}
+
+function appendBotMessage(data) {
+  const history = document.getElementById("chatHistory");
+  if (!history) return;
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble bot-msg";
+
+  const safeAnswer = escapeHTML(data.answer || "No response text.");
+  const safeIntent = escapeHTML(data.intent || "Weather Query");
+  const safeSource = escapeHTML(data.source || "IMD Grounded");
+
+  // Hazard severity badge mapping (Strictly preserving CRITICAL, HIGH, MEDIUM, LOW)
+  let hazardBadgeHtml = "";
+  if (data.risk && data.risk.level) {
+    const rawLevel = String(data.risk.level).toUpperCase();
+    const validLevel = ["CRITICAL", "HIGH", "MEDIUM", "LOW"].includes(rawLevel) ? rawLevel : "LOW";
+    const cssClass = validLevel.toLowerCase();
+    hazardBadgeHtml = `<span class="hazard-badge ${cssClass}">RISK: ${validLevel}</span>`;
+  }
+
+  let warningsHtml = "";
+  if (data.alerts && data.alerts.length > 0) {
+    data.alerts.forEach(alert => {
+      const alertTitle = escapeHTML(alert.title || "Official Warning");
+      const alertDesc = escapeHTML(alert.description || "");
+      const alertSource = escapeHTML(alert.source || "IMD");
+      warningsHtml += `
+        <div class="chat-warning-box">
+          <div class="chat-warning-title">⚠️ ${alertTitle}</div>
+          <p class="chat-warning-desc">${alertDesc}</p>
+          <div class="chat-warning-source">Authoritative Source: ${alertSource}</div>
+        </div>
+      `;
+    });
+  }
+
+  bubble.innerHTML = `
+    <div class="msg-author">
+      <span>🌤️ WeatherGPT Engine ${hazardBadgeHtml}</span>
+      <span class="msg-tag">${safeIntent} • ${safeSource}</span>
+    </div>
+    <p>${safeAnswer}</p>
+    ${warningsHtml}
+  `;
+
+  history.appendChild(bubble);
+  history.scrollTop = history.scrollHeight;
+}
+
+function appendFailedMessage(failedText, persona, location) {
+  const history = document.getElementById("chatHistory");
+  if (!history) return;
+
+  const bubble = document.createElement("div");
+  bubble.className = "msg-bubble bot-msg msg-failed";
+
+  const safeText = escapeHTML(failedText);
+
+  bubble.innerHTML = `
+    <div class="msg-author" style="color:var(--alert-red);">
+      <span>⚠️ Service Disruption</span>
+      <span class="msg-tag">Failed</span>
+    </div>
+    <p style="font-size:13px;">Weather AI service is temporarily unavailable. Would you like to retry sending "${safeText}"?</p>
+    <button class="msg-retry-btn" onclick="retryFailedMessage('${escapeHTML(failedText)}', '${persona}', '${location}', this)">
+      🔄 Retry Send
+    </button>
+  `;
+
+  history.appendChild(bubble);
+  history.scrollTop = history.scrollHeight;
+}
+
+async function retryFailedMessage(text, persona, location, btnElem) {
+  if (btnElem) btnElem.disabled = true;
+  const input = document.getElementById("chatInput");
+  if (input) input.value = text;
+  await handleUserSend();
 }
 
 function handleVoiceClick() {
