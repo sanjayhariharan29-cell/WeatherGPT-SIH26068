@@ -54,6 +54,7 @@ class ChatIntegrationService:
         persona: str = "student",
         language: str = "ta",
         conversation_id: Optional[str] = None,
+        request_id: Optional[str] = None,
         db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
         """Orchestrates location resolution, backend weather data retrieval, AI reasoning, and persistence."""
@@ -268,6 +269,7 @@ class ChatIntegrationService:
 
         # 7. Construct Final Response Payload
         return {
+            "request_id": request_id,
             "conversation_id": conv_id,
             "answer": pipeline_result["answer"],
             "language": pipeline_result["language"],

@@ -6,7 +6,11 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config.settings import settings
 from backend.config.logging import logger
-from backend.middleware.error_handler import register_exception_handlers
+from backend.middleware import (
+    register_exception_handlers,
+    RequestIDMiddleware,
+    RateLimiterMiddleware
+)
 from backend.db.init_db import init_db
 from backend.api import health, auth, weather, locations, users, chat, voice
 
@@ -31,6 +35,10 @@ app = FastAPI(
 
 # Register Centralized Sanitized Exception Handlers
 register_exception_handlers(app)
+
+# Register Middleware (Request ID & Rate Limiter)
+app.add_middleware(RequestIDMiddleware)
+app.add_middleware(RateLimiterMiddleware, max_requests=60, window_seconds=60)
 
 # Configurable CORS Middleware Setup
 app.add_middleware(

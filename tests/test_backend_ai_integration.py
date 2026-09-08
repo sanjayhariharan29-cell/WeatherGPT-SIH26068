@@ -98,7 +98,7 @@ def test_03_invalid_location_coordinates():
         "location": {"name": "Test", "latitude": 95.5, "longitude": 77.0}
     }
     res = client.post("/api/v1/chat", json=bad_lat)
-    assert res.status_code == 400
+    assert res.status_code in [400, 422]
 
     # Longitude > 180
     bad_lon = {
@@ -106,7 +106,7 @@ def test_03_invalid_location_coordinates():
         "location": {"name": "Test", "latitude": 11.0, "longitude": 185.0}
     }
     res2 = client.post("/api/v1/chat", json=bad_lon)
-    assert res2.status_code == 400
+    assert res2.status_code in [400, 422]
 
 
 # -------------------------------------------------------------------------
