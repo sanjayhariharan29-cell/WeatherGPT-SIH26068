@@ -184,3 +184,14 @@ class ValidationResult(BaseModel):
     warning_consistency_passed: bool
     issues: List[str] = Field(default_factory=list)
     verified_claims: List[str] = Field(default_factory=list)
+
+
+class GroundedResponse(BaseModel):
+    """Structured output contract for grounded LLM responses per Phase 5 spec."""
+    answer: str
+    grounded_facts: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+    uncertainties: List[str] = Field(default_factory=list)
+    sources: List[str] = Field(default_factory=list)
+    used_grounded_context: bool = True
+    is_fallback: bool = False

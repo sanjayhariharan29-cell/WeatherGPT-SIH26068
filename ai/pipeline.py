@@ -70,7 +70,9 @@ class WeatherGPTPipeline:
             nlu=nlu,
             weather=weather,
             reasoning=reasoning,
-            advisory=advisory
+            advisory=advisory,
+            forecast=forecast,
+            safety_guidance=safety_notes
         )
 
         # 6. Response Validation & Hallucination Guard

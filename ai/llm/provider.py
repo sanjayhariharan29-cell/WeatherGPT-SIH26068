@@ -57,12 +57,27 @@ class GeminiLLMProvider(BaseLLMProvider):
 
 
 class MockLLMProvider(BaseLLMProvider):
-    """Deterministic mock provider for automated testing and offline demos."""
+    """Deterministic mock provider for automated testing, offline demos, and failure simulation."""
 
-    def __init__(self, canned_response: Optional[str] = None):
+    def __init__(
+        self,
+        canned_response: Optional[str] = None,
+        should_fail: bool = False,
+        simulate_timeout: bool = False,
+        failure_exception: Optional[Exception] = None,
+    ):
         self.canned_response = canned_response
+        self.should_fail = should_fail
+        self.simulate_timeout = simulate_timeout
+        self.failure_exception = failure_exception
 
     def generate_text(self, system_prompt: str, user_prompt: str) -> Optional[str]:
+        if self.simulate_timeout:
+            raise TimeoutError("LLM provider timed out during text generation")
+        if self.should_fail:
+            if self.failure_exception:
+                raise self.failure_exception
+            return None
         return self.canned_response
 
 
