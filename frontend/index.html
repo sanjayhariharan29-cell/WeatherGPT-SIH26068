@@ -14,6 +14,7 @@
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
@@ -203,7 +204,43 @@
         </div>
       </section>
 
-      <!-- Screen 5: Profile & Auth -->
+      <!-- Screen 5: Geospatial Weather Map -->
+      <section id="screen-map" class="screen-container" role="region" aria-label="Geospatial Weather & Warning Map Screen">
+        <div class="glass-panel" style="padding:12px; display:flex; flex-direction:column; gap:10px;">
+          <div style="display:flex; justify-content:space-between; align-items:center;">
+            <h3 style="margin:0;">🗺️ Geospatial Weather & Alert Map</h3>
+            <div style="display:flex; gap:6px;">
+              <button id="mapRecenterBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Recenter Map to Selected Location" aria-label="Recenter Map">🎯 Recenter</button>
+              <button id="mapLayerToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Toggle Official Alerts Layer" aria-label="Toggle Alert Layer">🚨 Toggle Alerts</button>
+            </div>
+          </div>
+          
+          <div id="mapContainer" class="map-view-container" style="width:100%; height:360px; border-radius:12px; position:relative; overflow:hidden; background:#0f172a;" role="application" aria-label="Interactive Weather Map">
+            <div id="mapFallback" class="map-fallback hidden">
+              <p style="font-weight:600; color:var(--alert-warning);">⚠️ Interactive Map Tiles Offline / Unavailable</p>
+              <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Displaying coordinate weather telemetry below.</p>
+            </div>
+          </div>
+
+          <!-- Mobile Map Bottom Sheet / Marker Detail Card -->
+          <div id="mapInfoCard" class="map-info-card glass-panel" style="margin-top:4px; display:flex; flex-direction:column; gap:6px;">
+            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+              <div>
+                <h4 id="mapLocName" style="margin:0; font-size:15px; color:var(--text-primary);">Coimbatore</h4>
+                <p id="mapLocCoords" style="font-size:11px; color:var(--text-muted); margin-top:2px;">(11.02° N, 76.96° E)</p>
+              </div>
+              <span id="mapWeatherTemp" class="temp-val" style="font-size:22px;">--°C</span>
+            </div>
+            <p id="mapWeatherCond" style="font-size:13px; color:var(--text-secondary);">Loading marker details...</p>
+            <div id="mapAlertBox" class="chat-warning-box hidden" style="margin-top:4px;">
+              <div id="mapAlertTitle" class="chat-warning-title">⚠️ Official Warning</div>
+              <p id="mapAlertDesc" class="chat-warning-desc"></p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 6: Profile & Auth -->
       <section id="screen-profile" class="screen-container" role="region" aria-label="User Profile Screen">
         <div class="glass-panel">
           <h3>👤 User Profile & Account</h3>
@@ -232,7 +269,7 @@
         </div>
       </section>
 
-      <!-- Screen 6: Settings -->
+      <!-- Screen 7: Settings -->
       <section id="screen-settings" class="screen-container" role="region" aria-label="Settings Screen">
         <div class="glass-panel">
           <h3>⚙️ Application Settings</h3>
@@ -276,6 +313,10 @@
         <span class="nav-icon" aria-hidden="true">🚨</span>
         <span>Alerts</span>
       </button>
+      <button class="nav-item" data-screen="map" aria-label="Geospatial Weather Map Screen">
+        <span class="nav-icon" aria-hidden="true">🗺️</span>
+        <span>Map</span>
+      </button>
       <button class="nav-item" data-screen="profile" aria-label="Profile Screen">
         <span class="nav-icon" aria-hidden="true">👤</span>
         <span>Profile</span>
@@ -292,6 +333,7 @@
     </footer>
   </div>
 
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="/mobile/apiClient.js"></script>
   <script src="/app.js"></script>
 

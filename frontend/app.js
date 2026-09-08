@@ -57,11 +57,15 @@ function navigateToScreen(screenName) {
   });
 
   window.location.hash = screenName;
+
+  if (screenName === "map") {
+    initWeatherMap();
+  }
 }
 
 function handleHashNavigation() {
   const hash = window.location.hash.replace("#", "");
-  const validScreens = ["home", "chat", "weather", "alerts", "profile", "settings"];
+  const validScreens = ["home", "chat", "weather", "alerts", "map", "profile", "settings"];
   if (validScreens.includes(hash)) {
     navigateToScreen(hash);
   }
@@ -128,6 +132,9 @@ function handleDeviceGeolocation() {
       const lat = position.coords.latitude;
       const lon = position.coords.longitude;
       const accuracy = position.coords.accuracy;
+
+      // Volatile in-memory GPS state for map & privacy protection
+      userGpsLocation = { lat, lon };
 
       try {
         const locDetail = await window.apiClient.reverseGeocode(lat, lon, accuracy);
@@ -710,3 +717,233 @@ function speakText(text) {
     window.speechSynthesis.speak(utterance);
   }
 }
+
+// 6. Geospatial Weather Map Engine (Phase 15)
+let mapInstance = null;
+let mapMarkersGroup = null;
+let mapAlertsGroup = null;
+let isMapAlertsVisible = true;
+
+const MAP_PRESET_LOCATIONS = [
+  { name: "Coimbatore", lat: 11.0168, lon: 76.9558 },
+  { name: "Nagapattinam", lat: 10.7656, lon: 79.8424 },
+  { name: "Chennai", lat: 13.0827, lon: 80.2707 },
+  { name: "Madurai", lat: 9.9252, lon: 78.1198 },
+  { name: "Tiruchirappalli", lat: 10.7905, lon: 78.7047 },
+  { name: "Salem", lat: 11.6643, lon: 78.1460 },
+  { name: "Tirunelveli", lat: 8.7139, lon: 77.7567 }
+];
+
+function isValidCoordinate(lat, lon) {
+  if (lat === null || lat === undefined || lon === null || lon === undefined) return false;
+  const numLat = Number(lat);
+  const numLon = Number(lon);
+  if (isNaN(numLat) || isNaN(numLon)) return false;
+  return (numLat >= -90 && numLat <= 90 && numLon >= -180 && numLon <= 180);
+}
+
+function initWeatherMap() {
+  const container = document.getElementById("mapContainer");
+  const fallback = document.getElementById("mapFallback");
+  if (!container) return;
+
+  // Check if Leaflet library is loaded
+  if (typeof L === "undefined") {
+    if (fallback) fallback.classList.remove("hidden");
+    renderMapFallbackTelemetry();
+    return;
+  }
+
+  if (fallback) fallback.classList.add("hidden");
+
+  if (!mapInstance) {
+    // Default center: Coimbatore (11.0168, 76.9558)
+    mapInstance = L.map("mapContainer", {
+      center: [11.0168, 76.9558],
+      zoom: 7,
+      zoomControl: true
+    });
+
+    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      attribution: "&copy; OpenStreetMap contributors | IMD Telemetry"
+    }).addTo(mapInstance);
+
+    mapMarkersGroup = L.layerGroup().addTo(mapInstance);
+    mapAlertsGroup = L.layerGroup().addTo(mapInstance);
+
+    setupMapControls();
+  } else {
+    setTimeout(() => {
+      if (mapInstance) mapInstance.invalidateSize();
+    }, 200);
+  }
+
+  loadMapTelemetry();
+}
+
+function setupMapControls() {
+  const recenterBtn = document.getElementById("mapRecenterBtn");
+  const layerToggleBtn = document.getElementById("mapLayerToggleBtn");
+
+  if (recenterBtn) {
+    recenterBtn.onclick = () => {
+      const selectedLoc = document.getElementById("locationSelect")?.value || "Coimbatore";
+      const preset = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === selectedLoc.toLowerCase());
+      if (userGpsLocation && isValidCoordinate(userGpsLocation.lat, userGpsLocation.lon)) {
+        mapInstance.setView([userGpsLocation.lat, userGpsLocation.lon], 10);
+      } else if (preset && isValidCoordinate(preset.lat, preset.lon)) {
+        mapInstance.setView([preset.lat, preset.lon], 9);
+      } else {
+        mapInstance.setView([11.0168, 76.9558], 7);
+      }
+    };
+  }
+
+  if (layerToggleBtn) {
+    layerToggleBtn.onclick = () => {
+      isMapAlertsVisible = !isMapAlertsVisible;
+      if (mapAlertsGroup && mapInstance) {
+        if (isMapAlertsVisible) {
+          mapInstance.addLayer(mapAlertsGroup);
+          layerToggleBtn.textContent = "🚨 Hide Alerts";
+        } else {
+          mapInstance.removeLayer(mapAlertsGroup);
+          layerToggleBtn.textContent = "🚨 Show Alerts";
+        }
+      }
+    };
+  }
+}
+
+async function loadMapTelemetry() {
+  if (!mapMarkersGroup || !mapAlertsGroup) return;
+
+  // Clear previous layers to prevent marker stacking and memory leaks
+  mapMarkersGroup.clearLayers();
+  mapAlertsGroup.clearLayers();
+
+  const selectedLocName = document.getElementById("locationSelect")?.value || "Coimbatore";
+
+  // 1. Plot preset location weather markers
+  for (const loc of MAP_PRESET_LOCATIONS) {
+    if (!isValidCoordinate(loc.lat, loc.lon)) continue;
+
+    try {
+      const data = await window.apiClient.getCurrentWeather(loc.name);
+      const temp = (data?.weather?.temperature !== undefined && data?.weather?.temperature !== null) ? `${Math.round(data.weather.temperature)}°C` : "--°C";
+      const cond = data?.weather?.condition || "Clear";
+
+      const isSelected = loc.name.toLowerCase() === selectedLocName.toLowerCase();
+      const markerColor = isSelected ? "#06b6d4" : "#3b82f6";
+
+      const marker = L.circleMarker([loc.lat, loc.lon], {
+        radius: isSelected ? 12 : 8,
+        fillColor: markerColor,
+        color: "#ffffff",
+        weight: 2,
+        opacity: 1,
+        fillOpacity: 0.8
+      });
+
+      marker.bindPopup(`
+        <div style="font-size:12px;">
+          <strong>📍 ${escapeHTML(loc.name)}</strong><br/>
+          <span>Temp: ${temp}</span><br/>
+          <span>Condition: ${escapeHTML(cond)}</span>
+        </div>
+      `);
+
+      marker.on("click", () => {
+        selectMapMarkerDetails(loc.name, loc.lat, loc.lon, temp, cond, data?.alerts || []);
+      });
+
+      mapMarkersGroup.addLayer(marker);
+
+      if (isSelected) {
+        selectMapMarkerDetails(loc.name, loc.lat, loc.lon, temp, cond, data?.alerts || []);
+      }
+    } catch (err) {
+      console.warn(`Map telemetry fetch error for ${loc.name}:`, err);
+    }
+  }
+
+  // 2. Plot User GPS marker if available (Privacy: volatile in-memory state only)
+  if (userGpsLocation && isValidCoordinate(userGpsLocation.lat, userGpsLocation.lon)) {
+    const gpsMarker = L.circleMarker([userGpsLocation.lat, userGpsLocation.lon], {
+      radius: 10,
+      fillColor: "#10b981",
+      color: "#ffffff",
+      weight: 2,
+      opacity: 1,
+      fillOpacity: 0.9
+    });
+
+    gpsMarker.bindPopup("<b>📍 Your Device GPS Location</b>");
+    mapMarkersGroup.addLayer(gpsMarker);
+  }
+
+  // 3. Plot Official IMD Disaster Alert Markers
+  try {
+    const alertsData = await window.apiClient.getAlerts(selectedLocName);
+    if (alertsData && alertsData.alerts && alertsData.alerts.length > 0) {
+      const heroLoc = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === selectedLocName.toLowerCase()) || MAP_PRESET_LOCATIONS[1];
+      if (isValidCoordinate(heroLoc.lat, heroLoc.lon)) {
+        const alert = alertsData.alerts[0];
+        const severity = (alert.severity || "high").toUpperCase();
+        const alertColor = (severity === "CRITICAL" || severity === "HIGH") ? "#e11d48" : "#f59e0b";
+
+        const alertMarker = L.circle([heroLoc.lat, heroLoc.lon], {
+          color: alertColor,
+          fillColor: alertColor,
+          fillOpacity: 0.3,
+          radius: 15000 // 15km official alert zone circle
+        });
+
+        alertMarker.bindPopup(`
+          <div style="font-size:12px; color:#ffffff;">
+            <strong style="color:${alertColor};">⚠️ ${escapeHTML(alert.title)} (${severity})</strong><br/>
+            <p style="margin:4px 0;">${escapeHTML(alert.description)}</p>
+            <span style="font-size:10px; color:#cbd5e1;">Source: ${escapeHTML(alert.source || "IMD")}</span>
+          </div>
+        `);
+
+        mapAlertsGroup.addLayer(alertMarker);
+      }
+    }
+  } catch (err) {
+    console.warn("Map alerts layer fetch error:", err);
+  }
+}
+
+function selectMapMarkerDetails(name, lat, lon, temp, cond, alerts = []) {
+  const nameElem = document.getElementById("mapLocName");
+  const coordsElem = document.getElementById("mapLocCoords");
+  const tempElem = document.getElementById("mapWeatherTemp");
+  const condElem = document.getElementById("mapWeatherCond");
+  const alertBox = document.getElementById("mapAlertBox");
+  const alertTitle = document.getElementById("mapAlertTitle");
+  const alertDesc = document.getElementById("mapAlertDesc");
+
+  if (nameElem) nameElem.textContent = name;
+  if (coordsElem) coordsElem.textContent = `(${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E)`;
+  if (tempElem) tempElem.textContent = temp;
+  if (condElem) condElem.textContent = cond;
+
+  if (alerts && alerts.length > 0 && alertBox && alertTitle && alertDesc) {
+    alertTitle.textContent = `⚠️ ${alerts[0].title || 'Official Warning'} (${(alerts[0].severity || 'HIGH').toUpperCase()})`;
+    alertDesc.textContent = alerts[0].description || 'Active weather alert for this zone.';
+    alertBox.classList.remove("hidden");
+  } else if (alertBox) {
+    alertBox.classList.add("hidden");
+  }
+}
+
+function renderMapFallbackTelemetry() {
+  const container = document.getElementById("mapInfoCard");
+  if (!container) return;
+  const selectedLoc = document.getElementById("locationSelect")?.value || "Coimbatore";
+  const preset = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === selectedLoc.toLowerCase()) || MAP_PRESET_LOCATIONS[0];
+  selectMapMarkerDetails(preset.name, preset.lat, preset.lon, "--°C", "Map tiles unavailable. Viewing coordinate telemetry.", []);
+}
+
