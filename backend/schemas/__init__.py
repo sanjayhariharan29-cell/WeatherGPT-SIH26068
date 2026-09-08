@@ -5,7 +5,10 @@ from backend.schemas.weather import (
     LocationDataSchema,
     WeatherDataSchema,
     ComparisonDataSchema,
-    WeatherUnitsSchema
+    WeatherUnitsSchema,
+    ForecastItemSchema,
+    DailyForecastItemSchema,
+    ForecastResponse
 )
 
 __all__ = [
@@ -13,5 +16,8 @@ __all__ = [
     "LocationDataSchema",
     "WeatherDataSchema",
     "ComparisonDataSchema",
-    "WeatherUnitsSchema"
+    "WeatherUnitsSchema",
+    "ForecastItemSchema",
+    "DailyForecastItemSchema",
+    "ForecastResponse"
 ]

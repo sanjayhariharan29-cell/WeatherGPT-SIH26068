@@ -1,7 +1,7 @@
 """Master Weather Service Manager.
 
 Orchestrates IMD (Primary), Open-Meteo (Secondary), NASA POWER (Climate/Historical),
-CurrentWeatherService, and Geocoding services behind a unified architecture.
+CurrentWeatherService, ForecastService, and Geocoding services behind a unified architecture.
 """
 
 from typing import Dict, Any, List, Optional, Tuple
@@ -12,6 +12,7 @@ from backend.services.open_meteo_adapter import OpenMeteoAdapter
 from backend.services.nasa_power_adapter import NasaPowerAdapter
 from backend.services.geocoding_service import GeocodingService
 from backend.services.current_weather_service import CurrentWeatherService
+from backend.services.forecast_service import ForecastService
 from backend.services.base_provider import BaseWeatherProvider
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
@@ -39,6 +40,11 @@ class WeatherManager:
             secondary_provider=self.open_meteo,
             geocoding_service=self.geocoding
         )
+        self.forecast_service = ForecastService(
+            primary_provider=self.imd,
+            secondary_provider=self.open_meteo,
+            geocoding_service=self.geocoding
+        )
 
         self.providers: Dict[str, BaseWeatherProvider] = {
             self.imd.name: self.imd,
@@ -61,21 +67,13 @@ class WeatherManager:
         self,
         lat: Optional[float] = None,
         lon: Optional[float] = None,
-        location_name: str = "Coimbatore"
+        location_name: str = "Coimbatore",
+        days: int = 7,
+        db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
-        """Returns weather forecast."""
-        loc = await self.geocoding.resolve_location(location_name)
-        latitude = lat if lat is not None else loc["latitude"]
-        longitude = lon if lon is not None else loc["longitude"]
-
-        forecast_items = await self.imd.get_forecast(latitude, longitude, loc["name"])
-        return {
-            "location": loc["name"],
-            "latitude": latitude,
-            "longitude": longitude,
-            "forecast": [item.model_dump() for item in forecast_items],
-            "source": self.imd.name
-        }
+        """Returns normalized hourly & daily aggregated forecast."""
+        res = await self.forecast_service.fetch_forecast(lat, lon, location_name, days, db_session)
+        return res.model_dump()
 
     async def get_alerts(
         self,
@@ -139,10 +137,9 @@ class WeatherManager:
         longitude = lon if lon is not None else loc["longitude"]
 
         ai_obs = await self.current_service.get_ai_weather_record(latitude, longitude, loc["name"])
-        forecasts = await self.imd.get_forecast(latitude, longitude, loc["name"])
+        ai_forecasts = await self.forecast_service.get_ai_forecast_items(latitude, longitude, loc["name"])
         alerts = await self.imd.get_official_alerts(latitude, longitude, loc["name"])
 
-        ai_forecasts = [f.to_ai_forecast_item() for f in forecasts]
         ai_alerts = [a.to_ai_official_alert() for a in alerts]
 
         return ai_obs, ai_forecasts, ai_alerts

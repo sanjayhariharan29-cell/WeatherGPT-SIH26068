@@ -1,6 +1,6 @@
 """Weather API Router.
 
-Exposes endpoints for current weather, forecasts, official disaster alerts,
+Exposes endpoints for current weather, multi-day forecasts, official disaster alerts,
 historical archives, and multi-year climate trends.
 """
 
@@ -9,7 +9,7 @@ from typing import Optional
 from sqlalchemy.orm import Session
 
 from backend.services.weather_manager import WeatherManager
-from backend.schemas.weather import CurrentWeatherResponse
+from backend.schemas.weather import CurrentWeatherResponse, ForecastResponse
 from backend.db.session import get_db
 
 router = APIRouter(prefix="/weather", tags=["Weather"])
@@ -38,15 +38,27 @@ async def get_current_weather(
         raise HTTPException(status_code=500, detail=f"Current weather retrieval error: {str(e)}")
 
 
-@router.get("/forecast")
+@router.get("/forecast", response_model=ForecastResponse)
 async def get_weather_forecast(
-    lat: Optional[float] = Query(None, description="Latitude"),
-    lon: Optional[float] = Query(None, description="Longitude"),
+    lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
+    lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
     location: str = Query("Coimbatore", description="Location name"),
-    date: str = Query("tomorrow", description="Date requirement")
+    days: int = Query(7, ge=1, le=7, description="Number of forecast days (1-7)"),
+    db: Session = Depends(get_db)
 ):
-    """Returns weather forecast."""
-    return await manager.get_forecast(lat, lon, location)
+    """Returns normalized hourly & aggregated daily forecast data (IMD primary, Open-Meteo secondary)."""
+    if lat is not None and (lat < -90.0 or lat > 90.0):
+        raise HTTPException(status_code=400, detail="Latitude must be between -90 and +90 degrees.")
+
+    if lon is not None and (lon < -180.0 or lon > 180.0):
+        raise HTTPException(status_code=400, detail="Longitude must be between -180 and +180 degrees.")
+
+    try:
+        return await manager.get_forecast(lat, lon, location, days=days, db_session=db)
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Forecast retrieval error: {str(e)}")
 
 
 @router.get("/alerts")
