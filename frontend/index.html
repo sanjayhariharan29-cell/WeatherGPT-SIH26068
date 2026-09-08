@@ -2,22 +2,32 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
   <title>WeatherGPT — Conversational Meteorological Decision Engine (IMD / MoES)</title>
-  <meta name="description" content="AI-powered conversational platform for weather forecasting, alerts, and climate intelligence. Ministry of Earth Sciences / IMD.">
+  <meta name="description" content="AI-powered mobile platform for weather forecasting, alerts, and climate intelligence. Ministry of Earth Sciences / IMD.">
+  <meta name="theme-color" content="#0f172a">
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <link rel="manifest" href="/manifest.json">
+
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
-  <link rel="stylesheet" href="styles.css">
+  <link rel="stylesheet" href="/styles.css">
 </head>
 <body>
 
+  <!-- Offline Status Bar -->
+  <div id="offlineBar" class="offline-bar hidden" role="alert" aria-live="assertive">
+    ⚠️ Network Offline. Displaying cached weather telemetry.
+  </div>
+
   <div class="app-container">
     <!-- Top Header -->
-    <header class="header-glass">
+    <header class="header-glass" role="banner">
       <div class="brand">
-        <div class="logo-icon">🌤️</div>
+        <div class="logo-icon" aria-hidden="true">🌤️</div>
         <div>
           <h1 class="brand-title">WeatherGPT</h1>
           <p class="brand-subtitle">MoES / IMD Meteorological Decision Engine</p>
@@ -41,125 +51,207 @@
       </div>
     </header>
 
-    <!-- Main Content Area -->
-    <main class="main-content">
-
-      <!-- Official Warning Banner -->
-      <div id="alertBanner" class="alert-banner hidden">
-        <div class="alert-header">
-          <span class="alert-badge">⚠️ OFFICIAL IMD WARNING</span>
-          <span id="alertTime" class="alert-time">Valid until 08:00 PM</span>
-        </div>
-        <h3 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h3>
-        <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
+    <!-- Official Warning Banner -->
+    <div id="alertBanner" class="alert-banner hidden" role="region" aria-label="Official Warning Banner">
+      <div class="alert-header">
+        <span class="alert-badge">⚠️ OFFICIAL IMD WARNING</span>
+        <span id="alertTime" class="alert-time">Valid until 08:00 PM</span>
       </div>
+      <h2 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h2>
+      <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
+    </div>
 
-      <!-- Current Weather Overview Card -->
-      <section class="weather-card glass-panel">
-        <div class="card-header">
-          <div>
-            <span class="location-badge" id="currentLocationName">Coimbatore, TN</span>
-            <span class="source-tag" id="currentSourceTag">Authoritative Source: IMD</span>
-          </div>
-          <span class="timestamp-tag" id="currentObsTime">Updated 10:10 AM</span>
-        </div>
+    <!-- Main Mobile Content Area -->
+    <main class="main-content" id="mainContent" role="main">
 
-        <div class="weather-main-grid">
-          <div class="temp-box">
-            <span class="temp-val" id="tempVal">29</span><span class="temp-unit">°C</span>
-            <div class="condition-badge" id="conditionText">🌧️ Moderate Rain</div>
+      <!-- Screen 1: Home (Default Mobile View) -->
+      <section id="screen-home" class="screen-container active" role="region" aria-label="Home Screen">
+        <!-- Current Weather Overview Card -->
+        <section class="weather-card glass-panel" aria-label="Current Weather Overview">
+          <div class="card-header">
+            <div>
+              <span class="location-badge" id="currentLocationName">Coimbatore, TN</span>
+              <span class="source-tag" id="currentSourceTag">Authoritative Source: IMD</span>
+            </div>
+            <span class="timestamp-tag" id="currentObsTime">Updated 10:10 AM</span>
           </div>
-          <div class="metrics-grid">
-            <div class="metric-item">
-              <span class="metric-label">Precipitation</span>
-              <span class="metric-val" id="rainProbVal">65%</span>
+
+          <div class="weather-main-grid">
+            <div class="temp-box">
+              <div>
+                <span class="temp-val" id="tempVal">29</span><span class="temp-unit">°C</span>
+              </div>
+              <div class="condition-badge" id="conditionText">🌧️ Moderate Rain</div>
             </div>
-            <div class="metric-item">
-              <span class="metric-label">Wind Speed</span>
-              <span class="metric-val" id="windVal">18 km/h</span>
+            <div class="metrics-grid">
+              <div class="metric-item">
+                <span class="metric-label">Precipitation</span>
+                <span class="metric-val" id="rainProbVal">65%</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Wind Speed</span>
+                <span class="metric-val" id="windVal">18 km/h</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Humidity</span>
+                <span class="metric-val" id="humidityVal">72%</span>
+              </div>
+              <div class="metric-item">
+                <span class="metric-label">Multi-Source Agreement</span>
+                <span class="metric-val agreement-high" id="agreementVal">92% High</span>
+              </div>
             </div>
-            <div class="metric-item">
-              <span class="metric-label">Humidity</span>
-              <span class="metric-val" id="humidityVal">72%</span>
+          </div>
+        </section>
+
+        <!-- Quick AI Access Card -->
+        <section class="glass-panel">
+          <h3>💬 Quick Weather Assistant</h3>
+          <div class="chips-scroll" style="margin-top:8px;">
+            <button class="chip-btn" onclick="sendQuickQuery('Naalaiku morning college pogalama?')">🎓 College tomorrow?</button>
+            <button class="chip-btn" onclick="sendQuickQuery('Naalaiku kadaluku pogalama?')">🎣 Sea fishing status?</button>
+            <button class="chip-btn" onclick="sendQuickQuery('Farmer advisory for heavy rain')">🌾 Farmer crop guide</button>
+          </div>
+        </section>
+      </section>
+
+      <!-- Screen 2: Chat -->
+      <section id="screen-chat" class="screen-container" role="region" aria-label="Conversational AI Screen">
+        <div class="glass-panel" style="padding:12px;">
+          <h3>💬 WeatherGPT Decision Assistant</h3>
+          <div id="chatHistory" class="chat-window" style="margin-top:10px;">
+            <div class="msg-bubble bot-msg">
+              <div class="msg-author">
+                <span>🌤️ WeatherGPT Decision Engine</span>
+                <span class="msg-tag">IMD Grounded</span>
+              </div>
+              <p>Vanakkam! I am WeatherGPT, your meteorological decision assistant. Ask me anything in <strong>Tamil, Tanglish, or English</strong>!</p>
             </div>
-            <div class="metric-item">
-              <span class="metric-label">Multi-Source Agreement</span>
-              <span class="metric-val agreement-high" id="agreementVal">92% High</span>
-            </div>
+          </div>
+
+          <div class="chat-input-bar glass-panel" style="margin-top:10px;">
+            <input type="text" id="chatInput" placeholder="Ask WeatherGPT... (e.g., Naalaiku college pogalama?)" autocomplete="off" aria-label="Chat input query">
+            <button id="voiceBtn" class="icon-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice input">🎙️</button>
+            <button id="sendBtn" class="send-btn" aria-label="Send message">Send ➔</button>
           </div>
         </div>
       </section>
 
-      <!-- View Selector Tabs -->
-      <div class="tabs-nav">
-        <button class="tab-btn active" data-tab="chatTab">💬 Conversational AI</button>
-        <button class="tab-btn" data-tab="forecastTab">📅 Forecast & Trends</button>
-        <button class="tab-btn" data-tab="disasterTab">🚨 Disaster Risk Register</button>
-      </div>
-
-      <!-- Tab 1: Conversational AI -->
-      <section id="chatTab" class="tab-content active">
-        <!-- Quick Action Chips -->
-        <div class="chips-scroll">
-          <button class="chip-btn" onclick="sendQuickQuery('Naalaiku morning college pogalama?')">🎓 Naalaiku morning college pogalama?</button>
-          <button class="chip-btn" onclick="sendQuickQuery('Naalaiku kadaluku pogalama?')">🎣 Naalaiku kadaluku pogalama?</button>
-          <button class="chip-btn" onclick="sendQuickQuery('Farmer advisory for heavy rain')">🌾 Farmer crop advisory</button>
-          <button class="chip-btn" onclick="sendQuickQuery('5-year temperature trend analysis')">📊 5-year climate trend</button>
-        </div>
-
-        <!-- Chat History Window -->
-        <div id="chatHistory" class="chat-window">
-          <div class="msg-bubble bot-msg">
-            <div class="msg-author">
-              <span>🌤️ WeatherGPT Decision Engine</span>
-              <span class="msg-tag">IMD Grounded</span>
-            </div>
-            <p>Vanakkam! I am WeatherGPT, your meteorological decision assistant. Ask me anything in <strong>Tamil, Tanglish, or English</strong>!</p>
-          </div>
-        </div>
-
-        <!-- Input Area -->
-        <div class="chat-input-bar glass-panel">
-          <input type="text" id="chatInput" placeholder="Ask WeatherGPT... (e.g., Naalaiku morning college pogalama?)" autocomplete="off">
-          <button id="voiceBtn" class="icon-btn" title="Voice Input (Speech-to-Text)">🎙️</button>
-          <button id="sendBtn" class="send-btn">Send ➔</button>
-        </div>
-      </section>
-
-      <!-- Tab 2: Forecast & Trends -->
-      <section id="forecastTab" class="tab-content">
+      <!-- Screen 3: Weather (Forecast & Climate Trends) -->
+      <section id="screen-weather" class="screen-container" role="region" aria-label="Forecast Screen">
         <div class="glass-panel forecast-section">
-          <h3>📅 Hourly & Extended Forecast</h3>
+          <h3>📅 Hourly & Daily Forecast</h3>
           <div id="forecastGrid" class="forecast-grid">
             <!-- Dynamically populated -->
           </div>
         </div>
 
         <div class="glass-panel trends-section">
-          <h3>📊 Historical Climate Trend Analysis (NASA POWER Data)</h3>
+          <h3>📊 Climate Trend Archive (NASA POWER / IMD)</h3>
           <div id="trendBox" class="trend-box">
             <p class="trend-headline">📈 10-Year Temperature Trend (2015 - 2025)</p>
             <p class="trend-text">Average annual temperature has increased by <strong>+0.85°C</strong> over the decade with an increase in high-intensity monsoonal precipitation events.</p>
             <div class="trend-stat-row">
-              <div class="stat-pill">Avg Annual Rain: <strong>950.4 mm</strong></div>
-              <div class="stat-pill">Max 1-Day Rain: <strong>185.2 mm</strong></div>
-              <div class="stat-pill">Data Source: <strong>NASA POWER / IMD Archive</strong></div>
+              <div class="stat-pill">Avg Rain: <strong>950.4 mm</strong></div>
+              <div class="stat-pill">Max 1-Day: <strong>185.2 mm</strong></div>
+              <div class="stat-pill">Source: <strong>NASA POWER / IMD</strong></div>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Tab 3: Disaster Risk Register -->
-      <section id="disasterTab" class="tab-content">
+      <!-- Screen 4: Alerts -->
+      <section id="screen-alerts" class="screen-container" role="region" aria-label="Alerts Screen">
         <div class="glass-panel risk-section">
-          <h3>🚨 Active Disaster & Hazard Safety Status</h3>
+          <h3>🚨 Official IMD Warnings & Risk Register</h3>
           <div id="disasterList" class="disaster-list">
             <!-- Dynamically populated -->
           </div>
         </div>
       </section>
 
+      <!-- Screen 5: Profile & Auth -->
+      <section id="screen-profile" class="screen-container" role="region" aria-label="User Profile Screen">
+        <div class="glass-panel">
+          <h3>👤 User Profile & Account</h3>
+          <div id="authStatusBox" class="auth-card" style="margin-top:10px;">
+            <div id="userInfoView">
+              <p>Status: <strong id="userStatusText">Guest Mode</strong></p>
+              <p style="font-size:13px; color:var(--text-muted); margin-top:4px;" id="userEmailText">Sign in to save preferred locations and conversation history.</p>
+            </div>
+            <div id="authForm" style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
+              <input type="email" id="authEmail" class="auth-input" placeholder="Email address" aria-label="Email address">
+              <input type="password" id="authPassword" class="auth-input" placeholder="Password" aria-label="Password">
+              <div style="display:flex; gap:8px;">
+                <button id="loginSubmitBtn" class="auth-btn" style="flex:1;">Sign In</button>
+                <button id="registerSubmitBtn" class="auth-btn" style="flex:1; background:rgba(255,255,255,0.1);">Register</button>
+              </div>
+            </div>
+            <button id="logoutBtn" class="auth-btn hidden" style="background:#e11d48; margin-top:10px;">Sign Out</button>
+          </div>
+
+          <div class="glass-panel" style="margin-top:12px;">
+            <h4>📍 Saved Locations</h4>
+            <div id="savedLocationsList" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
+              <p style="font-size:12px; color:var(--text-muted);">Sign in to manage saved locations.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 6: Settings -->
+      <section id="screen-settings" class="screen-container" role="region" aria-label="Settings Screen">
+        <div class="glass-panel">
+          <h3>⚙️ Application Settings</h3>
+          <div style="display:flex; flex-direction:column; gap:14px; margin-top:12px;">
+            <div class="auth-form-group">
+              <label for="unitsSelect">Preferred Units</label>
+              <select id="unitsSelect" class="styled-select">
+                <option value="metric">Metric (°C, km/h, mm)</option>
+                <option value="imperial">Imperial (°F, mph, in)</option>
+              </select>
+            </div>
+            <div class="auth-form-group">
+              <label for="envSelect">API Environment Server</label>
+              <select id="envSelect" class="styled-select">
+                <option value="/api/v1">Production / Standard (/api/v1)</option>
+                <option value="http://localhost:8000/api/v1">Local Dev (localhost:8000)</option>
+              </select>
+            </div>
+            <p style="font-size:12px; color:var(--text-muted);">WeatherGPT Mobile Client v1.0.0 | SIH26068</p>
+          </div>
+        </div>
+      </section>
+
     </main>
+
+    <!-- Mobile Bottom Navigation Bar (WCAG Touch Targets) -->
+    <nav class="mobile-bottom-nav" role="navigation" aria-label="Mobile Navigation">
+      <button class="nav-item active" data-screen="home" aria-label="Home Screen">
+        <span class="nav-icon" aria-hidden="true">🏠</span>
+        <span>Home</span>
+      </button>
+      <button class="nav-item" data-screen="chat" aria-label="Chat Screen">
+        <span class="nav-icon" aria-hidden="true">💬</span>
+        <span>Chat</span>
+      </button>
+      <button class="nav-item" data-screen="weather" aria-label="Weather Forecast Screen">
+        <span class="nav-icon" aria-hidden="true">🌤️</span>
+        <span>Weather</span>
+      </button>
+      <button class="nav-item" data-screen="alerts" aria-label="Alerts Screen">
+        <span class="nav-icon" aria-hidden="true">🚨</span>
+        <span>Alerts</span>
+      </button>
+      <button class="nav-item" data-screen="profile" aria-label="Profile Screen">
+        <span class="nav-icon" aria-hidden="true">👤</span>
+        <span>Profile</span>
+      </button>
+      <button class="nav-item" data-screen="settings" aria-label="Settings Screen">
+        <span class="nav-icon" aria-hidden="true">⚙️</span>
+        <span>Settings</span>
+      </button>
+    </nav>
 
     <!-- Footer -->
     <footer class="footer">
@@ -167,6 +259,18 @@
     </footer>
   </div>
 
-  <script src="app.js"></script>
+  <script src="/mobile/apiClient.js"></script>
+  <script src="/app.js"></script>
+
+  <!-- Service Worker Registration -->
+  <script>
+    if ('serviceWorker' in navigator) {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(err => {
+          console.warn('SW Registration:', err);
+        });
+      });
+    }
+  </script>
 </body>
 </html>

@@ -1,0 +1,32 @@
+{
+  "name": "WeatherGPT — IMD Meteorological Assistant",
+  "short_name": "WeatherGPT",
+  "description": "AI-Powered Conversational Weather Forecasting, Official Warnings, and Climate Decision Engine (MoES / IMD)",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#0f172a",
+  "orientation": "portrait-primary",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌤️</text></svg>",
+      "sizes": "192x192 512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Weather Chat",
+      "short_name": "Chat",
+      "description": "Ask WeatherGPT about weather and safety",
+      "url": "/#chat"
+    },
+    {
+      "name": "Official Alerts",
+      "short_name": "Alerts",
+      "description": "View official IMD weather warnings",
+      "url": "/#alerts"
+    }
+  ]
+}

@@ -503,5 +503,241 @@ body {
   font-size: 11px;
   color: var(--text-muted);
   margin-top: 12px;
-  padding: 8px;
+  padding: 8px 8px 60px 8px; /* Extra bottom padding for mobile nav bar */
 }
+
+/* ============================================================
+   MOBILE FOUNDATION & RESPONSIVE STYLES (PHASE 11)
+   ============================================================ */
+
+/* Touch Target Size Rules (WCAG 2.1 AA - Min 44px x 44px) */
+button,
+select,
+input[type="text"],
+input[type="email"],
+input[type="password"],
+.chip-btn,
+.tab-btn,
+.nav-item {
+  min-height: 44px;
+  touch-action: manipulation;
+}
+
+/* Screen Reader Only Accessibility Helper */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+/* Network Offline Status Bar */
+.offline-bar {
+  position: fixed;
+  top: 0;
+  left: 0;
+  right: 0;
+  background: #e11d48;
+  color: #ffffff;
+  text-align: center;
+  padding: 8px 16px;
+  font-size: 13px;
+  font-weight: 600;
+  z-index: 1000;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.3);
+}
+
+/* Mobile Bottom Navigation Bar */
+.mobile-bottom-nav {
+  display: flex;
+  justify-content: space-around;
+  align-items: center;
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  right: 0;
+  height: 64px;
+  background: rgba(15, 23, 42, 0.95);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border-top: 1px solid var(--panel-border);
+  z-index: 999;
+  padding-bottom: env(safe-area-inset-bottom);
+}
+
+.nav-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 11px;
+  font-weight: 500;
+  cursor: pointer;
+  transition: all 0.2s ease;
+  padding: 4px;
+}
+
+.nav-item .nav-icon {
+  font-size: 20px;
+  margin-bottom: 2px;
+}
+
+.nav-item.active,
+.nav-item:hover {
+  color: var(--primary-cyan);
+}
+
+/* Mobile Screen Container */
+.screen-container {
+  display: none;
+  width: 100%;
+}
+
+.screen-container.active {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+/* Auth Cards & Modal */
+.auth-card {
+  background: var(--panel-bg);
+  backdrop-filter: blur(12px);
+  border: 1px solid var(--panel-border);
+  border-radius: 16px;
+  padding: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.auth-form-group {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.auth-form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-muted);
+}
+
+.auth-input {
+  background: rgba(15, 23, 42, 0.8);
+  border: 1px solid var(--panel-border);
+  border-radius: 10px;
+  padding: 10px 14px;
+  color: var(--text-main);
+  font-size: 14px;
+  outline: none;
+}
+
+.auth-input:focus {
+  border-color: var(--primary-cyan);
+}
+
+.auth-btn {
+  background: linear-gradient(135deg, var(--primary-cyan), var(--primary-blue));
+  border: none;
+  color: #fff;
+  font-weight: 700;
+  font-size: 14px;
+  padding: 12px;
+  border-radius: 10px;
+  cursor: pointer;
+  min-height: 44px;
+  transition: all 0.2s ease;
+}
+
+.auth-btn:hover {
+  transform: translateY(-1px);
+}
+
+/* Loading & Skeleton States */
+.spinner {
+  width: 24px;
+  height: 24px;
+  border: 3px solid rgba(255, 255, 255, 0.2);
+  border-top-color: var(--primary-cyan);
+  border-radius: 50%;
+  animation: spin 0.8s linear infinite;
+  margin: 0 auto;
+}
+
+@keyframes spin {
+  to { transform: rotate(360deg); }
+}
+
+.error-card {
+  background: rgba(244, 63, 94, 0.15);
+  border: 1px solid rgba(244, 63, 94, 0.4);
+  border-radius: 12px;
+  padding: 16px;
+  text-align: center;
+  color: #fecdd3;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+}
+
+.retry-btn {
+  background: rgba(244, 63, 94, 0.3);
+  border: 1px solid rgba(244, 63, 94, 0.6);
+  color: #fff;
+  font-weight: 600;
+  padding: 8px 16px;
+  border-radius: 8px;
+  cursor: pointer;
+  min-height: 44px;
+}
+
+/* Saved Location Items */
+.saved-loc-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  background: rgba(15, 23, 42, 0.6);
+  border: 1px solid var(--panel-border);
+  padding: 12px 16px;
+  border-radius: 10px;
+}
+
+/* Mobile Media Queries */
+@media (max-width: 768px) {
+  body {
+    padding: 8px 8px 72px 8px;
+  }
+  
+  .app-container {
+    max-width: 100%;
+  }
+
+  .header-glass {
+    padding: 12px 14px;
+  }
+
+  .brand-title {
+    font-size: 20px;
+  }
+
+  .controls-group {
+    width: 100%;
+    justify-content: space-between;
+  }
+
+  .styled-select {
+    flex: 1;
+  }
+}
+
