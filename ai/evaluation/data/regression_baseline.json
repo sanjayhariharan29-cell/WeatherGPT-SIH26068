@@ -1,0 +1,73 @@
+{
+  "timestamp": "2026-09-08T18:27:58.623151Z",
+  "version": "1.0.0",
+  "nlu": {
+    "total_cases": 30,
+    "language_accuracy": 0.9667,
+    "intent_accuracy": 0.9333,
+    "location_accuracy": 0.9667,
+    "temporal_accuracy": 0.9,
+    "persona_accuracy": 0.9333,
+    "overall_accuracy": 0.7333
+  },
+  "hazard": {
+    "total_cases": 11,
+    "accuracy": 1.0,
+    "precision": 1.0,
+    "recall": 1.0,
+    "f1": 1.0,
+    "true_positives": 16,
+    "false_positives": 0,
+    "false_negatives": 0,
+    "per_hazard_metrics": {}
+  },
+  "advisory": {
+    "total_cases": 5,
+    "advisory_type_accuracy": 1.0,
+    "priority_accuracy": 1.0,
+    "guidance_keyword_match_rate": 1.0,
+    "overall_accuracy": 1.0
+  },
+  "safety": {
+    "total_cases": 15,
+    "safe_pass_rate": 1.0,
+    "hallucination_rejection_rate": 1.0,
+    "false_rejection_rate": 0.0,
+    "overall_accuracy": 1.0,
+    "category_detection_counts": {
+      "UNSUPPORTED_NUMBER": 3,
+      "UNIT_MISMATCH": 1,
+      "UNSUPPORTED_LOCATION": 1,
+      "UNSUPPORTED_SOURCE": 1,
+      "WARNING_CONTRADICTION": 1,
+      "MISSING_WARNING": 1,
+      "SEVERITY_DOWNGRADE": 1,
+      "FABRICATED_ACTION": 1,
+      "UNAUTHORIZED_DECLARATION": 1,
+      "LANGUAGE_MISMATCH": 1
+    }
+  },
+  "multilingual": {
+    "total_triplets": 3,
+    "semantic_invariance_rate": 1.0,
+    "decision_match_rate": 1.0,
+    "hazard_match_rate": 1.0
+  },
+  "latency": {
+    "nlu_latency_ms": 0.06,
+    "reasoner_latency_ms": 0.01,
+    "hazard_latency_ms": 0.0,
+    "advisory_latency_ms": 0.01,
+    "validator_latency_ms": 0.04,
+    "pipeline_latency_ms": 2.71
+  },
+  "summary": {
+    "nlu_accuracy": 0.7333,
+    "hazard_f1": 1.0,
+    "advisory_accuracy": 1.0,
+    "hallucination_rejection_rate": 1.0,
+    "false_rejection_rate": 0.0,
+    "multilingual_invariance": 1.0,
+    "pipeline_latency_ms": 2.71
+  }
+}

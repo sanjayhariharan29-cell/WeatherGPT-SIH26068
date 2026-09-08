@@ -1,0 +1,96 @@
+[
+  {
+    "id": "advisory_01_farmer_heavy_rain",
+    "persona": "farmer",
+    "description": "Farmer advisory under heavy rain conditions",
+    "weather": {
+      "temperature": 25.0,
+      "humidity": 90.0,
+      "rain_probability": 85.0,
+      "wind_speed": 20.0,
+      "rainfall_amount_mm": 70.0,
+      "weather_condition": "Heavy Rain",
+      "source": "IMD"
+    },
+    "expected_advisory_type": "farm_activity_caution",
+    "expected_priority": "high",
+    "expected_keywords": ["fertilizer", "drainage", "irrigation", "spray", "harvest"]
+  },
+  {
+    "id": "advisory_02_fisherman_cyclone",
+    "persona": "fisherman",
+    "description": "Fisherman advisory under severe cyclone warning",
+    "weather": {
+      "temperature": 26.0,
+      "humidity": 95.0,
+      "rain_probability": 90.0,
+      "wind_speed": 75.0,
+      "rainfall_amount_mm": 80.0,
+      "weather_condition": "Squall",
+      "source": "IMD"
+    },
+    "active_alerts": [
+      {
+        "type": "cyclone",
+        "severity": "extreme",
+        "title": "Red Alert — Cyclone Warning",
+        "description": "Fishermen are advised not to venture into sea.",
+        "source": "IMD"
+      }
+    ],
+    "expected_advisory_type": "official_warning",
+    "expected_priority": "critical",
+    "expected_keywords": ["sea", "boat", "shore", "anchor", "venture"]
+  },
+  {
+    "id": "advisory_03_student_rain",
+    "persona": "student",
+    "description": "Student advisory under moderate rainfall",
+    "weather": {
+      "temperature": 27.0,
+      "humidity": 80.0,
+      "rain_probability": 65.0,
+      "wind_speed": 16.0,
+      "rainfall_amount_mm": 20.0,
+      "weather_condition": "Rain",
+      "source": "IMD"
+    },
+    "expected_advisory_type": "travel_caution",
+    "expected_priority": "medium",
+    "expected_keywords": ["umbrella", "raincoat", "waterproof", "official"]
+  },
+  {
+    "id": "advisory_04_traveller_flood",
+    "persona": "traveller",
+    "description": "Traveller advisory under very heavy rain and waterlogging",
+    "weather": {
+      "temperature": 24.0,
+      "humidity": 94.0,
+      "rain_probability": 90.0,
+      "wind_speed": 28.0,
+      "rainfall_amount_mm": 130.0,
+      "weather_condition": "Very Heavy Rain",
+      "source": "IMD"
+    },
+    "expected_advisory_type": "travel_caution",
+    "expected_priority": "high",
+    "expected_keywords": ["delay", "waterlogging", "route", "drive", "travel"]
+  },
+  {
+    "id": "advisory_05_general_clear",
+    "persona": "general",
+    "description": "General citizen advisory in pleasant clear weather",
+    "weather": {
+      "temperature": 29.0,
+      "humidity": 50.0,
+      "rain_probability": 10.0,
+      "wind_speed": 12.0,
+      "rainfall_amount_mm": 0.0,
+      "weather_condition": "Sunny",
+      "source": "IMD"
+    },
+    "expected_advisory_type": "weather_summary",
+    "expected_priority": "low",
+    "expected_keywords": ["pleasant", "normal", "favorable", "outdoor"]
+  }
+]

@@ -1,0 +1,61 @@
+"""WeatherGPT AI Evaluation and Quality Benchmarking Package."""
+
+from ai.evaluation.dataset import (
+    build_alerts_from_list,
+    build_forecast_from_list,
+    build_weather_record_from_dict,
+    load_advisory_dataset,
+    load_hazard_dataset,
+    load_nlu_dataset,
+    load_safety_dataset,
+)
+from ai.evaluation.runner import (
+    evaluate_advisories,
+    evaluate_hazards,
+    evaluate_multilingual_consistency,
+    evaluate_nlu,
+    evaluate_safety,
+    measure_latency,
+    run_full_benchmark,
+)
+from ai.evaluation.schemas import (
+    AdvisoryEvalCase,
+    AdvisoryMetrics,
+    BenchmarkReport,
+    HazardEvalCase,
+    HazardMetrics,
+    LatencyMetrics,
+    MultilingualMetrics,
+    NLUEvalCase,
+    NLUMetrics,
+    SafetyEvalCase,
+    SafetyMetrics,
+)
+
+__all__ = [
+    "load_nlu_dataset",
+    "load_hazard_dataset",
+    "load_advisory_dataset",
+    "load_safety_dataset",
+    "build_weather_record_from_dict",
+    "build_alerts_from_list",
+    "build_forecast_from_list",
+    "evaluate_nlu",
+    "evaluate_hazards",
+    "evaluate_advisories",
+    "evaluate_safety",
+    "evaluate_multilingual_consistency",
+    "measure_latency",
+    "run_full_benchmark",
+    "NLUEvalCase",
+    "HazardEvalCase",
+    "AdvisoryEvalCase",
+    "SafetyEvalCase",
+    "NLUMetrics",
+    "HazardMetrics",
+    "AdvisoryMetrics",
+    "SafetyMetrics",
+    "MultilingualMetrics",
+    "LatencyMetrics",
+    "BenchmarkReport",
+]

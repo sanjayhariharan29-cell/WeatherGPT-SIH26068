@@ -1,0 +1,302 @@
+[
+  {
+    "id": "nlu_en_01",
+    "query": "What is the current weather in Coimbatore today?",
+    "expected_language": "en",
+    "expected_intent": "current_weather",
+    "expected_location": "Coimbatore",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "english_core"
+  },
+  {
+    "id": "nlu_en_02",
+    "query": "Will it rain tomorrow in Chennai?",
+    "expected_language": "en",
+    "expected_intent": "rain_forecast",
+    "expected_location": "Chennai",
+    "expected_date": "tomorrow",
+    "expected_persona": null,
+    "category": "english_core"
+  },
+  {
+    "id": "nlu_en_03",
+    "query": "What is the temperature in Madurai today?",
+    "expected_language": "en",
+    "expected_intent": "temperature",
+    "expected_location": "Madurai",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "english_core"
+  },
+  {
+    "id": "nlu_en_04",
+    "query": "How strong is the wind speed in Nagapattinam today?",
+    "expected_language": "en",
+    "expected_intent": "wind",
+    "expected_location": "Nagapattinam",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "english_core"
+  },
+  {
+    "id": "nlu_en_05",
+    "query": "Is there any cyclone alert active for Chennai?",
+    "expected_language": "en",
+    "expected_intent": "cyclone_inquiry",
+    "expected_location": "Chennai",
+    "expected_date": null,
+    "expected_persona": null,
+    "category": "english_alert"
+  },
+  {
+    "id": "nlu_en_06",
+    "query": "Should I go for an outdoor morning jog in Coimbatore?",
+    "expected_language": "en",
+    "expected_intent": "outdoor_decision",
+    "expected_location": "Coimbatore",
+    "expected_date": null,
+    "expected_persona": "general",
+    "category": "english_advisory"
+  },
+  {
+    "id": "nlu_en_07",
+    "query": "Can I go to sea for fishing today?",
+    "expected_language": "en",
+    "expected_intent": "outdoor_decision",
+    "expected_location": null,
+    "expected_date": "today",
+    "expected_persona": "fisherman",
+    "category": "english_advisory"
+  },
+  {
+    "id": "nlu_en_08",
+    "query": "Is it safe to spray fertilizer on my crops today?",
+    "expected_language": "en",
+    "expected_intent": "agriculture_advisory",
+    "expected_location": null,
+    "expected_date": "today",
+    "expected_persona": "farmer",
+    "category": "english_advisory"
+  },
+  {
+    "id": "nlu_en_09",
+    "query": "Is it safe to travel on the highway to Salem today?",
+    "expected_language": "en",
+    "expected_intent": "outdoor_decision",
+    "expected_location": "Salem",
+    "expected_date": "today",
+    "expected_persona": "traveller",
+    "category": "english_advisory"
+  },
+  {
+    "id": "nlu_en_10",
+    "query": "What does a low pressure depression mean in weather?",
+    "expected_language": "en",
+    "expected_intent": "general_weather_question",
+    "expected_location": null,
+    "expected_date": null,
+    "expected_persona": null,
+    "category": "english_explanation"
+  },
+  {
+    "id": "nlu_ta_01",
+    "query": "கோவையில் இன்று மழை பெய்யுமா?",
+    "expected_language": "ta",
+    "expected_intent": "rain_forecast",
+    "expected_location": "Coimbatore",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "tamil_script"
+  },
+  {
+    "id": "nlu_ta_02",
+    "query": "சென்னையில் தற்போதைய வெப்பநிலை என்ன?",
+    "expected_language": "ta",
+    "expected_intent": "temperature",
+    "expected_location": "Chennai",
+    "expected_date": "now",
+    "expected_persona": null,
+    "category": "tamil_script"
+  },
+  {
+    "id": "nlu_ta_03",
+    "query": "நாகப்பட்டினத்தில் புயல் எச்சரிக்கை உள்ளதா?",
+    "expected_language": "ta",
+    "expected_intent": "cyclone_inquiry",
+    "expected_location": "Nagapattinam",
+    "expected_date": null,
+    "expected_persona": null,
+    "category": "tamil_script"
+  },
+  {
+    "id": "nlu_ta_04",
+    "query": "நாளை கடலுக்கு மீன்பிடிக்க செல்லலாமா?",
+    "expected_language": "ta",
+    "expected_intent": "outdoor_decision",
+    "expected_location": null,
+    "expected_date": "tomorrow",
+    "expected_persona": "fisherman",
+    "category": "tamil_script"
+  },
+  {
+    "id": "nlu_ta_05",
+    "query": "மதுரையில் காற்றின் வேகம் எப்படி இருக்கிறது?",
+    "expected_language": "ta",
+    "expected_intent": "wind",
+    "expected_location": "Madurai",
+    "expected_date": null,
+    "expected_persona": null,
+    "category": "tamil_script"
+  },
+  {
+    "id": "nlu_hi_01",
+    "query": "दिल्ली में आज का मौसम कैसा है?",
+    "expected_language": "hi",
+    "expected_intent": "current_weather",
+    "expected_location": "Delhi",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "hindi_script"
+  },
+  {
+    "id": "nlu_hi_02",
+    "query": "क्या कल मुंबई में बारिश होगी?",
+    "expected_language": "hi",
+    "expected_intent": "rain_forecast",
+    "expected_location": "Mumbai",
+    "expected_date": "tomorrow",
+    "expected_persona": null,
+    "category": "hindi_script"
+  },
+  {
+    "id": "nlu_hi_03",
+    "query": "चेन्नई में आज तापमान कितना है?",
+    "expected_language": "hi",
+    "expected_intent": "temperature",
+    "expected_location": "Chennai",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "hindi_script"
+  },
+  {
+    "id": "nlu_hi_04",
+    "query": "क्या कोई चक्रवात या तूफान की चेतावनी है?",
+    "expected_language": "hi",
+    "expected_intent": "cyclone_inquiry",
+    "expected_location": null,
+    "expected_date": null,
+    "expected_persona": null,
+    "category": "hindi_script"
+  },
+  {
+    "id": "nlu_hi_05",
+    "query": "क्या आज शाम को बाहर टहलने जाना सुरक्षित है?",
+    "expected_language": "hi",
+    "expected_intent": "outdoor_decision",
+    "expected_location": null,
+    "expected_date": "today",
+    "expected_persona": "general",
+    "category": "hindi_script"
+  },
+  {
+    "id": "nlu_tanglish_01",
+    "query": "Naalaiku Coimbatore la mazhai varuma?",
+    "expected_language": "tanglish",
+    "expected_intent": "rain_forecast",
+    "expected_location": "Coimbatore",
+    "expected_date": "tomorrow",
+    "expected_persona": null,
+    "category": "tanglish"
+  },
+  {
+    "id": "nlu_tanglish_02",
+    "query": "Inaiku Chennai la temperature evlo irukku?",
+    "expected_language": "tanglish",
+    "expected_intent": "temperature",
+    "expected_location": "Chennai",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "tanglish"
+  },
+  {
+    "id": "nlu_tanglish_03",
+    "query": "Naalaiku college pogalama?",
+    "expected_language": "tanglish",
+    "expected_intent": "outdoor_decision",
+    "expected_location": null,
+    "expected_date": "tomorrow",
+    "expected_persona": "student",
+    "category": "tanglish"
+  },
+  {
+    "id": "nlu_tanglish_04",
+    "query": "Kadalukku pogalama meen pidikka inaiku?",
+    "expected_language": "tanglish",
+    "expected_intent": "outdoor_decision",
+    "expected_location": null,
+    "expected_date": "today",
+    "expected_persona": "fisherman",
+    "category": "tanglish"
+  },
+  {
+    "id": "nlu_tanglish_05",
+    "query": "Nagapattinam la cyclone alert irukka?",
+    "expected_language": "tanglish",
+    "expected_intent": "cyclone_inquiry",
+    "expected_location": "Nagapattinam",
+    "expected_date": null,
+    "expected_persona": null,
+    "category": "tanglish"
+  },
+  {
+    "id": "nlu_hinglish_01",
+    "query": "Kal Delhi mein baarish hogi kya?",
+    "expected_language": "hinglish",
+    "expected_intent": "rain_forecast",
+    "expected_location": "Delhi",
+    "expected_date": "tomorrow",
+    "expected_persona": null,
+    "category": "hinglish"
+  },
+  {
+    "id": "nlu_hinglish_02",
+    "query": "Aaj Mumbai ka mausam kaisa hai?",
+    "expected_language": "hinglish",
+    "expected_intent": "current_weather",
+    "expected_location": "Mumbai",
+    "expected_date": "today",
+    "expected_persona": null,
+    "category": "hinglish"
+  },
+  {
+    "id": "nlu_hinglish_03",
+    "query": "Kya kal cyclone ka alert hai?",
+    "expected_language": "hinglish",
+    "expected_intent": "cyclone_inquiry",
+    "expected_location": null,
+    "expected_date": "tomorrow",
+    "expected_persona": null,
+    "category": "hinglish"
+  },
+  {
+    "id": "nlu_hinglish_04",
+    "query": "Kal college jaana safe hai kya student ke liye?",
+    "expected_language": "hinglish",
+    "expected_intent": "outdoor_decision",
+    "expected_location": null,
+    "expected_date": "tomorrow",
+    "expected_persona": "student",
+    "category": "hinglish"
+  },
+  {
+    "id": "nlu_hinglish_05",
+    "query": "Kheti mein spray kab karna chahiye?",
+    "expected_language": "hinglish",
+    "expected_intent": "agriculture_advisory",
+    "expected_location": null,
+    "expected_date": null,
+    "expected_persona": "farmer",
+    "category": "hinglish"
+  }
+]

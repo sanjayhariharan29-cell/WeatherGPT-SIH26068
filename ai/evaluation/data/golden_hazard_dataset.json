@@ -1,0 +1,176 @@
+[
+  {
+    "id": "hazard_01_clear",
+    "description": "Mild pleasant weather with no hazards",
+    "weather": {
+      "temperature": 28.0,
+      "humidity": 55.0,
+      "rain_probability": 10.0,
+      "wind_speed": 12.0,
+      "rainfall_amount_mm": 0.0,
+      "weather_condition": "Sunny",
+      "source": "IMD"
+    },
+    "expected_hazards": [],
+    "expected_overall_risk": "low"
+  },
+  {
+    "id": "hazard_02_moderate_rain",
+    "description": "Moderate rainfall meeting 60% probability and 20 mm threshold",
+    "weather": {
+      "temperature": 26.0,
+      "humidity": 80.0,
+      "rain_probability": 65.0,
+      "wind_speed": 15.0,
+      "rainfall_amount_mm": 20.0,
+      "weather_condition": "Rain",
+      "source": "IMD"
+    },
+    "expected_hazards": ["MODERATE_RAINFALL"],
+    "expected_overall_risk": "medium"
+  },
+  {
+    "id": "hazard_03_heavy_rain",
+    "description": "Heavy rainfall meeting 85% probability and 75 mm threshold",
+    "weather": {
+      "temperature": 24.0,
+      "humidity": 92.0,
+      "rain_probability": 85.0,
+      "wind_speed": 22.0,
+      "rainfall_amount_mm": 75.0,
+      "weather_condition": "Heavy Rain",
+      "source": "IMD"
+    },
+    "expected_hazards": ["HEAVY_RAINFALL"],
+    "expected_overall_risk": "high"
+  },
+  {
+    "id": "hazard_04_extreme_rain",
+    "description": "Extremely heavy rainfall exceeding 204.5 mm IMD criteria",
+    "weather": {
+      "temperature": 23.0,
+      "humidity": 98.0,
+      "rain_probability": 95.0,
+      "wind_speed": 35.0,
+      "rainfall_amount_mm": 220.0,
+      "weather_condition": "Torrential Rain",
+      "source": "IMD"
+    },
+    "expected_hazards": ["EXTREME_RAINFALL", "FLOOD_RISK"],
+    "expected_overall_risk": "extreme"
+  },
+  {
+    "id": "hazard_05_high_wind",
+    "description": "Strong gusty winds exceeding 40 km/h threshold",
+    "weather": {
+      "temperature": 27.0,
+      "humidity": 60.0,
+      "rain_probability": 20.0,
+      "wind_speed": 48.0,
+      "rainfall_amount_mm": 0.0,
+      "weather_condition": "Windy",
+      "source": "IMD"
+    },
+    "expected_hazards": ["STRONG_WINDS"],
+    "expected_overall_risk": "high"
+  },
+  {
+    "id": "hazard_06_gale_wind",
+    "description": "Gale force winds exceeding 65 km/h",
+    "weather": {
+      "temperature": 26.0,
+      "humidity": 85.0,
+      "rain_probability": 50.0,
+      "wind_speed": 72.0,
+      "rainfall_amount_mm": 5.0,
+      "weather_condition": "Squall",
+      "source": "IMD"
+    },
+    "expected_hazards": ["GALE_CYCLONIC_WINDS", "THUNDERSTORM_LIGHTNING"],
+    "expected_overall_risk": "extreme"
+  },
+  {
+    "id": "hazard_07_heatwave",
+    "description": "Severe heatwave with temperature >= 42°C",
+    "weather": {
+      "temperature": 43.0,
+      "humidity": 30.0,
+      "rain_probability": 0.0,
+      "wind_speed": 10.0,
+      "rainfall_amount_mm": 0.0,
+      "weather_condition": "Clear",
+      "source": "IMD"
+    },
+    "expected_hazards": ["HEATWAVE"],
+    "expected_overall_risk": "high"
+  },
+  {
+    "id": "hazard_08_coldwave",
+    "description": "Coldwave with temperature <= 8°C",
+    "weather": {
+      "temperature": 6.5,
+      "humidity": 70.0,
+      "rain_probability": 0.0,
+      "wind_speed": 12.0,
+      "rainfall_amount_mm": 0.0,
+      "weather_condition": "Cold",
+      "source": "IMD"
+    },
+    "expected_hazards": ["COLDWAVE"],
+    "expected_overall_risk": "medium"
+  },
+  {
+    "id": "hazard_09_thunderstorm",
+    "description": "Severe thunderstorm with lightning",
+    "weather": {
+      "temperature": 27.0,
+      "humidity": 85.0,
+      "rain_probability": 70.0,
+      "wind_speed": 35.0,
+      "rainfall_amount_mm": 20.0,
+      "weather_condition": "Thunderstorm with Squall",
+      "source": "IMD"
+    },
+    "expected_hazards": ["THUNDERSTORM_LIGHTNING", "MODERATE_RAINFALL"],
+    "expected_overall_risk": "high"
+  },
+  {
+    "id": "hazard_10_dense_fog",
+    "description": "Dense fog with low visibility",
+    "weather": {
+      "temperature": 14.0,
+      "humidity": 96.0,
+      "rain_probability": 5.0,
+      "wind_speed": 4.0,
+      "rainfall_amount_mm": 0.0,
+      "weather_condition": "Dense Fog",
+      "source": "IMD"
+    },
+    "expected_hazards": ["LOW_VISIBILITY"],
+    "expected_overall_risk": "high"
+  },
+  {
+    "id": "hazard_11_cyclone_alert",
+    "description": "Official IMD Red Alert for Cyclone",
+    "weather": {
+      "temperature": 25.0,
+      "humidity": 95.0,
+      "rain_probability": 90.0,
+      "wind_speed": 85.0,
+      "rainfall_amount_mm": 120.0,
+      "weather_condition": "Tropical Storm",
+      "source": "IMD"
+    },
+    "active_alerts": [
+      {
+        "type": "cyclone",
+        "severity": "extreme",
+        "title": "Red Alert — Severe Cyclonic Storm",
+        "description": "Destructive winds and tidal surge expected.",
+        "source": "IMD"
+      }
+    ],
+    "expected_hazards": ["OFFICIAL_WARNING_CYCLONE", "VERY_HEAVY_RAINFALL", "GALE_CYCLONIC_WINDS", "FLOOD_RISK"],
+    "expected_overall_risk": "extreme"
+  }
+]
