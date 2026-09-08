@@ -5,6 +5,7 @@ from backend.services.imd_adapter import IMDAdapter
 from backend.services.open_meteo_adapter import OpenMeteoAdapter
 from backend.services.nasa_power_adapter import NasaPowerAdapter
 from backend.services.geocoding_service import GeocodingService
+from backend.services.current_weather_service import CurrentWeatherService
 from backend.services.weather_manager import WeatherManager
 from backend.services.cache import ProviderCache, provider_cache
 from backend.services.exceptions import (
@@ -29,6 +30,7 @@ __all__ = [
     "OpenMeteoAdapter",
     "NasaPowerAdapter",
     "GeocodingService",
+    "CurrentWeatherService",
     "WeatherManager",
     "ProviderCache",
     "provider_cache",

@@ -1,21 +1,18 @@
 """Master Weather Service Manager.
 
 Orchestrates IMD (Primary), Open-Meteo (Secondary), NASA POWER (Climate/Historical),
-and Geocoding services behind a unified architecture.
-Provides clean conversion to Person 1's AI models.
+CurrentWeatherService, and Geocoding services behind a unified architecture.
 """
 
 from typing import Dict, Any, List, Optional, Tuple
+from sqlalchemy.orm import Session
+
 from backend.services.imd_adapter import IMDAdapter
 from backend.services.open_meteo_adapter import OpenMeteoAdapter
 from backend.services.nasa_power_adapter import NasaPowerAdapter
 from backend.services.geocoding_service import GeocodingService
+from backend.services.current_weather_service import CurrentWeatherService
 from backend.services.base_provider import BaseWeatherProvider
-from backend.services.schemas import (
-    NormalizedWeatherObservation,
-    NormalizedForecastItem,
-    NormalizedAlertItem
-)
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
     ForecastItem as AIForecastItem,
@@ -37,8 +34,12 @@ class WeatherManager:
         self.open_meteo = secondary_provider or OpenMeteoAdapter()
         self.nasa_power = historical_provider or NasaPowerAdapter()
         self.geocoding = geocoding_service or GeocodingService()
+        self.current_service = CurrentWeatherService(
+            primary_provider=self.imd,
+            secondary_provider=self.open_meteo,
+            geocoding_service=self.geocoding
+        )
 
-        # Provider collection for extensible orchestration
         self.providers: Dict[str, BaseWeatherProvider] = {
             self.imd.name: self.imd,
             self.open_meteo.name: self.open_meteo,
@@ -49,40 +50,12 @@ class WeatherManager:
         self,
         lat: Optional[float] = None,
         lon: Optional[float] = None,
-        location_name: str = "Coimbatore"
+        location_name: str = "Coimbatore",
+        db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
         """Resolves location and returns primary IMD & secondary Open-Meteo observations."""
-        loc = await self.geocoding.resolve_location(location_name)
-        latitude = lat if lat is not None else loc["latitude"]
-        longitude = lon if lon is not None else loc["longitude"]
-        resolved_name = loc["name"]
-
-        # Fetch primary & secondary normalized observations
-        imd_data = await self.imd.get_current_weather(latitude, longitude, resolved_name)
-        open_meteo_data = await self.open_meteo.get_current_weather(latitude, longitude, resolved_name)
-        alerts = await self.imd.get_official_alerts(latitude, longitude, resolved_name)
-
-        sources_agree = abs(imd_data.rain_probability_pct - open_meteo_data.rain_probability_pct) <= 20.0
-
-        return {
-            "location": loc,
-            "weather": {
-                "temperature": imd_data.temperature_c,
-                "humidity": imd_data.humidity_pct,
-                "rain_probability": imd_data.rain_probability_pct,
-                "wind_speed": imd_data.wind_speed_kmh,
-                "condition": imd_data.condition
-            },
-            "comparison": {
-                "secondary_temperature": open_meteo_data.temperature_c,
-                "secondary_rain_probability": open_meteo_data.rain_probability_pct,
-                "sources_agree": sources_agree
-            },
-            "alerts": [alert.model_dump() for alert in alerts],
-            "source": f"{self.imd.name} (Primary), {self.open_meteo.name} (Secondary)",
-            "observed_at": imd_data.observed_at,
-            "retrieved_at": imd_data.retrieved_at
-        }
+        res = await self.current_service.fetch_current_weather(lat, lon, location_name, db_session)
+        return res.model_dump()
 
     async def get_forecast(
         self,
@@ -165,11 +138,10 @@ class WeatherManager:
         latitude = lat if lat is not None else loc["latitude"]
         longitude = lon if lon is not None else loc["longitude"]
 
-        obs = await self.imd.get_current_weather(latitude, longitude, loc["name"])
+        ai_obs = await self.current_service.get_ai_weather_record(latitude, longitude, loc["name"])
         forecasts = await self.imd.get_forecast(latitude, longitude, loc["name"])
         alerts = await self.imd.get_official_alerts(latitude, longitude, loc["name"])
 
-        ai_obs = obs.to_ai_weather_record()
         ai_forecasts = [f.to_ai_forecast_item() for f in forecasts]
         ai_alerts = [a.to_ai_official_alert() for a in alerts]
 
