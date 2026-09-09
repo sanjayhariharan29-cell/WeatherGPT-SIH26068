@@ -9,6 +9,8 @@ class Settings(BaseModel):
     ENVIRONMENT: str = Field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
     DEBUG: bool = Field(default_factory=lambda: os.getenv("DEBUG", "true").lower() == "true")
     API_V1_PREFIX: str = "/api/v1"
+    HOST: str = Field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
+    PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8000")))
 
     # Database Settings
     DATABASE_URL: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db"))

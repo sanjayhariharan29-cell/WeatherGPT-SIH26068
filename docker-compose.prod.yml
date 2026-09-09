@@ -1,0 +1,27 @@
+version: "3.8"
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: weathergpt-backend-prod
+    restart: always
+    env_file:
+      - .env.production
+    ports:
+      - "${PORT:-8000}:${PORT:-8000}"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:${PORT:-8000}/api/v1/health/readiness || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+    deploy:
+      resources:
+        limits:
+          cpus: "1.5"
+          memory: 1024M
+        reservations:
+          cpus: "0.25"
+          memory: 256M
