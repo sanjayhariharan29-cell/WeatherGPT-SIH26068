@@ -96,11 +96,13 @@ class AlertService:
         resolved_name = loc["name"]
 
         source_label = f"{self.primary.name} Official"
+        verification_status = "VERIFIED"
         try:
             raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
         except ProviderError:
             raw_alerts = []
             source_label = f"{self.primary.name} Official (Degraded)"
+            verification_status = "UNVERIFIED"
 
         now_utc = datetime.now(timezone.utc).isoformat()
         alert_schemas: List[AlertItemSchema] = []
@@ -141,6 +143,7 @@ class AlertService:
             alerts=alert_schemas,
             active_count=active_count,
             source=source_label,
+            status=verification_status,
             retrieved_at=now_utc
         )
 

@@ -83,7 +83,10 @@ function setupNetworkMonitoring() {
     }
   }
 
-  window.addEventListener("online", updateStatus);
+  window.addEventListener("online", () => {
+    updateStatus();
+    loadCurrentWeather(true); // Auto-refresh on network recovery without duplicates
+  });
   window.addEventListener("offline", updateStatus);
   updateStatus();
 }
@@ -330,6 +333,19 @@ async function loadCurrentWeather(showLoader = false) {
 
   try {
     const data = await window.apiClient.getCurrentWeather(location);
+    data.cached = false;
+    data.cached_at = null;
+
+    // Cache successful observation to local storage
+    try {
+      localStorage.setItem(`weathergpt_cache_current_${location.toLowerCase()}`, JSON.stringify({
+        data,
+        cachedAt: new Date().toISOString()
+      }));
+    } catch (e) {
+      console.warn("Could not save weather observation to localStorage:", e);
+    }
+
     if (errorCard) errorCard.classList.add("hidden");
     if (cardContainer) cardContainer.classList.remove("hidden");
 
@@ -337,8 +353,32 @@ async function loadCurrentWeather(showLoader = false) {
     await loadForecast(location);
     await loadAlerts(location);
   } catch (err) {
-    console.error("Dashboard weather telemetry fetch error:", err);
-    if (errorCard) {
+    console.warn("Dashboard weather telemetry fetch error, checking local cache:", err);
+
+    // Fallback to local storage cached weather if offline / provider failed
+    const cacheKey = `weathergpt_cache_current_${location.toLowerCase()}`;
+    const rawCache = localStorage.getItem(cacheKey);
+
+    if (rawCache) {
+      try {
+        const cachedObj = JSON.parse(rawCache);
+        const cachedData = cachedObj.data;
+        cachedData.cached = true;
+        cachedData.cached_at = cachedObj.cachedAt;
+
+        if (errorCard) errorCard.classList.add("hidden");
+        if (cardContainer) cardContainer.classList.remove("hidden");
+
+        renderWeatherCard(cachedData);
+        await loadForecast(location);
+        await loadAlerts(location);
+      } catch (e) {
+        if (errorCard) {
+          document.getElementById("dashboardErrorText").textContent = err.message || "Failed to connect to weather backend.";
+          errorCard.classList.remove("hidden");
+        }
+      }
+    } else if (errorCard) {
       document.getElementById("dashboardErrorText").textContent = err.message || "Failed to connect to weather backend.";
       errorCard.classList.remove("hidden");
     }
@@ -356,14 +396,27 @@ function renderWeatherCard(data) {
   document.getElementById("currentLocationName").textContent = `${locName}, TN`;
 
   const sourceName = data.source || "IMD";
-  document.getElementById("currentSourceTag").textContent = `Authoritative Source: ${sourceName}`;
+  const sourceTagElem = document.getElementById("currentSourceTag");
+  if (data.cached) {
+    sourceTagElem.textContent = `Authoritative Source: ${sourceName} (Cached)`;
+  } else {
+    sourceTagElem.textContent = `Authoritative Source: ${sourceName}`;
+  }
 
   // Formatting timestamp & freshness
   const obsTimeStr = data.observed_at ? data.observed_at.split("T")[1]?.slice(0, 5) || "Recent" : "Recent";
-  document.getElementById("currentObsTime").textContent = `Observed: ${obsTimeStr} UTC`;
+  if (data.cached && data.cached_at) {
+    const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
+    document.getElementById("currentObsTime").textContent = `Cached at: ${cachedTimeStr} UTC (Observed: ${obsTimeStr} UTC)`;
+  } else {
+    document.getElementById("currentObsTime").textContent = `Observed: ${obsTimeStr} UTC`;
+  }
 
   const freshnessTag = document.getElementById("dataFreshnessTag");
-  if (data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
+  if (data.cached) {
+    freshnessTag.textContent = "Cached Telemetry (Offline)";
+    freshnessTag.className = "freshness-tag partial";
+  } else if (data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
     freshnessTag.textContent = "Data Unavailable";
     freshnessTag.className = "freshness-tag unavailable";
   } else if (data.data_status === "PARTIAL" || data.source !== "IMD") {
@@ -399,7 +452,10 @@ function renderWeatherCard(data) {
 
   // Multi-Source Agreement
   const agreeElement = document.getElementById("agreementVal");
-  if (data.comparison && data.comparison.sources_agree) {
+  if (data.cached) {
+    agreeElement.textContent = "Offline Cached Record";
+    agreeElement.className = "metric-val";
+  } else if (data.comparison && data.comparison.sources_agree) {
     agreeElement.textContent = "High Agreement (IMD & Open-Meteo)";
     agreeElement.className = "metric-val agreement-high";
   } else {
@@ -411,62 +467,99 @@ function renderWeatherCard(data) {
 async function loadForecast(location) {
   try {
     const data = await window.apiClient.getForecast(location);
-    const gridToday = document.getElementById("forecastGridToday") || document.getElementById("forecastGrid");
-    const gridTomorrow = document.getElementById("forecastGridTomorrow");
-    const gridFuture = document.getElementById("forecastGridFuture");
-
-    if (gridToday) gridToday.innerHTML = "";
-    if (gridTomorrow) gridTomorrow.innerHTML = "";
-    if (gridFuture) gridFuture.innerHTML = "";
-
-    if (data && data.forecast && data.forecast.length > 0) {
-      data.forecast.forEach((item, index) => {
-        const card = document.createElement("div");
-        card.className = "forecast-card";
-        
-        const fTime = item.forecast_time ? item.forecast_time.split("T")[1]?.slice(0, 5) || item.forecast_time : "Daily";
-        const tempText = (item.temperature !== undefined && item.temperature !== null) ? `${item.temperature}°C` : "--°C";
-        const rainText = (item.rain_probability !== undefined && item.rain_probability !== null) ? `${item.rain_probability}%` : "--%";
-
-        card.innerHTML = `
-          <span class="fc-time">${fTime}</span>
-          <span class="fc-temp">${tempText}</span>
-          <span class="fc-rain">☔ ${rainText}</span>
-          <span class="fc-cond">${item.condition || 'N/A'}</span>
-        `;
-
-        if (index < 4 && gridToday) {
-          gridToday.appendChild(card);
-        } else if (index < 8 && gridTomorrow) {
-          gridTomorrow.appendChild(card);
-        } else if (gridFuture) {
-          gridFuture.appendChild(card.cloneNode(true));
-        } else if (gridToday) {
-          gridToday.appendChild(card);
-        }
-      });
-    } else {
-      if (gridToday) gridToday.innerHTML = "<p style='font-size:12px; color:var(--text-muted);'>No forecast items available.</p>";
-    }
+    try {
+      localStorage.setItem(`weathergpt_cache_forecast_${location.toLowerCase()}`, JSON.stringify({
+        data,
+        cachedAt: new Date().toISOString()
+      }));
+    } catch (e) {}
+    renderForecastGrid(data);
   } catch (err) {
-    console.error("Forecast telemetry error:", err);
+    console.warn("Forecast telemetry fetch error, checking local forecast cache:", err);
+    const rawCache = localStorage.getItem(`weathergpt_cache_forecast_${location.toLowerCase()}`);
+    if (rawCache) {
+      try {
+        const cachedObj = JSON.parse(rawCache);
+        renderForecastGrid(cachedObj.data, cachedObj.cachedAt);
+      } catch (e) {}
+    }
+  }
+}
+
+function renderForecastGrid(data, cachedAt = null) {
+  const gridToday = document.getElementById("forecastGridToday") || document.getElementById("forecastGrid");
+  const gridTomorrow = document.getElementById("forecastGridTomorrow");
+  const gridFuture = document.getElementById("forecastGridFuture");
+
+  if (gridToday) gridToday.innerHTML = "";
+  if (gridTomorrow) gridTomorrow.innerHTML = "";
+  if (gridFuture) gridFuture.innerHTML = "";
+
+  if (data && data.forecast && data.forecast.length > 0) {
+    data.forecast.forEach((item, index) => {
+      const card = document.createElement("div");
+      card.className = "forecast-card";
+      
+      const fTime = item.forecast_time ? item.forecast_time.split("T")[1]?.slice(0, 5) || item.forecast_time : "Daily";
+      const tempText = (item.temperature !== undefined && item.temperature !== null) ? `${item.temperature}°C` : "--°C";
+      const rainText = (item.rain_probability !== undefined && item.rain_probability !== null) ? `${item.rain_probability}%` : "--%";
+
+      card.innerHTML = `
+        <span class="fc-time">${fTime}</span>
+        <span class="fc-temp">${tempText}</span>
+        <span class="fc-rain">☔ ${rainText}</span>
+        <span class="fc-cond">${item.condition || 'N/A'}</span>
+      `;
+
+      if (index < 4 && gridToday) {
+        gridToday.appendChild(card);
+      } else if (index < 8 && gridTomorrow) {
+        gridTomorrow.appendChild(card);
+      } else if (gridFuture) {
+        gridFuture.appendChild(card.cloneNode(true));
+      } else if (gridToday) {
+        gridToday.appendChild(card);
+      }
+    });
+
+    if (cachedAt && gridToday) {
+      const cacheNote = document.createElement("p");
+      cacheNote.style.cssText = "font-size:11px; color:var(--text-muted); margin-top:6px; grid-column: 1 / -1;";
+      const timeStr = cachedAt.split("T")[1]?.slice(0, 5) || "Recent";
+      cacheNote.textContent = `Last updated: ${timeStr} UTC (Cached)`;
+      gridToday.appendChild(cacheNote);
+    }
+  } else {
+    if (gridToday) gridToday.innerHTML = "<p style='font-size:12px; color:var(--text-muted);'>No forecast items available.</p>";
   }
 }
 
 async function loadAlerts(location) {
+  const banner = document.getElementById("alertBanner");
+  const disasterList = document.getElementById("disasterList");
+  const badge = document.getElementById("alertSeverityBadge");
+  const timeElem = document.getElementById("alertTime");
+  const titleElem = document.getElementById("alertTitle");
+  const descElem = document.getElementById("alertDesc");
+  const sourceElem = document.getElementById("alertSourceTag");
+
   try {
     const data = await window.apiClient.getAlerts(location);
-    const banner = document.getElementById("alertBanner");
-    const disasterList = document.getElementById("disasterList");
-    const badge = document.getElementById("alertSeverityBadge");
-    const timeElem = document.getElementById("alertTime");
-    const titleElem = document.getElementById("alertTitle");
-    const descElem = document.getElementById("alertDesc");
-    const sourceElem = document.getElementById("alertSourceTag");
-
     disasterList.innerHTML = "";
 
-    if (data && data.alerts && data.alerts.length > 0) {
+    if (data.status === "UNVERIFIED") {
+      // STEP 5 WARNING SAFETY: If warning state cannot be verified, state clearly that warning status could not be refreshed. NEVER say "No warning"!
+      if (titleElem) titleElem.textContent = "Warning Status Could Not Be Verified";
+      if (descElem) descElem.textContent = "Official disaster warning status could not be refreshed from IMD. Please check official emergency radio broadcast channels.";
+      if (badge) {
+        badge.textContent = "⚠️ UNVERIFIED WARNING STATE";
+        badge.className = "alert-badge moderate";
+      }
+      if (timeElem) timeElem.textContent = "Status: Unverified";
+      if (sourceElem) sourceElem.textContent = "Authoritative Source: IMD (Unverified)";
+      banner.classList.remove("hidden");
+      disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>⚠️ Official warning status is unverified (Service Degraded). Please check official IMD channels.</p>";
+    } else if (data && data.alerts && data.alerts.length > 0) {
       const heroAlert = data.alerts[0];
       const severityStr = (heroAlert.severity || "warning").toUpperCase();
 
@@ -500,6 +593,22 @@ async function loadAlerts(location) {
       disasterList.innerHTML = "<p style='font-size:13px; color:#94a3b8;'>No active disaster warnings for this location.</p>";
     }
   } catch (err) {
+    // Offline / Network Failure — STEP 5 WARNING SAFETY: NEVER say "No warning"!
+    console.warn("Alerts telemetry fetch error:", err);
+    if (titleElem) titleElem.textContent = "Warning Status Could Not Be Verified (Offline)";
+    if (descElem) descElem.textContent = "You are currently offline. Official disaster warning status could not be verified from IMD. Please check official emergency channels.";
+    if (badge) {
+      badge.textContent = "⚠️ UNVERIFIED WARNING STATE";
+      badge.className = "alert-badge moderate";
+    }
+    if (timeElem) timeElem.textContent = "Status: Offline";
+    if (sourceElem) sourceElem.textContent = "Authoritative Source: IMD (Offline)";
+    banner.classList.remove("hidden");
+    if (disasterList) {
+      disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>⚠️ Warning status unverified while offline. Please check official IMD broadcasts.</p>";
+    }
+  }
+}
     console.error("Alerts telemetry error:", err);
   }
 }

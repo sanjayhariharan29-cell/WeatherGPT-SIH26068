@@ -227,50 +227,54 @@ class ChatIntegrationService:
 
         # 6. Database Persistence
         if db_session is not None:
-            existing_conv = db_session.query(Conversation).filter(Conversation.id == conv_id).first()
-            if not existing_conv:
-                conv = Conversation(id=conv_id, title=message[:30], user_id=user_id)
-                db_session.add(conv)
+            try:
+                existing_conv = db_session.query(Conversation).filter(Conversation.id == conv_id).first()
+                if not existing_conv:
+                    conv = Conversation(id=conv_id, title=message[:30], user_id=user_id)
+                    db_session.add(conv)
+                    db_session.commit()
+                elif user_id and not existing_conv.user_id:
+                    existing_conv.user_id = user_id
+                    db_session.commit()
+
+                # Store User Message
+                user_msg = Message(
+                    conversation_id=conv_id,
+                    sender="user",
+                    content=message,
+                    language=pipeline_result["language"],
+                    created_at=now_dt
+                )
+                db_session.add(user_msg)
                 db_session.commit()
-            elif user_id and not existing_conv.user_id:
-                existing_conv.user_id = user_id
+
+                # Store Bot Message
+                bot_msg = Message(
+                    conversation_id=conv_id,
+                    sender="bot",
+                    content=pipeline_result["answer"],
+                    intent=pipeline_result["intent"],
+                    language=pipeline_result["language"],
+                    risk_level=pipeline_result["risk"]["level"],
+                    data_timestamp=now_dt
+                )
+                db_session.add(bot_msg)
                 db_session.commit()
+                db_session.refresh(bot_msg)
 
-            # Store User Message
-            user_msg = Message(
-                conversation_id=conv_id,
-                sender="user",
-                content=message,
-                language=pipeline_result["language"],
-                created_at=now_dt
-            )
-            db_session.add(user_msg)
-            db_session.commit()
-
-            # Store Bot Message
-            bot_msg = Message(
-                conversation_id=conv_id,
-                sender="bot",
-                content=pipeline_result["answer"],
-                intent=pipeline_result["intent"],
-                language=pipeline_result["language"],
-                risk_level=pipeline_result["risk"]["level"],
-                data_timestamp=now_dt
-            )
-            db_session.add(bot_msg)
-            db_session.commit()
-            db_session.refresh(bot_msg)
-
-            # Store Advisory details
-            advisory_record = Advisory(
-                message_id=bot_msg.id,
-                persona=persona,
-                target_activity="weather_decision",
-                risk_level=pipeline_result["risk"]["level"],
-                recommendation=pipeline_result["answer"]
-            )
-            db_session.add(advisory_record)
-            db_session.commit()
+                # Store Advisory details
+                advisory_record = Advisory(
+                    message_id=bot_msg.id,
+                    persona=persona,
+                    target_activity="weather_decision",
+                    risk_level=pipeline_result["risk"]["level"],
+                    recommendation=pipeline_result["answer"]
+                )
+                db_session.add(advisory_record)
+                db_session.commit()
+            except Exception as db_err:
+                db_session.rollback()
+                print(f"Warning: Chat persistence skipped due to DB error: {db_err}")
 
         # 7. Construct Final Response Payload
         return {
