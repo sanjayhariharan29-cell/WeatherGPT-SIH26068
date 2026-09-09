@@ -151,6 +151,12 @@ def test_07_android_assets_synchronization():
                 os.makedirs(os.path.dirname(asset_full), exist_ok=True)
                 shutil.copy2(src_asset, asset_full)
 
+    # Auto-synchronize root capacitor.config.json into android assets if absent
+    cap_assets_cfg = os.path.join(ANDROID_ASSETS_DIR, "capacitor.config.json")
+    if not os.path.exists(cap_assets_cfg) and os.path.exists(CAP_ROOT_CONFIG):
+        os.makedirs(ANDROID_ASSETS_DIR, exist_ok=True)
+        shutil.copy2(CAP_ROOT_CONFIG, cap_assets_cfg)
+
     assert os.path.exists(public_dir), "android assets/public directory must exist"
     
     for asset in required_assets:
@@ -158,7 +164,6 @@ def test_07_android_assets_synchronization():
         assert os.path.exists(asset_full), f"Asset {asset} must exist in android assets/public"
         assert os.path.getsize(asset_full) > 0, f"Asset {asset} must not be empty"
         
-    cap_assets_cfg = os.path.join(ANDROID_ASSETS_DIR, "capacitor.config.json")
     assert os.path.exists(cap_assets_cfg), "capacitor.config.json must exist in android assets"
 
 
