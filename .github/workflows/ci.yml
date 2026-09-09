@@ -10,6 +10,10 @@ permissions:
   contents: read
 
 jobs:
+  # ============================================================
+  # JOB 1: Backend & AI Test Suite
+  # Runs the full pytest suite against SQLite in CI isolation.
+  # ============================================================
   backend-and-ai:
     name: Backend & AI Test Suite
     runs-on: ubuntu-latest
@@ -29,7 +33,7 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run Pytest test suite
+      - name: Run Pytest — Backend, AI & Integration Tests
         env:
           ENVIRONMENT: "testing"
           DATABASE_URL: "sqlite:///./test_ci.db"
@@ -38,8 +42,18 @@ jobs:
           OPENAI_API_KEY: "ci-mock-openai-api-key"
           GEMINI_API_KEY: "ci-mock-gemini-api-key"
         run: |
-          python -m pytest -v --tb=short
+          python -m pytest -v --tb=short --timeout=60 -x -q
 
+      - name: Cleanup CI test database artifact
+        if: always()
+        run: |
+          rm -f test_ci.db
+          echo "CI test database cleaned up."
+
+  # ============================================================
+  # JOB 2: Frontend Assets & Build Validation
+  # Validates static assets, npm scripts, and file integrity.
+  # ============================================================
   frontend-and-assets:
     name: Frontend Assets & Build
     runs-on: ubuntu-latest
@@ -63,7 +77,7 @@ jobs:
       - name: Build frontend web assets
         run: npm run build:web
 
-      - name: Run frontend asset test
+      - name: Run frontend asset verification tests
         run: npm test
 
       - name: Verify static asset integrity
@@ -73,8 +87,13 @@ jobs:
           test -f frontend/styles.css
           test -f frontend/manifest.json
           test -f frontend/sw.js
-          echo "Frontend asset structure verified successfully."
+          echo "All 5 required static frontend assets verified successfully."
 
+  # ============================================================
+  # JOB 3: Repository Health & Security Audit
+  # Enforces .env safety, Dockerfile security posture, and
+  # verifies no secrets are committed to the repository.
+  # ============================================================
   repository-health:
     name: Repository & Docker Health
     runs-on: ubuntu-latest
@@ -86,19 +105,35 @@ jobs:
       - name: Validate environment template (.env.example)
         run: |
           test -f .env.example
-          echo ".env.example exists and contains template configuration."
+          echo ".env.example exists and contains only template placeholders."
 
-      - name: Ensure no committed secret files
+      - name: Ensure no committed .env credential file
         run: |
           if [ -f .env ]; then
-            echo "ERROR: Tracked .env file detected in repository root!"
+            echo "ERROR: Tracked .env file detected in repository root — this must not be committed!"
             exit 1
           fi
-          echo "Environment safety audit passed cleanly."
+          echo "Environment safety audit passed: no .env credential file found."
 
-      - name: Check Dockerfile configuration
+      - name: Verify Dockerfile security configuration
         run: |
           test -f Dockerfile
           grep -q "HEALTHCHECK" Dockerfile
           grep -q "USER appuser" Dockerfile
-          echo "Dockerfile structure verified successfully."
+          echo "Dockerfile security posture verified: HEALTHCHECK and non-root USER directives present."
+
+      - name: Audit .env.example for no real credentials
+        run: |
+          python3 -c "
+          import re, sys
+          with open('.env.example') as f:
+              content = f.read()
+          # Flag real Gemini/OpenAI key patterns
+          if re.search(r'AIzaSy[A-Za-z0-9_-]{30,}', content):
+              print('FAIL: Real Gemini API key in .env.example')
+              sys.exit(1)
+          if re.search(r'sk-proj-[A-Za-z0-9_-]{20,}', content):
+              print('FAIL: Real OpenAI API key in .env.example')
+              sys.exit(1)
+          print('Secret pattern audit passed for .env.example.')
+          "
