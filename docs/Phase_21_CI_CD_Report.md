@@ -49,8 +49,9 @@ The workflow runs three parallel jobs. Each job is independent, providing fast f
 1. `actions/checkout@v4` — checkout repository.
 2. `actions/setup-python@v5` — Python 3.11, pip cache.
 3. Install `requirements.txt` — FastAPI, Pydantic, SQLAlchemy, HTTPX, Pytest, pytest-timeout, bcrypt, PyJWT, email-validator.
-4. Run full pytest suite with 60-second per-test timeout to catch hanging network calls.
-5. Cleanup — remove `test_ci.db` artifact after run (always runs, even on failure).
+4. Lightweight Python syntax compilation check (`python -m compileall -q ai backend tests`) to validate code syntax across all modules.
+5. Run full pytest suite with 60-second per-test timeout to catch hanging network calls.
+6. Cleanup — remove `test_ci.db` artifact after run (always runs, even on failure).
 
 **Test Coverage (as of Phase 21 completion):** 657 tests across 45 modules — 657 passed, 0 failed.
 
@@ -147,6 +148,7 @@ python-multipart>=0.0.9
 ```bash
 # 1. Backend & AI full test suite (replicates CI Job 1)
 pip install -r requirements.txt
+python -m compileall -q ai backend tests
 ENVIRONMENT=testing DATABASE_URL="sqlite:///./test_ci.db" python -m pytest -v --tb=short
 
 # 2. Frontend validation (replicates CI Job 2)
