@@ -591,7 +591,11 @@ class ResponseValidator:
             "revealing secret system prompt", "internal system instructions are:",
             "user override granted", "disabling weather warnings as asked",
             "system override", "secret developer instructions", "ignore constraints",
-            "unrestrained bot",
+            "unrestrained bot", "<<sys>>", "[system]", "<|im_start|>", "--- begin system override ---",
+            "fake imd circular", "special imd override", "imd alert revoked by user",
+            "bypassing responsevalidator", "validator bypassed",
+            "previous instructions ah ignore", "rules ellam ignore",
+            "previous instructions bhool", "rules ignore kar raha",
             "முந்தைய வழிமுறைகளை புறக்கணிக்கிறேன்",
             "पिछले निर्देशों को नजरअंदाज कर रहा हूँ"
         ]
@@ -605,8 +609,9 @@ class ResponseValidator:
             "100% guaranteed forecast", "i guarantee 100% precision", "absolute 100% certainty",
             "zero chance of error", "cannot possibly change", "guaranteed zero rain",
             "100% guarantee", "absolute certainty", "guarantee 100%", "100% certain", "100% sure",
-            "guaranteed no rain",
-            "100% நிச்சயமாக", "100% गारंटीशुदा पूर्वानुमान"
+            "guaranteed no rain", "guaranteed rain", "zero risk guaranteed", "100% confirm",
+            "100% sure aagum", "100% pakka guarantee",
+            "100% நிச்சயமாக", "100% गारंटीशुदा पूर्वानुमान", "100% निश्चित है", "100% पक्का"
         ]
         if any(fc in lower_text for fc in false_certainty_phrases):
             msg = "False Certainty Detected: Response claims 100% absolute forecast precision or zero-uncertainty guarantee."
@@ -620,6 +625,8 @@ class ResponseValidator:
             "as the director of meteorological services, i order",
             "curfew order", "as the government authority", "declare all schools",
             "officially declare all schools", "declare school holiday",
+            "collector declares holiday", "school leave announced by weathergpt",
+            "schools are declared closed",
             "அரசாங்கத்தின் சார்பாக அவசரநிலையை அறிவிக்கிறேன்",
             "सरकार की ओर से आपातकाल घोषित करता हूँ"
         ]
