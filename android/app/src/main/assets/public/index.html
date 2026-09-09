@@ -2,20 +2,20 @@
 <html lang="en">
 <head>
   <meta charset="UTF-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover, interactive-widget=resizes-content">
   <title>WeatherGPT — Conversational Meteorological Decision Engine (IMD / MoES)</title>
   <meta name="description" content="AI-powered mobile platform for weather forecasting, alerts, and climate intelligence. Ministry of Earth Sciences / IMD.">
   <meta name="theme-color" content="#0f172a">
   <meta name="mobile-web-app-capable" content="yes">
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-  <link rel="manifest" href="/manifest.json">
+  <link rel="manifest" href="./manifest.json">
 
   <!-- Google Fonts -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
   <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
-  <link rel="stylesheet" href="/styles.css">
+  <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
 
@@ -23,6 +23,9 @@
   <div id="offlineBar" class="offline-bar hidden" role="alert" aria-live="assertive">
     ⚠️ Network Offline. Displaying cached weather telemetry.
   </div>
+
+  <!-- Mobile Permission & Feedback Notice Banner -->
+  <div id="mobileNotice" class="mobile-notice hidden" role="status" aria-live="polite"></div>
 
   <div class="app-container">
     <!-- Top Header -->
@@ -283,9 +286,10 @@
             </div>
             <div class="auth-form-group">
               <label for="envSelect">API Environment Server</label>
-              <select id="envSelect" class="styled-select">
-                <option value="/api/v1">Production / Standard (/api/v1)</option>
-                <option value="http://localhost:8000/api/v1">Local Dev (localhost:8000)</option>
+              <select id="envSelect" class="styled-select" aria-label="API Environment Server">
+                <option value="/api/v1">Production / Web Shell (/api/v1)</option>
+                <option value="http://localhost:8000/api/v1">Local Dev Server (localhost:8000)</option>
+                <option value="http://10.0.2.2:8000/api/v1">Android Emulator (10.0.2.2:8000)</option>
               </select>
             </div>
             <p style="font-size:12px; color:var(--text-muted);">WeatherGPT Mobile Client v1.0.0 | SIH26068</p>
@@ -334,14 +338,15 @@
   </div>
 
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
-  <script src="/mobile/apiClient.js"></script>
-  <script src="/app.js"></script>
+  <script src="./config.js"></script>
+  <script src="./mobile/apiClient.js"></script>
+  <script src="./app.js"></script>
 
   <!-- Service Worker Registration -->
   <script>
     if ('serviceWorker' in navigator) {
       window.addEventListener('load', () => {
-        navigator.serviceWorker.register('/sw.js').catch(err => {
+        navigator.serviceWorker.register('./sw.js').catch(err => {
           console.warn('SW Registration:', err);
         });
       });
