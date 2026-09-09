@@ -67,7 +67,7 @@ def test_04_ci_secret_isolation_and_no_hardcoded_credentials():
 
     # Verify mock/placeholder values are used for CI testing
     assert "ci-mock-imd-api-key" in content or "IMD_API_KEY" in content
-    assert "sqlite:///:memory:" in content, "CI must use isolated in-memory test database"
+    assert "sqlite:///./test_ci.db" in content or "sqlite:///:memory:" in content, "CI must use isolated test database"
 
     # Ensure no actual sensitive key patterns (e.g., sk-proj-, AIzaSy...) exist in the workflow file
     assert not re.search(r"sk-proj-[A-Za-z0-9_-]{20,}", content), "Real OpenAI key detected in CI workflow!"
@@ -102,15 +102,46 @@ def test_06_env_example_safety_audit():
 
 
 def test_07_frontend_local_command_execution():
-    """Execute local npm scripts to verify frontend build and lint commands succeed."""
-    result_lint = subprocess.run(["npm", "run", "lint"], capture_output=True, text=True, shell=True)
-    assert result_lint.returncode == 0, f"npm run lint failed: {result_lint.stderr}"
+    """Execute local npm scripts to verify frontend build and lint commands succeed.
 
-    result_build = subprocess.run(["npm", "run", "build:web"], capture_output=True, text=True, shell=True)
-    assert result_build.returncode == 0, f"npm run build:web failed: {result_build.stderr}"
+    Uses string-form commands with shell=True for correct cross-platform behavior.
+    On Linux/macOS, passing a list with shell=True only executes the first element;
+    string form ensures all arguments are forwarded to npm correctly.
+    """
+    import sys
 
-    result_test = subprocess.run(["npm", "test"], capture_output=True, text=True, shell=True)
-    assert result_test.returncode == 0, f"npm test failed: {result_test.stderr}"
+    result_lint = subprocess.run(
+        "npm run lint",
+        capture_output=True,
+        text=True,
+        shell=True,
+    )
+    assert result_lint.returncode == 0, (
+        f"npm run lint failed (exit {result_lint.returncode}):\n"
+        f"stdout: {result_lint.stdout}\nstderr: {result_lint.stderr}"
+    )
+
+    result_build = subprocess.run(
+        "npm run build:web",
+        capture_output=True,
+        text=True,
+        shell=True,
+    )
+    assert result_build.returncode == 0, (
+        f"npm run build:web failed (exit {result_build.returncode}):\n"
+        f"stdout: {result_build.stdout}\nstderr: {result_build.stderr}"
+    )
+
+    result_test = subprocess.run(
+        "npm test",
+        capture_output=True,
+        text=True,
+        shell=True,
+    )
+    assert result_test.returncode == 0, (
+        f"npm test failed (exit {result_test.returncode}):\n"
+        f"stdout: {result_test.stdout}\nstderr: {result_test.stderr}"
+    )
 
 
 def test_08_no_committed_env_file():

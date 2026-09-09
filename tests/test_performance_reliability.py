@@ -257,7 +257,12 @@ def test_10_database_failure_resilience():
 # 8. NO CROSS-USER CHAT RESPONSE CACHING
 # =============================================================================
 def test_11_no_cross_user_cache_leakage():
-    """Verifies user-specific chat requests are never globally cached across distinct users."""
+    """Verifies user-specific chat requests are never globally cached across distinct users.
+
+    Patches the LLM provider's generate_text method in addition to weather/geocoding
+    to prevent real Gemini HTTP calls on CI (which time out with mock API keys and
+    produce a 504, obscuring the actual cache-isolation assertion being tested).
+    """
     conv1_id = str(uuid.uuid4())
     conv2_id = str(uuid.uuid4())
 
@@ -271,11 +276,20 @@ def test_11_no_cross_user_cache_leakage():
         "condition": "Partly Cloudy", "description": "Scattered clouds",
         "timestamp": "2026-09-09T10:00:00Z", "source": "Open-Meteo"
     }
+    canned_llm = "Weather conditions in Coimbatore are partly cloudy with moderate humidity."
+
     with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc), \
-         patch("backend.services.weather_manager.WeatherManager.get_current_weather", return_value=mock_weather):
+         patch("backend.services.weather_manager.WeatherManager.get_current_weather", return_value=mock_weather), \
+         patch("ai.llm.provider.GeminiLLMProvider.generate_text", return_value=canned_llm):
         res1 = client.post("/api/v1/chat", json=u1_payload)
         res2 = client.post("/api/v1/chat", json=u2_payload)
 
-        assert res1.status_code == 200
-        assert res2.status_code == 200
-        assert res1.json()["conversation_id"] != res2.json()["conversation_id"]
+        assert res1.status_code == 200, (
+            f"User 1 chat failed (HTTP {res1.status_code}): {res1.text}"
+        )
+        assert res2.status_code == 200, (
+            f"User 2 chat failed (HTTP {res2.status_code}): {res2.text}"
+        )
+        assert res1.json()["conversation_id"] != res2.json()["conversation_id"], (
+            "Cache leakage detected: both users received the same conversation_id"
+        )

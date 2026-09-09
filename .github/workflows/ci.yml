@@ -32,7 +32,7 @@ jobs:
       - name: Run Pytest test suite
         env:
           ENVIRONMENT: "testing"
-          DATABASE_URL: "sqlite:///:memory:"
+          DATABASE_URL: "sqlite:///./test_ci.db"
           SECRET_KEY: "ci-testing-secret-key-12345-do-not-use-in-prod"
           IMD_API_KEY: "ci-mock-imd-api-key"
           OPENAI_API_KEY: "ci-mock-openai-api-key"

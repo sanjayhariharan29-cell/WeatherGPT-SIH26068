@@ -4,7 +4,7 @@ Constructs strictly bounded, traceable prompts adhering to
 docs/01_PS_REQUIREMENTS.md:137 and docs/09_AI_Design.md:432.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Any
 from ai.models import (
     DecisionAdvisory,
     ForecastItem,

@@ -4,7 +4,7 @@ Uses provider abstraction (Gemini / Mock) with the Grounded Context Builder,
 fast-path Grounding Safety Guard, and resilient deterministic template fallback.
 """
 
-from typing import List, Optional
+from typing import List, Optional, Any
 from ai.config import AIConfig, get_ai_config
 from ai.llm.context_builder import GroundedContext, build_grounded_context
 from ai.llm.grounding_guard import verify_grounding
