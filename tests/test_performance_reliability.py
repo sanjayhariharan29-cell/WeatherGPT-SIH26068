@@ -264,9 +264,11 @@ def test_11_no_cross_user_cache_leakage():
     u1_payload = {"message": "My name is User 1", "language": "en", "conversation_id": conv1_id}
     u2_payload = {"message": "My name is User 2", "language": "en", "conversation_id": conv2_id}
 
-    res1 = client.post("/api/v1/chat", json=u1_payload)
-    res2 = client.post("/api/v1/chat", json=u2_payload)
+    mock_loc = {"name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "district": "Coimbatore", "state": "Tamil Nadu"}
+    with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc):
+        res1 = client.post("/api/v1/chat", json=u1_payload)
+        res2 = client.post("/api/v1/chat", json=u2_payload)
 
-    assert res1.status_code == 200
-    assert res2.status_code == 200
-    assert res1.json()["conversation_id"] != res2.json()["conversation_id"]
+        assert res1.status_code == 200
+        assert res2.status_code == 200
+        assert res1.json()["conversation_id"] != res2.json()["conversation_id"]
