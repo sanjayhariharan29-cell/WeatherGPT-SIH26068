@@ -34,3 +34,12 @@ Thumbs.db
 AGENTS.md
 GEMINI.md
 
+# Node & Mobile Build Artifacts
+node_modules/
+android/app/build/
+android/.gradle/
+android/build/
+android/captures/
+android/.idea/
+
+

@@ -1,0 +1,30 @@
+{
+  "name": "weathergpt-mobile",
+  "version": "1.0.0",
+  "description": "WeatherGPT — IMD Meteorological Assistant Mobile Application",
+  "main": "frontend/app.js",
+  "scripts": {
+    "build:web": "node -e \"console.log('Production web assets ready in frontend/')\"",
+    "cap:add": "npx cap add android",
+    "cap:sync": "npx cap sync android",
+    "cap:copy": "npx cap copy android",
+    "build:android": "npx cap copy android && cd android && gradlew assembleRelease"
+  },
+  "keywords": [
+    "weather",
+    "imd",
+    "ai",
+    "capacitor",
+    "mobile",
+    "pwa"
+  ],
+  "author": "MoES / IMD WeatherGPT Team",
+  "license": "MIT",
+  "devDependencies": {
+    "@capacitor/cli": "^6.0.0"
+  },
+  "dependencies": {
+    "@capacitor/android": "^6.0.0",
+    "@capacitor/core": "^6.0.0"
+  }
+}
