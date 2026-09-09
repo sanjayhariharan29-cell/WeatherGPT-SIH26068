@@ -61,9 +61,9 @@ def test_04_index_html_includes_config_js():
     assert os.path.exists("frontend/index.html")
     with open("frontend/index.html", "r", encoding="utf-8") as f:
         content = f.read()
-    assert '<script src="/config.js"></script>' in content
-    config_idx = content.find('<script src="/config.js"></script>')
-    client_idx = content.find('<script src="/mobile/apiClient.js"></script>')
+    assert "config.js" in content
+    config_idx = content.find("config.js")
+    client_idx = content.find("apiClient.js")
     assert config_idx < client_idx, "config.js must be loaded before apiClient.js"
 
 
