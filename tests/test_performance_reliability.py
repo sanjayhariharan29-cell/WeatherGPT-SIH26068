@@ -265,7 +265,14 @@ def test_11_no_cross_user_cache_leakage():
     u2_payload = {"message": "My name is User 2", "language": "en", "conversation_id": conv2_id}
 
     mock_loc = {"name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "district": "Coimbatore", "state": "Tamil Nadu"}
-    with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc):
+    mock_weather = {
+        "location": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558,
+        "temperature": 28.5, "humidity": 65, "wind_speed": 12.0,
+        "condition": "Partly Cloudy", "description": "Scattered clouds",
+        "timestamp": "2026-09-09T10:00:00Z", "source": "Open-Meteo"
+    }
+    with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc), \
+         patch("backend.services.weather_manager.WeatherManager.get_current_weather", return_value=mock_weather):
         res1 = client.post("/api/v1/chat", json=u1_payload)
         res2 = client.post("/api/v1/chat", json=u2_payload)
 

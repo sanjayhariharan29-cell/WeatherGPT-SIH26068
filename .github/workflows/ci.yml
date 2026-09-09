@@ -1,0 +1,104 @@
+name: WeatherGPT CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+permissions:
+  contents: read
+
+jobs:
+  backend-and-ai:
+    name: Backend & AI Test Suite
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install backend dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+
+      - name: Run Pytest test suite
+        env:
+          ENVIRONMENT: "testing"
+          DATABASE_URL: "sqlite:///:memory:"
+          SECRET_KEY: "ci-testing-secret-key-12345-do-not-use-in-prod"
+          IMD_API_KEY: "ci-mock-imd-api-key"
+          OPENAI_API_KEY: "ci-mock-openai-api-key"
+          GEMINI_API_KEY: "ci-mock-gemini-api-key"
+        run: |
+          python -m pytest -v --tb=short
+
+  frontend-and-assets:
+    name: Frontend Assets & Build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install Node dependencies
+        run: npm ci || npm install
+
+      - name: Run frontend lint check
+        run: npm run lint
+
+      - name: Build frontend web assets
+        run: npm run build:web
+
+      - name: Run frontend asset test
+        run: npm test
+
+      - name: Verify static asset integrity
+        run: |
+          test -f frontend/index.html
+          test -f frontend/app.js
+          test -f frontend/styles.css
+          test -f frontend/manifest.json
+          test -f frontend/sw.js
+          echo "Frontend asset structure verified successfully."
+
+  repository-health:
+    name: Repository & Docker Health
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Validate environment template (.env.example)
+        run: |
+          test -f .env.example
+          echo ".env.example exists and contains template configuration."
+
+      - name: Ensure no committed secret files
+        run: |
+          if [ -f .env ]; then
+            echo "ERROR: Tracked .env file detected in repository root!"
+            exit 1
+          fi
+          echo "Environment safety audit passed cleanly."
+
+      - name: Check Dockerfile configuration
+        run: |
+          test -f Dockerfile
+          grep -q "HEALTHCHECK" Dockerfile
+          grep -q "USER appuser" Dockerfile
+          echo "Dockerfile structure verified successfully."
