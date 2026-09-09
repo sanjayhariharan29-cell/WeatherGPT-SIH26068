@@ -540,21 +540,51 @@ def test_26_memory_benchmarking_metrics():
 def test_27_fastapi_chat_multi_turn():
     conv_id = f"fastapi_chat_multi_{int(time.time())}"
     
-    # Turn 1
-    resp1 = client.post("/api/v1/chat", json={
-        "message": "What is the weather in Chennai?",
-        "conversation_id": conv_id,
-        "location": {"name": "Chennai"}
-    })
-    assert resp1.status_code == 200
-    d1 = resp1.json()
-    assert d1["location"] == "Chennai"
-    
-    # Turn 2: Follow-up using pronoun "there"
-    resp2 = client.post("/api/v1/chat", json={
-        "message": "Will it rain there tomorrow?",
-        "conversation_id": conv_id
-    })
-    assert resp2.status_code == 200
-    d2 = resp2.json()
-    assert d2["location"] == "Chennai"
+    from backend.services.schemas import NormalizedWeatherObservation
+    mock_obs = NormalizedWeatherObservation(
+        location_name="Chennai",
+        latitude=13.0827,
+        longitude=80.2707,
+        temperature_c=31.0,
+        feels_like_c=32.0,
+        humidity_pct=65.0,
+        rain_probability_pct=20.0,
+        wind_speed_kmh=12.0,
+        condition="Partly Cloudy",
+        source="IMD (Mock)",
+        observed_at="2026-09-09T10:00:00Z",
+        retrieved_at="2026-09-09T10:00:00Z"
+    )
+    mock_loc = {"name": "Chennai", "latitude": 13.0827, "longitude": 80.2707, "district": "Chennai", "state": "Tamil Nadu"}
+    mock_weather = {
+        "location": "Chennai", "latitude": 13.0827, "longitude": 80.2707,
+        "temperature": 31.0, "humidity": 65, "wind_speed": 12.0,
+        "condition": "Partly Cloudy", "description": "Partly cloudy",
+        "timestamp": "2026-09-09T10:00:00Z", "source": "IMD"
+    }
+
+    with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc), \
+         patch("backend.services.weather_manager.WeatherManager.get_current_weather", return_value=mock_weather), \
+         patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.open_meteo_adapter.OpenMeteoAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.forecast_service.ForecastService.get_ai_forecast_items", return_value=[]), \
+         patch("backend.services.alert_service.AlertService.get_ai_official_alerts", return_value=[]), \
+         patch("ai.llm.provider.GeminiLLMProvider.generate_text", return_value="Weather in Chennai is partly cloudy."):
+        # Turn 1
+        resp1 = client.post("/api/v1/chat", json={
+            "message": "What is the weather in Chennai?",
+            "conversation_id": conv_id,
+            "location": {"name": "Chennai"}
+        })
+        assert resp1.status_code == 200
+        d1 = resp1.json()
+        assert d1["location"] == "Chennai"
+        
+        # Turn 2: Follow-up using pronoun "there"
+        resp2 = client.post("/api/v1/chat", json={
+            "message": "Will it rain there tomorrow?",
+            "conversation_id": conv_id
+        })
+        assert resp2.status_code == 200
+        d2 = resp2.json()
+        assert d2["location"] == "Chennai"

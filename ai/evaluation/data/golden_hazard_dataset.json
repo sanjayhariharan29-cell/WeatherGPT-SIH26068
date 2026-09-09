@@ -172,5 +172,30 @@
     ],
     "expected_hazards": ["OFFICIAL_WARNING_CYCLONE", "VERY_HEAVY_RAINFALL", "GALE_CYCLONIC_WINDS", "FLOOD_RISK"],
     "expected_overall_risk": "extreme"
+  },
+  {
+    "id": "hazard_12_compound_super_cyclone_flood",
+    "description": "Multi-hazard concurrence: Super Cyclone + 215mm Extreme Rain + Gale Wind + Inundation",
+    "weather": {
+      "temperature": 24.0,
+      "humidity": 99.0,
+      "rain_probability": 99.0,
+      "wind_speed": 95.0,
+      "rainfall_amount_mm": 215.0,
+      "weather_condition": "Torrential Rain and Storm Surge",
+      "source": "IMD"
+    },
+    "active_alerts": [
+      {
+        "type": "cyclone",
+        "severity": "extreme",
+        "title": "Super Cyclone Warning",
+        "description": "Violent storm surge",
+        "source": "IMD"
+      }
+    ],
+    "expected_hazards": ["OFFICIAL_WARNING_CYCLONE", "EXTREME_RAINFALL", "GALE_CYCLONIC_WINDS", "FLOOD_RISK"],
+    "expected_overall_risk": "extreme"
   }
 ]
+

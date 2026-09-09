@@ -111,6 +111,82 @@ class LatencyMetrics(BaseModel):
     pipeline_latency_ms: float
 
 
+class WeatherReasonerMetrics(BaseModel):
+    """Metrics evaluating deterministic meteorological reasoning."""
+    total_cases: int
+    freshness_classification_accuracy: float
+    completeness_accuracy: float
+    source_agreement_accuracy: float
+    contradiction_detection_accuracy: float
+    consistency_score_validity_rate: float
+    official_warning_priority_rate: float
+    missing_data_safety_rate: float
+    temporal_consistency_rate: float
+    location_consistency_rate: float
+    overall_accuracy: float
+
+
+class DetailedSafetyMetrics(BaseModel):
+    """Fine-grained safety metrics with zero tolerance for critical violations."""
+    total_cases: int
+    warning_preservation_rate: float
+    warning_contradiction_rate: float  # Target: 0.0
+    fabricated_weather_data_rate: float  # Target: 0.0
+    fabricated_action_rate: float  # Target: 0.0
+    unsupported_certainty_rate: float  # Target: 0.0
+    severity_downgrade_rate: float  # Target: 0.0
+    unsafe_fallback_rate: float  # Target: 0.0
+    critical_safety_violation_count: int  # Target: 0
+
+
+class MultilingualInvarianceMetrics(BaseModel):
+    """Invariance of weather decisions and parameters across languages and dialects."""
+    total_scenarios: int
+    warning_status_invariance_rate: float
+    hazard_invariance_rate: float
+    severity_invariance_rate: float
+    numbers_invariance_rate: float
+    source_invariance_rate: float
+    location_invariance_rate: float
+    temporal_scope_invariance_rate: float
+    safety_decision_invariance_rate: float
+    overall_multilingual_invariance_rate: float
+
+
+class FailureClassificationEnum(str):
+    """Root-cause classification categories for benchmark failures."""
+    NLU = "NLU"
+    NORMALIZATION = "NORMALIZATION"
+    WEATHER_REASONING = "WEATHER_REASONING"
+    HAZARD_DETECTION = "HAZARD_DETECTION"
+    ADVISORY_ENGINE = "ADVISORY_ENGINE"
+    LLM = "LLM"
+    VALIDATOR = "VALIDATOR"
+    MEMORY = "MEMORY"
+    MULTILINGUAL_GENERATION = "MULTILINGUAL_GENERATION"
+    INTEGRATION = "INTEGRATION"
+
+
+class FailureAnalysisItem(BaseModel):
+    """Detailed record of a benchmark failure for root-cause analysis."""
+    case_id: str
+    stage: str
+    description: str
+    expected: str
+    actual: str
+    root_cause: str
+
+
+class EndToEndPartitionReport(BaseModel):
+    """Separated end-to-end benchmark partition results."""
+    deterministic_benchmark_score: float
+    llm_assisted_benchmark_score: float
+    multilingual_benchmark_score: float
+    adversarial_benchmark_score: float
+    severe_weather_safety_score: float
+    total_evaluated_scenarios: int
+
+
 class BenchmarkReport(BaseModel):
     timestamp: datetime
     version: str = "1.0.0"
@@ -120,4 +196,10 @@ class BenchmarkReport(BaseModel):
     safety: SafetyMetrics
     multilingual: MultilingualMetrics
     latency: LatencyMetrics
+    reasoner: Optional[WeatherReasonerMetrics] = None
+    detailed_safety: Optional[DetailedSafetyMetrics] = None
+    multilingual_invariance: Optional[MultilingualInvarianceMetrics] = None
+    failure_analysis: List[FailureAnalysisItem] = Field(default_factory=list)
+    end_to_end_partitions: Optional[EndToEndPartitionReport] = None
     summary: Dict[str, Any] = Field(default_factory=dict)
+

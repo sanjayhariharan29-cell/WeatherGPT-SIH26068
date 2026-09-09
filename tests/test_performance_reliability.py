@@ -257,16 +257,59 @@ def test_10_database_failure_resilience():
 # 8. NO CROSS-USER CHAT RESPONSE CACHING
 # =============================================================================
 def test_11_no_cross_user_cache_leakage():
-    """Verifies user-specific chat requests are never globally cached across distinct users."""
+    """Verifies user-specific chat requests are never globally cached across distinct users.
+
+    Patches the LLM provider's generate_text method in addition to weather/geocoding
+    to prevent real Gemini HTTP calls on CI (which time out with mock API keys and
+    produce a 504, obscuring the actual cache-isolation assertion being tested).
+    """
     conv1_id = str(uuid.uuid4())
     conv2_id = str(uuid.uuid4())
 
     u1_payload = {"message": "My name is User 1", "language": "en", "conversation_id": conv1_id}
     u2_payload = {"message": "My name is User 2", "language": "en", "conversation_id": conv2_id}
 
-    res1 = client.post("/api/v1/chat", json=u1_payload)
-    res2 = client.post("/api/v1/chat", json=u2_payload)
+    mock_loc = {"name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "district": "Coimbatore", "state": "Tamil Nadu"}
+    mock_weather = {
+        "location": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558,
+        "temperature": 28.5, "humidity": 65, "wind_speed": 12.0,
+        "condition": "Partly Cloudy", "description": "Scattered clouds",
+        "timestamp": "2026-09-09T10:00:00Z", "source": "Open-Meteo"
+    }
+    canned_llm = "Weather conditions in Coimbatore are partly cloudy with moderate humidity."
 
-    assert res1.status_code == 200
-    assert res2.status_code == 200
-    assert res1.json()["conversation_id"] != res2.json()["conversation_id"]
+    from backend.services.schemas import NormalizedWeatherObservation
+    mock_obs = NormalizedWeatherObservation(
+        location_name="Coimbatore",
+        latitude=11.0168,
+        longitude=76.9558,
+        temperature_c=28.5,
+        feels_like_c=29.0,
+        humidity_pct=65.0,
+        rain_probability_pct=20.0,
+        wind_speed_kmh=12.0,
+        condition="Partly Cloudy",
+        source="IMD (Mock)",
+        observed_at="2026-09-09T10:00:00Z",
+        retrieved_at="2026-09-09T10:00:00Z"
+    )
+
+    with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc), \
+         patch("backend.services.weather_manager.WeatherManager.get_current_weather", return_value=mock_weather), \
+         patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.open_meteo_adapter.OpenMeteoAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.forecast_service.ForecastService.get_ai_forecast_items", return_value=[]), \
+         patch("backend.services.alert_service.AlertService.get_ai_official_alerts", return_value=[]), \
+         patch("ai.llm.provider.GeminiLLMProvider.generate_text", return_value=canned_llm):
+        res1 = client.post("/api/v1/chat", json=u1_payload)
+        res2 = client.post("/api/v1/chat", json=u2_payload)
+
+        assert res1.status_code == 200, (
+            f"User 1 chat failed (HTTP {res1.status_code}): {res1.text}"
+        )
+        assert res2.status_code == 200, (
+            f"User 2 chat failed (HTTP {res2.status_code}): {res2.text}"
+        )
+        assert res1.json()["conversation_id"] != res2.json()["conversation_id"], (
+            "Cache leakage detected: both users received the same conversation_id"
+        )

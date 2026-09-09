@@ -61,12 +61,17 @@ class WeatherGPTPipeline:
         # 2. Memory Resolution Stage (with failure isolation)
         t_mem = time.perf_counter()
         resolved_context_summary = context_summary
+        resolved_mem_location = None
         if not resolved_context_summary and conversation_id and conversation_id != "default":
             try:
                 from ai.memory import memory_manager, ContextResolver
                 ctx = memory_manager.get_context(conversation_id)
                 resolved = ContextResolver.resolve_query(message, context=ctx)
                 resolved_context_summary = resolved.context_summary
+                if resolved.resolved_location:
+                    resolved_mem_location = resolved.resolved_location
+                elif ctx and ctx.location:
+                    resolved_mem_location = ctx.location
             except Exception as mem_err:
                 # Failure isolation: memory manager failure MUST NEVER crash query processing
                 degraded_reasons.append(f"Memory resolution failed: {str(mem_err)}")
@@ -367,6 +372,7 @@ class WeatherGPTPipeline:
 
         # Phase 19: Build structured, audit-ready EvidenceLinks and DecisionTrace
         evidence_links: List[EvidenceLink] = []
+        obs_timestamp = weather.retrieved_at.isoformat() if (weather and hasattr(weather, "retrieved_at") and weather.retrieved_at) else datetime.now(timezone.utc).isoformat()
         if weather:
             evidence_links.append(
                 EvidenceLink(
@@ -375,6 +381,9 @@ class WeatherGPTPipeline:
                     source=weather.source,
                     temporal_scope="current",
                     decision_impact="Shapes thermal hazard assessment and persona comfort guidelines",
+                    timestamp=obs_timestamp,
+                    reason_code="TELEMETRY_OBSERVED",
+                    reference_type="observation",
                 )
             )
             if weather.humidity is not None:
@@ -385,6 +394,9 @@ class WeatherGPTPipeline:
                         source=weather.source,
                         temporal_scope="current",
                         decision_impact="Contributes to heat index and fog/precipitation likelihood",
+                        timestamp=obs_timestamp,
+                        reason_code="TELEMETRY_OBSERVED",
+                        reference_type="observation",
                     )
                 )
             if weather.wind_speed is not None:
@@ -395,6 +407,29 @@ class WeatherGPTPipeline:
                         source=weather.source,
                         temporal_scope="current",
                         decision_impact="Evaluated against high wind / squall safety thresholds",
+                        timestamp=obs_timestamp,
+                        reason_code="TELEMETRY_OBSERVED",
+                        reference_type="observation",
+                    )
+                )
+
+        if forecast:
+            for fc in forecast[:3]:
+                fc_dt = getattr(fc, "forecast_time", None) or getattr(fc, "date", "upcoming")
+                fc_dt_str = fc_dt.isoformat() if hasattr(fc_dt, "isoformat") else str(fc_dt)
+                fc_cond = getattr(fc, "condition", getattr(fc, "summary", "forecast"))
+                fc_temp = getattr(fc, "temperature", getattr(fc, "temp_max", None))
+                val_str = f"{fc_temp}°C, {fc_cond}" if fc_temp is not None else str(fc_cond)
+                evidence_links.append(
+                    EvidenceLink(
+                        field_or_entity="weather.forecast",
+                        observed_or_rule_value=val_str,
+                        source=getattr(fc, "source", "IMD"),
+                        temporal_scope="forecast",
+                        decision_impact="Outlook trend informing planning and multi-hour advisory",
+                        timestamp=fc_dt_str,
+                        reason_code="FORECAST_OUTLOOK",
+                        reference_type="forecast",
                     )
                 )
 
@@ -402,6 +437,8 @@ class WeatherGPTPipeline:
             w_type = getattr(w, "type", getattr(w, "warning_type", "weather_alert"))
             w_type_str = w_type.value if hasattr(w_type, "value") else str(w_type)
             w_sev = w.severity.value if hasattr(w.severity, "value") else str(w.severity)
+            w_ts = getattr(w, "issued_at", None) or getattr(w, "timestamp", None)
+            w_ts_str = w_ts.isoformat() if hasattr(w_ts, "isoformat") else (str(w_ts) if w_ts else obs_timestamp)
             evidence_links.append(
                 EvidenceLink(
                     field_or_entity=f"warning.{w_type_str}",
@@ -409,6 +446,9 @@ class WeatherGPTPipeline:
                     source=getattr(w, "source", "IMD"),
                     temporal_scope="active_warning",
                     decision_impact="Mandatory safety override - warning precautions prioritized over general advice",
+                    timestamp=w_ts_str,
+                    reason_code="OFFICIAL_WARNING",
+                    reference_type="alert",
                 )
             )
 
@@ -423,15 +463,51 @@ class WeatherGPTPipeline:
                     source="WeatherReasoner.HazardEngine",
                     temporal_scope=getattr(h, "current_or_forecast", "current"),
                     decision_impact=f"Triggered deterministic safety rule: {h_details}",
+                    timestamp=obs_timestamp,
+                    reason_code=f"HAZARD_{h_type.upper()}",
+                    reference_type="hazard_rule",
                 )
             )
 
+        if advisory:
+            adv_cat = advisory.advisory_type.value if hasattr(advisory, "advisory_type") else "general"
+            adv_prio = advisory.priority.value if hasattr(advisory, "priority") else "normal"
+            evidence_links.append(
+                EvidenceLink(
+                    field_or_entity=f"advisory.{adv_cat}",
+                    observed_or_rule_value=f"Priority: {adv_prio}",
+                    source="AdvisoryEngine",
+                    temporal_scope="advisory",
+                    decision_impact=f"Deterministic actionable guidance for {resolved_persona.value} persona",
+                    timestamp=obs_timestamp,
+                    reason_code=f"ADVISORY_{adv_cat.upper()}",
+                    reference_type="advisory_rule",
+                )
+            )
+
+        effective_location = reasoning.location if reasoning.location != "Unknown" else (resolved_mem_location or getattr(nlu.entities, "location", None) or "Unknown")
+
         evidence_basis = [
-            f"Observed in {reasoning.location}: {weather_summary}" if weather_summary else f"Evaluation for {reasoning.location}",
+            f"Observed in {effective_location}: {weather_summary}" if weather_summary else f"Evaluation for {effective_location}",
             f"Official Warnings: {len(reasoning.active_warnings)} active",
             f"Hazards Detected: {len(reasoning.detected_hazards)}",
             f"Target Persona: {resolved_persona.value}",
         ]
+
+        if resolved_context_summary:
+            evidence_basis.append(f"Conversational context resolved: {resolved_context_summary}")
+            evidence_links.append(
+                EvidenceLink(
+                    field_or_entity="memory.context",
+                    observed_or_rule_value=resolved_context_summary[:120],
+                    source="ConversationMemory",
+                    temporal_scope="recent_turn",
+                    decision_impact="Resolves conversational references, pronouns, or antecedent location/time",
+                    timestamp=obs_timestamp,
+                    reason_code="CONVERSATION_MEMORY_RESOLVED",
+                    reference_type="observation",
+                )
+            )
 
         primary_warning = reasoning.active_warnings[0] if reasoning.active_warnings else None
         warning_details = None
@@ -448,7 +524,7 @@ class WeatherGPTPipeline:
             trace_id=f"dt_{request_id}",
             evaluated_at=datetime.now(timezone.utc),
             query_summary=(cleaned_msg or message or "")[:120],
-            resolved_location=reasoning.location,
+            resolved_location=effective_location,
             resolved_time_window=getattr(nlu.entities, "time", None) or getattr(nlu.entities, "date", None) or "current",
             detected_intent=nlu.intent.value,
             persona=resolved_persona.value,
@@ -456,16 +532,24 @@ class WeatherGPTPipeline:
             data_freshness=reasoning.freshness.value if hasattr(reasoning.freshness, "value") else str(reasoning.freshness),
             data_completeness=reasoning.data_complete,
             source_agreement=reasoning.source_agreement.value if hasattr(reasoning.source_agreement, "value") else str(reasoning.source_agreement),
+            consistency_score=reasoning.consistency_score,
             official_warning_status="ACTIVE_WARNING" if reasoning.active_warnings else "NONE",
             official_warning_details=warning_details,
+            warning_count=len(reasoning.active_warnings),
             hazards_detected=hazards_list,
+            overall_risk=reasoning.overall_risk.value if hasattr(reasoning.overall_risk, "value") else str(reasoning.overall_risk),
             advisory_category=advisory.advisory_type.value if hasattr(advisory, "advisory_type") else "general",
+            advisory_priority=advisory.priority.value if hasattr(advisory, "priority") else "normal",
             advisory_action_class=advisory.priority.value if hasattr(advisory, "priority") else "normal",
             evidence_basis=evidence_basis,
             evidence_links=evidence_links,
             validation_status=validation.status.value,
+            violation_category=", ".join(validation.violation_categories) if getattr(validation, "violation_categories", None) else None,
             fallback_used=fallback_used,
             degraded_state=degraded_state.value,
+            degraded_subsystems=subsystems_degraded,
+            degradation_reason="; ".join(degraded_reasons) if degraded_reasons else None,
+            stage_latencies_ms=stage_latencies,
             final_response_status="VALIDATED" if validation.is_valid else "FALLBACK_SUBSTITUTED",
         )
 
@@ -500,7 +584,13 @@ class WeatherGPTPipeline:
                 "violations": validation.violations,
                 "warnings": validation.warnings,
                 "checked_fields": validation.checked_fields,
-                "issues": validation.issues,
+                # validation.issues is List[str] in the AI layer but the backend
+                # ValidationSummary.issues schema expects List[Dict[str, Any]].
+                # Convert each string issue to a structured dict at this boundary.
+                "issues": [
+                    {"type": "issue", "message": issue}
+                    for issue in (validation.issues or [])
+                ],
             },
             "safety_telemetry": safety_telemetry,
             "fallback_used": fallback_used,

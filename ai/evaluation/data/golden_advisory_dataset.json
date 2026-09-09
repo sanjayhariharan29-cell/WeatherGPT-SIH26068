@@ -92,5 +92,49 @@
     "expected_advisory_type": "weather_summary",
     "expected_priority": "low",
     "expected_keywords": ["pleasant", "normal", "favorable", "outdoor"]
+  },
+  {
+    "id": "advisory_06_commuter_rain",
+    "persona": "commuter",
+    "description": "Commuter advisory under heavy rain and waterlogging",
+    "weather": {
+      "temperature": 26.0,
+      "humidity": 90.0,
+      "rain_probability": 85.0,
+      "wind_speed": 25.0,
+      "rainfall_amount_mm": 80.0,
+      "weather_condition": "Heavy Rain",
+      "source": "IMD"
+    },
+    "expected_advisory_type": "travel_caution",
+    "expected_priority": "high",
+    "expected_keywords": ["travel", "waterlogged", "transit", "metro", "umbrella"]
+  },
+  {
+    "id": "advisory_07_disaster_cyclone",
+    "persona": "disaster_response",
+    "description": "Disaster response advisory under severe cyclone warning",
+    "weather": {
+      "temperature": 26.0,
+      "humidity": 95.0,
+      "rain_probability": 90.0,
+      "wind_speed": 75.0,
+      "rainfall_amount_mm": 80.0,
+      "weather_condition": "Squall",
+      "source": "IMD"
+    },
+    "active_alerts": [
+      {
+        "type": "cyclone",
+        "severity": "extreme",
+        "title": "Red Alert — Cyclone Warning",
+        "description": "Fishermen are advised not to venture into sea.",
+        "source": "IMD"
+      }
+    ],
+    "expected_advisory_type": "official_warning",
+    "expected_priority": "critical",
+    "expected_keywords": ["emergency", "rescue", "relief", "monitor", "standby"]
   }
 ]
+

@@ -159,5 +159,11 @@ def extract_entities(text: str) -> ExtractedEntities:
     ]):
         entities.persona = PersonaEnum.DISASTER_RESPONSE
         entities.activity = "disaster management"
+    elif any(k in clean for k in [
+        "office", "commute", "metro", "bus", "train", "workplace", "daily commute"
+    ]):
+        entities.persona = PersonaEnum.COMMUTER
+        entities.activity = "daily commute"
 
     return entities
+

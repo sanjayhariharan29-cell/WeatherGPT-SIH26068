@@ -1,0 +1,35 @@
+# Version Control & Local Environment
+.git
+.gitignore
+.gitattributes
+.env
+.env.*
+.venv
+venv
+env
+ENV
+.pytest_cache
+.coverage
+htmlcov
+
+# Node & Mobile Build Directories
+node_modules
+android
+mobile
+package-lock.json
+
+# Local Databases & Temp Artifacts
+*.db
+*.sqlite
+*.sqlite3
+__pycache__
+*.pyc
+*.pyo
+*.pyd
+
+# Agent Customizations & Local Notes
+.agents
+AGENTS.md
+GEMINI.md
+docs/
+tests/

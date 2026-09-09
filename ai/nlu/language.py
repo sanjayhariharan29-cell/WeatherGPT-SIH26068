@@ -56,8 +56,13 @@ def detect_language(text: str) -> LanguageEnum:
         tanglish_score += 2
 
     hinglish_score = len(words.intersection(HINGLISH_MARKERS))
-    if HINDI_POSTPOSITIONS.search(clean_text):
-        hinglish_score += 1
+    postposition_matches = [p.lower() for p in HINDI_POSTPOSITIONS.findall(clean_text)]
+    # Filter out false positive English pronoun 'me' when no other Hindi markers are present
+    if postposition_matches:
+        if postposition_matches == ["me"] and hinglish_score == 0:
+            pass
+        else:
+            hinglish_score += len(postposition_matches)
 
     # Determine predominant transliteration
     if tanglish_score > 0 and tanglish_score >= hinglish_score:

@@ -300,6 +300,9 @@ class EvidenceLink(BaseModel):
     source: str = Field(default="IMD", description="Meteorological source or authority")
     temporal_scope: str = Field(default="current", description="Time window: current, today, tomorrow, forecast")
     decision_impact: str = Field(description="How this evidence shaped the advisory or hazard")
+    timestamp: Optional[str] = Field(default=None, description="Observation or bulletin timestamp")
+    reason_code: Optional[str] = Field(default=None, description="Reason code or rule identifier")
+    reference_type: str = Field(default="observation", description="observation, forecast, alert, hazard_rule, advisory_rule")
 
 
 class DecisionTrace(BaseModel):
@@ -318,16 +321,24 @@ class DecisionTrace(BaseModel):
     data_freshness: str
     data_completeness: bool
     source_agreement: str
+    consistency_score: Optional[int] = 0
     official_warning_status: str
     official_warning_details: Optional[Dict[str, Any]] = None
+    warning_count: int = 0
     hazards_detected: List[Dict[str, Any]] = Field(default_factory=list)
+    overall_risk: str = "low"
     advisory_category: str
+    advisory_priority: str = "normal"
     advisory_action_class: str
     evidence_basis: List[str] = Field(default_factory=list)
     evidence_links: List[EvidenceLink] = Field(default_factory=list)
     validation_status: str
+    violation_category: Optional[str] = None
     fallback_used: bool
     degraded_state: str
+    degraded_subsystems: List[str] = Field(default_factory=list)
+    degradation_reason: Optional[str] = None
+    stage_latencies_ms: Dict[str, float] = Field(default_factory=dict)
     final_response_status: str
 
     def to_debug_dict(self) -> Dict[str, Any]:
@@ -337,21 +348,39 @@ class DecisionTrace(BaseModel):
             "evaluated_at": self.evaluated_at.isoformat(),
             "query": self.query_summary,
             "location": self.resolved_location,
+            "resolved_location": self.resolved_location,
             "time_window": self.resolved_time_window,
+            "resolved_time_window": self.resolved_time_window,
             "intent": self.detected_intent,
+            "detected_intent": self.detected_intent,
             "persona": self.persona,
             "language": self.language,
+            "data_freshness": self.data_freshness,
+            "data_completeness": self.data_completeness,
+            "source_agreement": self.source_agreement,
+            "consistency_score": self.consistency_score,
             "warning_status": self.official_warning_status,
+            "official_warning_status": self.official_warning_status,
+            "warning_count": self.warning_count,
             "warning_details": self.official_warning_details,
             "hazards_count": len(self.hazards_detected),
             "hazards": self.hazards_detected,
+            "overall_risk": self.overall_risk,
             "advisory_category": self.advisory_category,
+            "advisory_priority": self.advisory_priority,
             "action_class": self.advisory_action_class,
+            "advisory_action_class": self.advisory_action_class,
             "validation_status": self.validation_status,
+            "violation_category": self.violation_category,
             "fallback_used": self.fallback_used,
             "degraded_state": self.degraded_state,
+            "degraded_subsystems": self.degraded_subsystems,
+            "degradation_reason": self.degradation_reason,
+            "stage_latencies_ms": self.stage_latencies_ms,
             "final_status": self.final_response_status,
+            "final_response_status": self.final_response_status,
             "evidence_links_count": len(self.evidence_links),
             "evidence_links": [link.model_dump() for link in self.evidence_links],
         }
+
 

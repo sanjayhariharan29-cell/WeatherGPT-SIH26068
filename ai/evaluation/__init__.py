@@ -10,11 +10,16 @@ from ai.evaluation.dataset import (
     load_safety_dataset,
 )
 from ai.evaluation.runner import (
+    classify_benchmark_failures,
     evaluate_advisories,
+    evaluate_detailed_safety,
+    evaluate_end_to_end_partitions,
     evaluate_hazards,
     evaluate_multilingual_consistency,
+    evaluate_multilingual_invariance_deep,
     evaluate_nlu,
     evaluate_safety,
+    evaluate_weather_reasoner,
     measure_latency,
     run_full_benchmark,
 )
@@ -22,14 +27,20 @@ from ai.evaluation.schemas import (
     AdvisoryEvalCase,
     AdvisoryMetrics,
     BenchmarkReport,
+    DetailedSafetyMetrics,
+    EndToEndPartitionReport,
+    FailureAnalysisItem,
+    FailureClassificationEnum,
     HazardEvalCase,
     HazardMetrics,
     LatencyMetrics,
+    MultilingualInvarianceMetrics,
     MultilingualMetrics,
     NLUEvalCase,
     NLUMetrics,
     SafetyEvalCase,
     SafetyMetrics,
+    WeatherReasonerMetrics,
 )
 
 from ai.evaluation.safety_evaluator import (
@@ -61,6 +72,11 @@ __all__ = [
     "evaluate_advisories",
     "evaluate_safety",
     "evaluate_multilingual_consistency",
+    "evaluate_weather_reasoner",
+    "evaluate_detailed_safety",
+    "evaluate_multilingual_invariance_deep",
+    "classify_benchmark_failures",
+    "evaluate_end_to_end_partitions",
     "measure_latency",
     "run_full_benchmark",
     "NLUEvalCase",
@@ -71,6 +87,12 @@ __all__ = [
     "HazardMetrics",
     "AdvisoryMetrics",
     "SafetyMetrics",
+    "WeatherReasonerMetrics",
+    "DetailedSafetyMetrics",
+    "MultilingualInvarianceMetrics",
+    "FailureClassificationEnum",
+    "FailureAnalysisItem",
+    "EndToEndPartitionReport",
     "MultilingualMetrics",
     "LatencyMetrics",
     "BenchmarkReport",
@@ -85,3 +107,4 @@ __all__ = [
     "build_pipeline_benchmark_dataset",
     "run_full_pipeline_benchmark",
 ]
+
