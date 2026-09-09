@@ -1,7 +1,7 @@
 """Abstract Base Weather Data Provider Interface.
 
-Defines the contract and shared HTTP client behavior for all weather provider adapters.
-Isolates provider failure modes behind predictable exception types.
+Defines the contract, connection pooling, and shared HTTP client behavior for all weather provider adapters.
+Isolates provider failure modes behind predictable internal exceptions.
 """
 
 from abc import ABC, abstractmethod
@@ -21,6 +21,16 @@ from backend.services.schemas import (
     NormalizedForecastItem,
     NormalizedAlertItem
 )
+
+_shared_http_clients: Dict[float, httpx.AsyncClient] = {}
+
+
+def get_shared_http_client(timeout: float) -> httpx.AsyncClient:
+    """Returns a singleton connection-pooled AsyncClient per timeout configuration."""
+    if timeout not in _shared_http_clients or _shared_http_clients[timeout].is_closed:
+        limits = httpx.Limits(max_keepalive_connections=20, max_connections=100, keepalive_expiry=30.0)
+        _shared_http_clients[timeout] = httpx.AsyncClient(timeout=timeout, limits=limits)
+    return _shared_http_clients[timeout]
 
 
 class BaseWeatherProvider(ABC):
@@ -48,41 +58,42 @@ class BaseWeatherProvider(ABC):
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """Shared async HTTP request execution with retry policy and exception mapping."""
+        """Shared async HTTP request execution with retry policy, connection pooling, and exception mapping."""
         last_exception = None
+        client = get_shared_http_client(self.timeout)
+
         for attempt in range(self.max_retries + 1):
             try:
-                async with httpx.AsyncClient(timeout=self.timeout) as client:
-                    resp = await client.get(url, params=params, headers=headers)
+                resp = await client.get(url, params=params, headers=headers)
 
-                    if resp.status_code == 401 or resp.status_code == 403:
-                        raise ProviderAuthenticationError(
-                            f"Authentication failed with status {resp.status_code}",
-                            provider_name=self.name
-                        )
-                    elif resp.status_code == 429:
-                        raise ProviderRateLimitedError(
-                            "Rate limit exceeded",
-                            provider_name=self.name
-                        )
-                    elif resp.status_code >= 500:
-                        raise ProviderUnavailableError(
-                            f"Server error response {resp.status_code}",
-                            provider_name=self.name
-                        )
-                    elif resp.status_code != 200:
-                        raise ProviderError(
-                            f"Unexpected HTTP status {resp.status_code}",
-                            provider_name=self.name
-                        )
+                if resp.status_code == 401 or resp.status_code == 403:
+                    raise ProviderAuthenticationError(
+                        f"Authentication failed with status {resp.status_code}",
+                        provider_name=self.name
+                    )
+                elif resp.status_code == 429:
+                    raise ProviderRateLimitedError(
+                        "Rate limit exceeded",
+                        provider_name=self.name
+                    )
+                elif resp.status_code >= 500:
+                    raise ProviderUnavailableError(
+                        f"Server error response {resp.status_code}",
+                        provider_name=self.name
+                    )
+                elif resp.status_code != 200:
+                    raise ProviderError(
+                        f"Unexpected HTTP status {resp.status_code}",
+                        provider_name=self.name
+                    )
 
-                    try:
-                        return resp.json()
-                    except Exception as e:
-                        raise ProviderInvalidResponseError(
-                            f"Failed to parse JSON response: {str(e)}",
-                            provider_name=self.name
-                        )
+                try:
+                    return resp.json()
+                except Exception as e:
+                    raise ProviderInvalidResponseError(
+                        f"Failed to parse JSON response: {str(e)}",
+                        provider_name=self.name
+                    )
 
             except (httpx.TimeoutException, TimeoutError) as e:
                 last_exception = ProviderTimeoutError(
