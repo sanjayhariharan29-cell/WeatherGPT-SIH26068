@@ -67,9 +67,8 @@ function navigateToScreen(screenName) {
 function handleHashNavigation() {
   const hash = window.location.hash.replace("#", "");
   const validScreens = ["home", "chat", "weather", "alerts", "map", "profile", "settings"];
-  if (validScreens.includes(hash)) {
-    navigateToScreen(hash);
-  }
+  const target = validScreens.includes(hash) ? hash : "home";
+  navigateToScreen(target);
 }
 
 // 2. Offline / Degradation Monitoring
@@ -90,6 +89,23 @@ function setupNetworkMonitoring() {
   });
   window.addEventListener("offline", updateStatus);
   updateStatus();
+}
+
+// 3. Event Listeners & Auto-Refresh Setup
+// Mobile Notice Banner Manager
+let mobileNoticeTimeout = null;
+function showMobileNotice(message, type = "info", duration = 4000) {
+  const notice = document.getElementById("mobileNotice");
+  if (!notice) return;
+  if (mobileNoticeTimeout) clearTimeout(mobileNoticeTimeout);
+
+  notice.className = `mobile-notice ${type}`;
+  notice.innerHTML = `<span>${escapeHTML(message)}</span><button style="background:none;border:none;color:#fff;font-size:16px;cursor:pointer;padding:0 4px;" onclick="document.getElementById('mobileNotice').classList.add('hidden')" aria-label="Close notification">✕</button>`;
+  notice.classList.remove("hidden");
+
+  mobileNoticeTimeout = setTimeout(() => {
+    notice.classList.add("hidden");
+  }, duration);
 }
 
 // 3. Event Listeners & Auto-Refresh Setup
@@ -118,17 +134,35 @@ function setupEventListeners() {
   });
 
   document.getElementById("voiceBtn").addEventListener("click", handleVoiceClick);
+
+  // Dynamic API Server Environment Switcher (Settings Screen)
+  const envSelect = document.getElementById("envSelect");
+  if (envSelect) {
+    const currentBase = window.apiClient.getBaseUrl();
+    for (let i = 0; i < envSelect.options.length; i++) {
+      if (envSelect.options[i].value === currentBase) {
+        envSelect.selectedIndex = i;
+        break;
+      }
+    }
+    envSelect.addEventListener("change", () => {
+      window.apiClient.setBaseUrl(envSelect.value);
+      showMobileNotice(`API endpoint updated: ${envSelect.value}`, "info", 3000);
+      loadCurrentWeather(true);
+    });
+  }
 }
 
 // Device Geolocation Handler (GPS / Mobile Location)
 function handleDeviceGeolocation() {
   const geoBtn = document.getElementById("geoBtn");
   if (!navigator.geolocation) {
-    alert("Geolocation is not supported by your browser or device. Please select location manually.");
+    showMobileNotice("Geolocation is not supported by your browser or mobile shell. Please select location manually.", "warning", 5000);
     return;
   }
 
   if (geoBtn) geoBtn.textContent = "🛰️ Locating...";
+  showMobileNotice("Requesting device GPS location for localized weather telemetry...", "info", 2500);
 
   navigator.geolocation.getCurrentPosition(
     async (position) => {
@@ -162,9 +196,10 @@ function handleDeviceGeolocation() {
           locSelect.value = locDetail.name;
         }
 
+        showMobileNotice(`Resolved location to ${locDetail.name}. Updating live telemetry.`, "info", 3000);
         loadCurrentWeather(true);
       } catch (err) {
-        alert(`Location resolved to (${lat.toFixed(2)}, ${lon.toFixed(2)}). Loading weather telemetry.`);
+        showMobileNotice(`Location resolved to (${lat.toFixed(2)}, ${lon.toFixed(2)}). Loading weather telemetry.`, "info", 3000);
         loadCurrentWeather(true);
       }
     },
@@ -172,16 +207,16 @@ function handleDeviceGeolocation() {
       if (geoBtn) geoBtn.textContent = "📍 GPS";
       switch (error.code) {
         case error.PERMISSION_DENIED:
-          alert("Location permission denied. Please select location manually from the dropdown.");
+          showMobileNotice("Location permission denied. Please select location from the dropdown.", "warning", 5000);
           break;
         case error.TIMEOUT:
-          alert("Device location request timed out. Please select location manually.");
+          showMobileNotice("Device location request timed out. Please select location manually.", "warning", 4000);
           break;
         case error.POSITION_UNAVAILABLE:
-          alert("Location information unavailable on this device. Please select location manually.");
+          showMobileNotice("Location information unavailable on this device. Please select manually.", "warning", 4000);
           break;
         default:
-          alert("Could not determine device location. Using manual location selection.");
+          showMobileNotice("Could not determine device location. Using manual location selection.", "warning", 4000);
           break;
       }
     },
@@ -799,6 +834,7 @@ function handleVoiceClick() {
     recognition.lang = (persona === "farmer" || persona === "fisherman") ? "ta-IN" : "en-IN";
 
     voiceBtn.textContent = "🔴 Listening...";
+    showMobileNotice("Microphone listening... Speak your weather query clearly.", "info", 3000);
     recognition.start();
 
     recognition.onresult = (event) => {
@@ -808,9 +844,18 @@ function handleVoiceClick() {
       handleUserSend();
     };
 
-    recognition.onerror = () => {
+    recognition.onerror = (event) => {
       voiceBtn.textContent = "🎙️";
-      sendQuickQuery("Naalaiku morning college pogalama?");
+      const errType = event?.error || "unknown";
+      if (errType === "not-allowed" || errType === "service-not-allowed") {
+        showMobileNotice("Microphone permission denied. Please allow microphone permissions or type your query.", "warning", 5000);
+      } else if (errType === "no-speech") {
+        showMobileNotice("No speech was detected. Please try speaking again or type your query.", "info", 3000);
+      } else {
+        showMobileNotice("Voice recognition interrupted. Please type your query in the chat box.", "info", 3000);
+      }
+      const chatInput = document.getElementById("chatInput");
+      if (chatInput) chatInput.focus();
     };
 
     recognition.onend = () => {
@@ -819,7 +864,9 @@ function handleVoiceClick() {
       }
     };
   } else {
-    sendQuickQuery("Naalaiku morning college pogalama?");
+    showMobileNotice("Voice recognition is not supported in this mobile WebView. Please type your query in the chat box.", "warning", 4000);
+    const chatInput = document.getElementById("chatInput");
+    if (chatInput) chatInput.focus();
   }
 }
 

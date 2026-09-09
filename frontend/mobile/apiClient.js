@@ -7,9 +7,24 @@
 
 class WeatherGPTApiClient {
   constructor() {
-    this.baseUrl = (window.ENV && window.ENV.API_BASE) || "/api/v1";
+    const savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
+    this.baseUrl = savedBase || (window.ENV && window.ENV.API_BASE) || "/api/v1";
     this.tokenKey = "weathergpt_auth_token";
     this.timeoutMs = 10000;
+  }
+
+  // Dynamic Base URL for Android WebView / Local Dev / Prod
+  getBaseUrl() {
+    return this.baseUrl;
+  }
+
+  setBaseUrl(url) {
+    if (url) {
+      this.baseUrl = url.replace(/\/+$/, "");
+      if (typeof localStorage !== "undefined") {
+        localStorage.setItem("weathergpt_api_base", this.baseUrl);
+      }
+    }
   }
 
   // Token Management
