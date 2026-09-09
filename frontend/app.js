@@ -2,6 +2,7 @@
 
 let autoRefreshInterval = null;
 let isFetchingWeather = false;
+let userGpsLocation = null;
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -609,9 +610,6 @@ async function loadAlerts(location) {
     }
   }
 }
-    console.error("Alerts telemetry error:", err);
-  }
-}
 
 let isSendingChatMessage = false;
 
@@ -797,7 +795,8 @@ function handleVoiceClick() {
   if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
-    recognition.lang = "ta-IN";
+    const persona = document.getElementById("personaSelect")?.value;
+    recognition.lang = (persona === "farmer" || persona === "fisherman") ? "ta-IN" : "en-IN";
 
     voiceBtn.textContent = "🔴 Listening...";
     recognition.start();
@@ -812,6 +811,12 @@ function handleVoiceClick() {
     recognition.onerror = () => {
       voiceBtn.textContent = "🎙️";
       sendQuickQuery("Naalaiku morning college pogalama?");
+    };
+
+    recognition.onend = () => {
+      if (voiceBtn.textContent === "🔴 Listening...") {
+        voiceBtn.textContent = "🎙️";
+      }
     };
   } else {
     sendQuickQuery("Naalaiku morning college pogalama?");
@@ -1055,4 +1060,11 @@ function renderMapFallbackTelemetry() {
   const preset = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === selectedLoc.toLowerCase()) || MAP_PRESET_LOCATIONS[0];
   selectMapMarkerDetails(preset.name, preset.lat, preset.lon, "--°C", "Map tiles unavailable. Viewing coordinate telemetry.", []);
 }
+
+// Global window bindings for HTML onclick handlers
+window.sendQuickQuery = sendQuickQuery;
+window.retryFailedMessage = retryFailedMessage;
+window.deleteSavedLoc = deleteSavedLoc;
+window.navigateToScreen = navigateToScreen;
+
 
