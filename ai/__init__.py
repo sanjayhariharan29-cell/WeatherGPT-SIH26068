@@ -32,6 +32,10 @@ from ai.models import (
     ValidationStatusEnum,
     WeatherReasoningResult,
     WeatherRecord,
+    DegradedStateEnum,
+    DegradationTelemetry,
+    EvidenceLink,
+    DecisionTrace,
 )
 from ai.nlu import (
     classify_intent,
@@ -61,6 +65,14 @@ from ai.llm import (
     get_llm_provider,
 )
 from ai.pipeline import WeatherGPTPipeline
+from ai.resilience import (
+    CircuitBreaker,
+    CircuitBreakerOpenError,
+    CircuitState,
+    get_circuit_breaker,
+    reset_all_circuit_breakers,
+    run_with_timeout,
+)
 
 __all__ = [
     # Configuration
@@ -89,6 +101,8 @@ __all__ = [
     "ValidationResult",
     "ValidationStatusEnum",
     "ValidationCategoryEnum",
+    "DegradedStateEnum",
+    "DegradationTelemetry",
     # NLU
     "parse_query",
     "detect_language",
@@ -117,5 +131,15 @@ __all__ = [
     "get_llm_provider",
     "GroundedLLMGenerator",
     "build_grounded_prompt",
-    "WeatherGPTPipeline"
+    "WeatherGPTPipeline",
+    # Resilience & Fault-Tolerance (Phase 16)
+    "CircuitBreaker",
+    "CircuitBreakerOpenError",
+    "CircuitState",
+    "get_circuit_breaker",
+    "reset_all_circuit_breakers",
+    "run_with_timeout",
+    # Decision Traces (Phase 19)
+    "EvidenceLink",
+    "DecisionTrace",
 ]

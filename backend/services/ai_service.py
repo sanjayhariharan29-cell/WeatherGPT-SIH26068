@@ -293,7 +293,16 @@ class AIService:
             "safety_telemetry": pipeline_result.get("safety_telemetry"),
             "hazards": pipeline_result.get("hazards", []),
             "advisory": pipeline_result.get("advisory", {}),
-            "fallback_used": pipeline_result.get("fallback_used", False)
+            "fallback_used": pipeline_result.get("fallback_used", False),
+            "stage_latencies_ms": pipeline_result.get("stage_latencies_ms"),
+            "degraded_state": pipeline_result.get("degraded_state", "normal"),
+            "degradation": pipeline_result.get("degradation", {
+                "state": "normal",
+                "reasons": [],
+                "circuit_breaker_open": False,
+                "subsystems_degraded": []
+            }),
+            "decision_trace": pipeline_result.get("decision_trace"),
         }
 
     def _persist_chat_records(
@@ -401,5 +410,37 @@ class AIService:
                 "warnings": ["Live weather data provider unavailable"],
                 "checked_fields": None,
                 "issues": None
+            },
+            "degraded_state": "data_unavailable",
+            "degradation": {
+                "state": "data_unavailable",
+                "reasons": ["Live weather data provider unavailable"],
+                "circuit_breaker_open": False,
+                "subsystems_degraded": ["weather_provider"]
+            },
+            "stage_latencies_ms": {
+                "total_pipeline_ms": round(duration_ms, 2)
+            },
+            "decision_trace": {
+                "trace_id": f"dt_{req_id}",
+                "evaluated_at": now_iso,
+                "query": req.message[:120],
+                "location": location_name,
+                "time_window": "current",
+                "intent": "current_weather",
+                "persona": persona,
+                "language": lang,
+                "warning_status": "NONE",
+                "warning_details": None,
+                "hazards_count": 0,
+                "hazards": [],
+                "advisory_category": "system",
+                "action_class": "fallback",
+                "validation_status": "DATA_UNAVAILABLE",
+                "fallback_used": True,
+                "degraded_state": "data_unavailable",
+                "final_status": "DATA_UNAVAILABLE",
+                "evidence_links_count": 0,
+                "evidence_links": [],
             }
         }

@@ -161,21 +161,34 @@ class VoiceAIService:
 
         chat_resp = await self.ai_service.process_chat(req, db=db)
 
-        # 5. Text-to-Speech (TTS) Synthesis
+        # 5. Text-to-Speech (TTS) Synthesis with Circuit Breaker
         audio_available = True
         audio_url: Optional[str] = "simulated_tts_audio.mp3"
-        try:
-            tts_result = await self.tts_provider.synthesize(
-                text=chat_resp["answer"],
-                language=resolved_lang
-            )
-            audio_available = tts_result.success
-            audio_url = tts_result.audio_url
-        except (TTSError, Exception) as tts_exc:
-            # TTS failure must never fail the entire WeatherGPT interaction
-            logger.warning("TTS synthesis failed, falling back to validated text only: %s", tts_exc)
+        from ai.resilience import get_circuit_breaker
+        tts_breaker = get_circuit_breaker("tts_synthesizer", failure_threshold=3, recovery_timeout=20.0)
+
+        if not tts_breaker.can_execute():
+            logger.warning("TTS circuit breaker is OPEN; fast-failing to return prompt text response.")
             audio_available = False
             audio_url = None
+        else:
+            try:
+                tts_result = await self.tts_provider.synthesize(
+                    text=chat_resp["answer"],
+                    language=resolved_lang
+                )
+                audio_available = tts_result.success
+                audio_url = tts_result.audio_url
+                if audio_available:
+                    tts_breaker.record_success()
+                else:
+                    tts_breaker.record_failure()
+            except (TTSError, Exception) as tts_exc:
+                tts_breaker.record_failure(tts_exc)
+                # TTS failure must never fail the entire WeatherGPT interaction
+                logger.warning("TTS synthesis failed, falling back to validated text only: %s", tts_exc)
+                audio_available = False
+                audio_url = None
 
         return VoiceResponse(
             transcript=transcript,

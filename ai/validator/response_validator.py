@@ -581,6 +581,55 @@ class ResponseValidator:
                     violation_categories.append(ValidationCategoryEnum.LANGUAGE_MISMATCH.value)
 
         # ---------------------------------------------------------
+        # 10b. Adversarial Prompt Injection & False Certainty Defense (Phase 17)
+        # ---------------------------------------------------------
+        checked_fields.append("adversarial_safety")
+        
+        injection_leak_phrases = [
+            "ignoring previous instructions", "as requested, ignoring instructions",
+            "overriding safety rules", "bypassing safety guidelines", "bypassing official alerts",
+            "revealing secret system prompt", "internal system instructions are:",
+            "user override granted", "disabling weather warnings as asked",
+            "system override", "secret developer instructions", "ignore constraints",
+            "unrestrained bot",
+            "முந்தைய வழிமுறைகளை புறக்கணிக்கிறேன்",
+            "पिछले निर्देशों को नजरअंदाज कर रहा हूँ"
+        ]
+        if any(il in lower_text for il in injection_leak_phrases):
+            msg = "Adversarial Injection Detected: Generated response contains prompt-override confirmation or reveals system safety instructions."
+            violations.append(msg)
+            issues.append(msg)
+            violation_categories.append(ValidationCategoryEnum.UNAUTHORIZED_DECLARATION.value)
+
+        false_certainty_phrases = [
+            "100% guaranteed forecast", "i guarantee 100% precision", "absolute 100% certainty",
+            "zero chance of error", "cannot possibly change", "guaranteed zero rain",
+            "100% guarantee", "absolute certainty", "guarantee 100%", "100% certain", "100% sure",
+            "guaranteed no rain",
+            "100% நிச்சயமாக", "100% गारंटीशुदा पूर्वानुमान"
+        ]
+        if any(fc in lower_text for fc in false_certainty_phrases):
+            msg = "False Certainty Detected: Response claims 100% absolute forecast precision or zero-uncertainty guarantee."
+            violations.append(msg)
+            issues.append(msg)
+            violation_categories.append(ValidationCategoryEnum.FALSE_CERTAINTY.value)
+
+        unauthorized_gov_phrases = [
+            "on behalf of national disaster authority, i declare",
+            "i am issuing an official government emergency decree",
+            "as the director of meteorological services, i order",
+            "curfew order", "as the government authority", "declare all schools",
+            "officially declare all schools", "declare school holiday",
+            "அரசாங்கத்தின் சார்பாக அவசரநிலையை அறிவிக்கிறேன்",
+            "सरकार की ओर से आपातकाल घोषित करता हूँ"
+        ]
+        if any(ug in lower_text for ug in unauthorized_gov_phrases):
+            msg = "Unauthorized Declaration: Response attempts to declare government emergency powers or impersonate official authorities."
+            violations.append(msg)
+            issues.append(msg)
+            violation_categories.append(ValidationCategoryEnum.UNAUTHORIZED_DECLARATION.value)
+
+        # ---------------------------------------------------------
         # 11. Final Status Resolution & Policy Gate
         # ---------------------------------------------------------
         # Deduplicate issues while preserving insertion order
@@ -632,3 +681,8 @@ class ResponseValidator:
             fallback_required=fallback_required,
             violation_categories=violation_categories,
         )
+
+    @classmethod
+    def validate(cls, *args, **kwargs) -> ValidationResult:
+        """Alias for validate_response."""
+        return cls.validate_response(*args, **kwargs)

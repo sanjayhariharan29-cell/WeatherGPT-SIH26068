@@ -40,6 +40,7 @@ class GroundedLLMGenerator:
             self.provider = GeminiLLMProvider(self.config.llm)
         else:
             self.provider = get_llm_provider(self.config.llm)
+        self.last_is_fallback: bool = False
 
     def generate_response(
         self,
@@ -83,6 +84,7 @@ class GroundedLLMGenerator:
                 if raw_response and raw_response.strip():
                     is_grounded, issues = verify_grounding(raw_response, context)
                     if is_grounded:
+                        self.last_is_fallback = False
                         return GroundedResponse(
                             answer=raw_response.strip(),
                             grounded_facts=[f"{k}: {v}" for k, v in context.observed_facts.items() if v != "UNAVAILABLE"],
@@ -97,6 +99,7 @@ class GroundedLLMGenerator:
                 pass
 
         # Fallback triggered (due to provider failure, timeout, or failed grounding check)
+        self.last_is_fallback = True
         fallback_answer = self._generate_fallback(nlu, weather, reasoning, advisory, context)
         return GroundedResponse(
             answer=fallback_answer,

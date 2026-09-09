@@ -273,3 +273,85 @@ class GroundedResponse(BaseModel):
     sources: List[str] = Field(default_factory=list)
     used_grounded_context: bool = True
     is_fallback: bool = False
+
+
+class DegradedStateEnum(str, Enum):
+    """Structured system degradation states (Phase 16)."""
+    NORMAL = "NORMAL"
+    DEGRADED_LLM = "DEGRADED_LLM"
+    DEGRADED_RAG = "DEGRADED_RAG"
+    DEGRADED_VOICE = "DEGRADED_VOICE"
+    DATA_UNAVAILABLE = "DATA_UNAVAILABLE"
+    SAFETY_FALLBACK = "SAFETY_FALLBACK"
+
+
+class DegradationTelemetry(BaseModel):
+    """Structured telemetry on subsystem degradation without exposing internals to users."""
+    state: DegradedStateEnum = DegradedStateEnum.NORMAL
+    reasons: List[str] = Field(default_factory=list)
+    circuit_breaker_open: bool = False
+    subsystems_degraded: List[str] = Field(default_factory=list)
+
+
+class EvidenceLink(BaseModel):
+    """Machine-readable evidence reference linking AI decisions directly to observations or rules (Phase 19)."""
+    field_or_entity: str = Field(description="e.g. weather.temperature, warning.cyclone, hazard_rule.wind")
+    observed_or_rule_value: Any = Field(description="Observed value, forecast value, or threshold")
+    source: str = Field(default="IMD", description="Meteorological source or authority")
+    temporal_scope: str = Field(default="current", description="Time window: current, today, tomorrow, forecast")
+    decision_impact: str = Field(description="How this evidence shaped the advisory or hazard")
+
+
+class DecisionTrace(BaseModel):
+    """Explainable, auditable internal decision trace showing WHY a response was generated (Phase 19).
+    
+    Exposes concise structured evidence and deterministic logic without exposing hidden LLM chain-of-thought.
+    """
+    trace_id: str
+    evaluated_at: datetime
+    query_summary: str
+    resolved_location: str
+    resolved_time_window: str
+    detected_intent: str
+    persona: str
+    language: str
+    data_freshness: str
+    data_completeness: bool
+    source_agreement: str
+    official_warning_status: str
+    official_warning_details: Optional[Dict[str, Any]] = None
+    hazards_detected: List[Dict[str, Any]] = Field(default_factory=list)
+    advisory_category: str
+    advisory_action_class: str
+    evidence_basis: List[str] = Field(default_factory=list)
+    evidence_links: List[EvidenceLink] = Field(default_factory=list)
+    validation_status: str
+    fallback_used: bool
+    degraded_state: str
+    final_response_status: str
+
+    def to_debug_dict(self) -> Dict[str, Any]:
+        """Controlled debug dictionary for developer testing, SIH demo, and evaluators."""
+        return {
+            "trace_id": self.trace_id,
+            "evaluated_at": self.evaluated_at.isoformat(),
+            "query": self.query_summary,
+            "location": self.resolved_location,
+            "time_window": self.resolved_time_window,
+            "intent": self.detected_intent,
+            "persona": self.persona,
+            "language": self.language,
+            "warning_status": self.official_warning_status,
+            "warning_details": self.official_warning_details,
+            "hazards_count": len(self.hazards_detected),
+            "hazards": self.hazards_detected,
+            "advisory_category": self.advisory_category,
+            "action_class": self.advisory_action_class,
+            "validation_status": self.validation_status,
+            "fallback_used": self.fallback_used,
+            "degraded_state": self.degraded_state,
+            "final_status": self.final_response_status,
+            "evidence_links_count": len(self.evidence_links),
+            "evidence_links": [link.model_dump() for link in self.evidence_links],
+        }
+
