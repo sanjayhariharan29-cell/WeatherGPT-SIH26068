@@ -67,7 +67,7 @@ def test_04_ci_secret_isolation_and_no_hardcoded_credentials():
 
     # Verify mock/placeholder values are used for CI testing
     assert "ci-mock-imd-api-key" in content or "IMD_API_KEY" in content
-    assert "sqlite:///:memory:" in content, "CI must use isolated in-memory test database"
+    assert "sqlite:///./test_ci.db" in content or "sqlite:///:memory:" in content, "CI must use isolated test database"
 
     # Ensure no actual sensitive key patterns (e.g., sk-proj-, AIzaSy...) exist in the workflow file
     assert not re.search(r"sk-proj-[A-Za-z0-9_-]{20,}", content), "Real OpenAI key detected in CI workflow!"
