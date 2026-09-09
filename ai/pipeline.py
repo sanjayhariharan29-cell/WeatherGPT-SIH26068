@@ -584,7 +584,13 @@ class WeatherGPTPipeline:
                 "violations": validation.violations,
                 "warnings": validation.warnings,
                 "checked_fields": validation.checked_fields,
-                "issues": validation.issues,
+                # validation.issues is List[str] in the AI layer but the backend
+                # ValidationSummary.issues schema expects List[Dict[str, Any]].
+                # Convert each string issue to a structured dict at this boundary.
+                "issues": [
+                    {"type": "issue", "message": issue}
+                    for issue in (validation.issues or [])
+                ],
             },
             "safety_telemetry": safety_telemetry,
             "fallback_used": fallback_used,
