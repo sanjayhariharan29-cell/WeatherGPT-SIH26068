@@ -278,8 +278,28 @@ def test_11_no_cross_user_cache_leakage():
     }
     canned_llm = "Weather conditions in Coimbatore are partly cloudy with moderate humidity."
 
+    from backend.services.schemas import NormalizedWeatherObservation
+    mock_obs = NormalizedWeatherObservation(
+        location_name="Coimbatore",
+        latitude=11.0168,
+        longitude=76.9558,
+        temperature_c=28.5,
+        feels_like_c=29.0,
+        humidity_pct=65.0,
+        rain_probability_pct=20.0,
+        wind_speed_kmh=12.0,
+        condition="Partly Cloudy",
+        source="IMD (Mock)",
+        observed_at="2026-09-09T10:00:00Z",
+        retrieved_at="2026-09-09T10:00:00Z"
+    )
+
     with patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc), \
          patch("backend.services.weather_manager.WeatherManager.get_current_weather", return_value=mock_weather), \
+         patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.open_meteo_adapter.OpenMeteoAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.forecast_service.ForecastService.get_ai_forecast_items", return_value=[]), \
+         patch("backend.services.alert_service.AlertService.get_ai_official_alerts", return_value=[]), \
          patch("ai.llm.provider.GeminiLLMProvider.generate_text", return_value=canned_llm):
         res1 = client.post("/api/v1/chat", json=u1_payload)
         res2 = client.post("/api/v1/chat", json=u2_payload)
