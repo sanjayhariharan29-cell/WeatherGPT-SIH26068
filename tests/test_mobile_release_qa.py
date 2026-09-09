@@ -72,13 +72,15 @@ def test_03_mobile_keyboard_and_viewport():
 
 
 def test_04_touch_target_and_accessibility_wcag():
-    """4. Test WCAG 2.1 AA touch targets (min 44px) and visible focus styling."""
+    """4. Test WCAG 2.1 AA touch targets (min 44px), focus rings, and reduced motion."""
     with open(STYLES_CSS_PATH, "r", encoding="utf-8") as f:
         css = f.read()
 
     assert "min-height: 44px" in css, "Must enforce 44px minimum touch target height"
     assert "touch-action: manipulation" in css, "Must optimize touch manipulation"
     assert ".mobile-bottom-nav" in css, "Mobile navigation bar must exist"
+    assert ":focus-visible" in css, "Must define high-contrast :focus-visible outline for keyboard navigation"
+    assert "prefers-reduced-motion" in css, "Must support prefers-reduced-motion media query"
 
 
 def test_05_permission_ux_and_safety_fallback():
@@ -111,6 +113,7 @@ def test_06_official_warning_prominence():
 
     assert ".alert-banner" in css, "Must style alert banner"
     assert ".alert-badge" in css, "Must style alert severity badge"
+    assert "overflow-wrap: break-word" in css, "Warning banner must wrap long compound words"
 
 
 def test_07_zero_secrets_and_artifact_safety():
@@ -145,5 +148,31 @@ def test_08_android_assets_integrity():
         assert os.path.getsize(src) == os.path.getsize(dst), f"Asset size mismatch for {f}"
 
 
+def test_09_multilingual_stress_and_warning_safety():
+    """9. Stress test long realistic strings in English, Tamil, Hindi, Tanglish, Hinglish."""
+    stress_strings = {
+        "en": "Warning: Severe cyclonic storm moving towards Tamil Nadu coast with torrential rainfall and wind speeds reaching 90-110 km/h.",
+        "ta": "எச்சரிக்கை: வங்கக்கடலில் உருவான தீவிர புயல் சின்னம் காரணமாக பலத்த காற்றுடன் கனமழை பெய்ய வாய்ப்புள்ளது. மீனவர்கள் கடலுக்கு செல்ல வேண்டாம்.",
+        "hi": "चेतावनी: बंगाल की खाड़ी में बने चक्रवाती तूफान के कारण तेज हवाओं के साथ भारी वर्षा की संभावना है। मछुआरों को समुद्र में न जाने की सलाह दी जाती है।",
+        "tanglish": "Alert: Romba heavy rain iruku naalaiku, college and schools ku leave vidalaam nu solranga. Safely veetla irunga.",
+        "hinglish": "Chetavani: Kal bohot zyada barish hone ki sambhavna hai, sabhi log apne ghar me surakshit rahein aur safar se bachein."
+    }
+
+    # Verify all strings are valid UTF-8 without null bytes or encoding issues
+    for lang, text in stress_strings.items():
+        encoded = text.encode("utf-8")
+        assert len(encoded) > 50, f"String for {lang} too short"
+        decoded = encoded.decode("utf-8")
+        assert decoded == text, f"Encoding roundtrip failed for {lang}"
+
+    # Verify CSS includes overflow-wrap and word-break for safe rendering
+    with open(STYLES_CSS_PATH, "r", encoding="utf-8") as f:
+        css = f.read()
+
+    assert "overflow-wrap: break-word" in css
+    assert "word-break: break-word" in css
+
+
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+

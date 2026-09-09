@@ -161,12 +161,17 @@ body {
   font-weight: 700;
   color: #fecdd3;
   margin-bottom: 4px;
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.4;
 }
 
 .alert-desc {
   font-size: 13px;
   color: #ffe4e6;
-  line-height: 1.4;
+  line-height: 1.5;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 /* Weather Card */
@@ -576,7 +581,13 @@ body {
 .fc-time { font-size: 12px; color: var(--text-muted); }
 .fc-temp { font-size: 18px; font-weight: 700; }
 .fc-rain { font-size: 12px; color: var(--primary-cyan); }
-.fc-cond { font-size: 12px; font-weight: 500; }
+.fc-cond { 
+  font-size: 12px; 
+  font-weight: 500; 
+  overflow-wrap: break-word;
+  word-break: break-word;
+  line-height: 1.3;
+}
 
 /* Trend Box */
 .trend-box {
@@ -602,6 +613,8 @@ body {
   padding: 12px 16px;
   border-radius: 10px;
   margin-bottom: 8px;
+  overflow-wrap: break-word;
+  word-break: break-word;
 }
 
 .disaster-item.high { border-left-color: var(--alert-red); }
@@ -683,6 +696,30 @@ input[type="password"],
   clip: rect(0, 0, 0, 0);
   white-space: nowrap;
   border: 0;
+}
+
+/* Accessibility: High-Contrast Focus Visible Ring for Keyboard & Switch Control */
+button:focus-visible,
+select:focus-visible,
+input:focus-visible,
+a:focus-visible,
+.chip-btn:focus-visible,
+.tab-btn:focus-visible,
+.nav-item:focus-visible {
+  outline: 2px solid var(--primary-cyan);
+  outline-offset: 2px;
+}
+
+/* Accessibility: Respect Reduced Motion Preferences */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 /* Network Offline Status Bar */
