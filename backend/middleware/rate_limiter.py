@@ -27,8 +27,10 @@ class RateLimiterMiddleware(BaseHTTPMiddleware):
         return [ts for ts in timestamps if ts > cutoff]
 
     async def dispatch(self, request: Request, call_next):
-        # Only rate limit chat API endpoints, and bypass during automated test suite execution
-        if not request.url.path.startswith("/api/v1/chat"):
+        # Rate limit chat and auth endpoints (prevent brute-force and credential stuffing)
+        is_chat = request.url.path.startswith("/api/v1/chat")
+        is_auth = request.url.path.startswith("/api/v1/auth")
+        if not is_chat and not is_auth:
             return await call_next(request)
 
         client_ip = request.client.host if request.client else "127.0.0.1"

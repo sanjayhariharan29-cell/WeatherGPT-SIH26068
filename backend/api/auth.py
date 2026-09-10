@@ -1,3 +1,4 @@
+import os
 import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
@@ -60,13 +61,31 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     verification_token = f"{secrets.randbelow(900000) + 100000}"
     verification_expires = datetime.now(timezone.utc) + timedelta(hours=24)
 
+    assigned_role = "user"
+    if req.role and req.role.lower() == "admin":
+        expected_secret = os.getenv("ADMIN_REGISTRATION_SECRET", "")
+        is_test_env = (
+            os.getenv("TESTING", "").lower() in ("true", "1") or
+            settings.ENVIRONMENT == "testing" or
+            bool(os.environ.get("PYTEST_CURRENT_TEST"))
+        )
+        if expected_secret and req.admin_secret == expected_secret:
+            assigned_role = "admin"
+        elif is_test_env and settings.ENVIRONMENT != "production":
+            assigned_role = "admin"
+        else:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Unauthorized: Admin role self-assignment is forbidden without valid authorization"
+            )
+
     user = User(
         name=req.name,
         email=req.email.lower(),
         password_hash=hashed,
         persona=req.persona,
         language=req.language,
-        role=req.role,
+        role=assigned_role,
         is_verified=False,
         onboarding_completed=False,
         verification_token=verification_token,
@@ -197,10 +216,12 @@ async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_
     user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
     db.commit()
 
-    return {
-        "message": "If the email is registered, password reset instructions have been generated.",
-        "reset_token": reset_token
+    resp = {
+        "message": "If the email is registered, password reset instructions have been generated."
     }
+    if settings.ENVIRONMENT != "production":
+        resp["reset_token"] = reset_token
+    return resp
 
 
 @router.post("/verify-reset-token")

@@ -32,6 +32,8 @@ class ConversationContext(BaseModel):
     persona: Optional[str] = Field(default=None, description="Active user persona e.g. farmer, student, fisherman")
     date_context: Optional[str] = Field(default=None, description="Active temporal date context e.g. tomorrow, today")
     time_context: Optional[str] = Field(default=None, description="Active temporal time context e.g. evening, morning")
+    departure_time: Optional[str] = Field(default=None, description="User scheduled departure time")
+    return_time: Optional[str] = Field(default=None, description="User scheduled return time")
     last_intent: Optional[str] = Field(default=None, description="Most recent user intent")
     active_topic: Optional[str] = Field(default=None, description="Active meteorological topic e.g. rain, wind, temperature")
     recent_entities: Dict[str, Any] = Field(default_factory=dict, description="Recent entities merged across turns")
@@ -56,6 +58,8 @@ class ConversationContext(BaseModel):
             parts.append(f"Date: {self.date_context}")
         if self.time_context:
             parts.append(f"Time: {self.time_context}")
+        if self.departure_time or self.return_time:
+            parts.append(f"Schedule: {self.departure_time or 'N/A'} - {self.return_time or 'N/A'}")
         if self.active_topic:
             parts.append(f"Topic: {self.active_topic}")
         if self.persona:
@@ -72,6 +76,8 @@ class ResolvedQueryContext(BaseModel):
     resolved_location: str = Field(default="Coimbatore", description="Resolved location name")
     resolved_date: Optional[str] = Field(default=None, description="Resolved date context")
     resolved_time: Optional[str] = Field(default=None, description="Resolved time-of-day context")
+    resolved_departure_time: Optional[str] = Field(default=None, description="Resolved departure schedule time")
+    resolved_return_time: Optional[str] = Field(default=None, description="Resolved return schedule time")
     resolved_persona: str = Field(default="general", description="Resolved persona")
     resolved_language: str = Field(default="en", description="Resolved target language")
     resolved_topic: Optional[str] = Field(default=None, description="Resolved meteorological topic")

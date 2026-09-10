@@ -114,17 +114,6 @@ def get_current_user(
         )
     
     token = credentials.credentials
-    # Support backward compatibility with legacy token format token_<user_id>
-    if token.startswith("token_"):
-        user_id = token.replace("token_", "")
-        user = db.query(User).filter(User.id == user_id).first()
-        if not user:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Invalid token or user not found"
-            )
-        return user
-
     payload = decode_access_token(token)
     jti = payload.get("jti")
     if jti and is_token_revoked(jti, db):

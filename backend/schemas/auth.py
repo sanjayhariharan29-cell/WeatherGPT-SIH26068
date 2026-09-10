@@ -12,6 +12,7 @@ class RegisterRequest(BaseModel):
     persona: str = Field(default="student", max_length=50)
     language: str = Field(default="ta", max_length=10)
     role: str = Field(default="user", max_length=20)
+    admin_secret: Optional[str] = Field(default=None, max_length=255, description="Secret required for admin registration")
 
     @model_validator(mode="before")
     @classmethod

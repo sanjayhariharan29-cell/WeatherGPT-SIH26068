@@ -94,12 +94,12 @@ class ContextResolver:
         """Detects whether user explicitly asks to start a new topic or clear context."""
         lower = text.strip().lower()
         reset_tokens = [
-            "start over", "start a new topic", "new topic", "clear context",
-            "reset conversation", "reset", "forget previous", "புது தலைப்பு",
-            "மீண்டும் தொடங்கு", "नए सिरे से", "नया विषय"
+            "start over", "start a new topic", "new topic", "clear context", "clear",
+            "reset conversation", "reset", "reset context", "forget previous", "start fresh",
+            "புது தலைப்பு", "மீண்டும் தொடங்கு", "नए सिरे से", "नया विषय", "सब रीसेट करो"
         ]
         for token in reset_tokens:
-            if token in lower:
+            if token == lower or re.search(rf"\b{re.escape(token)}\b", lower):
                 return True
         return False
 
@@ -120,6 +120,10 @@ class ContextResolver:
         inherited_fields: List[str] = []
         is_ambiguous = False
         ambiguity_reason: Optional[str] = None
+
+        # If user explicitly requests a reset, ignore previous context
+        if cls.is_reset_query(message):
+            context = None
 
         # Parse current message through Phase 2 NLU
         nlu = parse_query(message)
@@ -162,9 +166,30 @@ class ContextResolver:
         elif explicit_location:
             resolved_location = explicit_location.strip()
 
-        # 2. Temporal Context Resolution (Date & Time-of-day)
+        # 2. Temporal Context Resolution (Date & Time-of-day / Schedule)
         curr_date = nlu.entities.date  # e.g. "tomorrow", "today", "yesterday"
         curr_time_of_day = nlu.entities.time or cls.extract_time_of_day(message)
+
+        # Schedule Resolution
+        curr_dep = nlu.entities.departure_time
+        curr_ret = nlu.entities.return_time
+        resolved_dep = curr_dep or (context.departure_time if context else None)
+        resolved_ret = curr_ret or (context.return_time if context else None)
+        if not curr_dep and context and context.departure_time:
+            inherited_fields.append("departure_time")
+        if not curr_ret and context and context.return_time:
+            inherited_fields.append("return_time")
+
+        # Check if query asks about leaving college/office/work
+        is_leave_commute = any(k in message.lower() for k in [
+            "leave college", "leaving college", "after college", "from college",
+            "leave office", "leaving office", "after office", "return home", "come back"
+        ])
+        if is_leave_commute:
+            if resolved_ret:
+                curr_time_of_day = resolved_ret
+            else:
+                curr_time_of_day = "5:00 PM"
 
         resolved_date: Optional[str] = None
         resolved_time: Optional[str] = None
@@ -174,7 +199,8 @@ class ContextResolver:
             resolved_date = curr_date
             resolved_time = curr_time_of_day
         elif curr_time_of_day:
-            # User specified only time-of-day ("What about evening?") -> Inherit previous date context
+            # User specified only time-of-day ("What about evening?" or "What about when I leave college?")
+            # -> Inherit previous date context
             resolved_time = curr_time_of_day
             if context and context.date_context:
                 resolved_date = context.date_context
@@ -245,6 +271,8 @@ class ContextResolver:
             summary_parts.append(f"Date: {resolved_date}")
         if resolved_time:
             summary_parts.append(f"Time: {resolved_time}")
+        if resolved_dep or resolved_ret:
+            summary_parts.append(f"Schedule: {resolved_dep or 'N/A'} - {resolved_ret or 'N/A'}")
         if resolved_topic:
             summary_parts.append(f"Topic: {resolved_topic}")
         if resolved_persona and resolved_persona != "general":
@@ -260,6 +288,8 @@ class ContextResolver:
             resolved_location=resolved_location,
             resolved_date=resolved_date,
             resolved_time=resolved_time,
+            resolved_departure_time=resolved_dep,
+            resolved_return_time=resolved_ret,
             resolved_persona=resolved_persona,
             resolved_language=resolved_language,
             resolved_topic=resolved_topic,

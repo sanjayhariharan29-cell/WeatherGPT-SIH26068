@@ -233,6 +233,8 @@ class ChatIntegrationService:
             location=resolved_name,
             date_context=resolved.resolved_date,
             time_context=resolved.resolved_time,
+            departure_time=resolved.resolved_departure_time,
+            return_time=resolved.resolved_return_time,
             persona=persona_enum.value,
             language=pipeline_result.get("language"),
             active_topic=resolved.resolved_topic,

@@ -157,6 +157,8 @@ class ExtractedEntities(BaseModel):
     hazard: Optional[str] = None
     persona: Optional[PersonaEnum] = None
     activity: Optional[str] = None
+    departure_time: Optional[str] = None
+    return_time: Optional[str] = None
 
 
 class NLUResult(BaseModel):
@@ -164,8 +166,8 @@ class NLUResult(BaseModel):
     normalized_text: Optional[str] = None
     detected_language: LanguageEnum
     intent: IntentEnum
-    entities: ExtractedEntities
-    confidence: float = Field(ge=0.0, le=1.0)
+    entities: ExtractedEntities = Field(default_factory=ExtractedEntities)
+    confidence: float = Field(ge=0.0, le=1.0, default=1.0)
     ambiguity: Optional[str] = None
 
 
@@ -222,6 +224,8 @@ class DecisionAdvisory(BaseModel):
     action_guidance: List[str] = Field(default_factory=list)
     source_basis: List[str] = Field(default_factory=list)
     evidence: List[str] = Field(default_factory=list)
+    schedule_decision: Optional[Dict[str, Any]] = None
+    language: LanguageEnum = LanguageEnum.EN
 
 
 class ValidationStatusEnum(str, Enum):

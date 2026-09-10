@@ -27,9 +27,9 @@ class Settings(BaseModel):
             origin.strip()
             for origin in os.getenv(
                 "ALLOWED_ORIGINS",
-                "http://localhost:8000,http://127.0.0.1:8000,*"
+                "http://localhost,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://localhost:5173,capacitor://localhost"
             ).split(",")
-            if origin.strip()
+            if origin.strip() and origin.strip() != "*"
         ]
     )
     SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY", "weathergpt-super-secret-production-key-sih26068-min-32-chars"))

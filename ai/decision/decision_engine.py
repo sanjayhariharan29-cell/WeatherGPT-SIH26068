@@ -46,7 +46,7 @@ class DecisionEngine:
                 return PersonaEnum.STUDENT
             if p_str in ("traveller", "traveler", "tourist"):
                 return PersonaEnum.TRAVELLER
-            if p_str in ("disaster_response", "disaster", "emergency"):
+            if p_str in ("disaster_response", "disaster", "emergency", "safety", "disaster_safety"):
                 return PersonaEnum.DISASTER_RESPONSE
             return PersonaEnum.GENERAL
         elif isinstance(persona, PersonaEnum):
@@ -135,6 +135,142 @@ class DecisionEngine:
             return AdvisoryTypeEnum.VISIBILITY_CAUTION
 
         return AdvisoryTypeEnum.OUTDOOR_ACTIVITY_CAUTION
+
+    @classmethod
+    def _parse_hour(cls, time_str: Optional[str]) -> Optional[int]:
+        """Parses hour (0-23) from time string representation."""
+        if not time_str:
+            return None
+        import re
+        s = str(time_str).strip()
+        m_hour = re.search(r"(\d{1,2}):\d{2}", s)
+        if m_hour:
+            h = int(m_hour.group(1))
+            if "pm" in s.lower() and h < 12:
+                h += 12
+            elif "am" in s.lower() and h == 12:
+                h = 0
+            return h
+        m_ampm = re.search(r"\b(\d{1,2})\s*(am|pm)\b", s, re.IGNORECASE)
+        if m_ampm:
+            h = int(m_ampm.group(1))
+            meridiem = m_ampm.group(2).lower()
+            if meridiem == "pm" and h < 12:
+                h += 12
+            elif meridiem == "am" and h == 12:
+                h = 0
+            return h
+        lower = s.lower()
+        if "morning" in lower:
+            return 8
+        if "noon" in lower:
+            return 12
+        if "afternoon" in lower:
+            return 14
+        if "evening" in lower:
+            return 17
+        if "night" in lower:
+            return 21
+        return None
+
+    @classmethod
+    def _matches_hour(cls, fc_item: Any, target_hour: int, label: str) -> bool:
+        """Checks whether a forecast item corresponds to the requested hour/window."""
+        t_str = str(getattr(fc_item, "time", getattr(fc_item, "forecast_time", "")))
+        h = cls._parse_hour(t_str)
+        if h is not None and abs(h - target_hour) <= 1:
+            return True
+        if label and label.lower() in t_str.lower():
+            return True
+        return False
+
+    @classmethod
+    def _evaluate_schedule_windows(
+        cls,
+        nlu: Optional[NLUResult],
+        forecast: Optional[List[ForecastItem]],
+        weather: Optional[WeatherRecord],
+        reasoning: WeatherReasoningResult
+    ) -> Dict[str, Any]:
+        """Deterministically evaluates commute schedule and rainfall risk for departure/return periods."""
+        import re
+        raw_text = (nlu.original_text.lower() if nlu and nlu.original_text else "")
+        entities = getattr(nlu, "entities", None)
+
+        dep_time_str = getattr(entities, "departure_time", None)
+        ret_time_str = getattr(entities, "return_time", None)
+
+        # Infer from text if not on entities
+        if not dep_time_str:
+            dep_m = re.search(r"\b(?:leave|depart|going|at)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", raw_text)
+            if dep_m and "am" in dep_m.group(1).lower():
+                dep_time_str = dep_m.group(1).upper()
+
+        if not ret_time_str:
+            ret_m = re.search(r"\b(?:return|back|reach|at)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", raw_text)
+            if ret_m and "pm" in ret_m.group(1).lower():
+                ret_time_str = ret_m.group(1).upper()
+
+        has_explicit_schedule = bool(dep_time_str or ret_time_str) or ("8 am" in raw_text and "5 pm" in raw_text)
+        is_leave_college = any(k in raw_text for k in ["leave college", "leaving college", "after college", "from college"])
+
+        dep_str = dep_time_str or ("8:00 AM" if (has_explicit_schedule or "commute" in raw_text) else "8:00 AM")
+        ret_str = ret_time_str or ("5:00 PM" if (has_explicit_schedule or is_leave_college or "commute" in raw_text) else "5:00 PM")
+
+        dep_hour = cls._parse_hour(dep_str) or 8
+        ret_hour = cls._parse_hour(ret_str) or 17
+
+        fc_list = forecast or []
+        dep_items = [fc for fc in fc_list if cls._matches_hour(fc, dep_hour, "morning")]
+        ret_items = [fc for fc in fc_list if cls._matches_hour(fc, ret_hour, "evening")]
+
+        if not dep_items and fc_list:
+            dep_items = [fc_list[0]]
+        if not ret_items and fc_list:
+            ret_items = [fc_list[-1]] if len(fc_list) > 1 else [fc_list[0]]
+
+        weather_prob = float(weather.rain_probability or 0.0) if weather else 0.0
+
+        dep_prob = max([float(fc.rain_probability or 0.0) for fc in dep_items], default=weather_prob)
+        ret_prob = max([float(fc.rain_probability or 0.0) for fc in ret_items], default=weather_prob)
+
+        REASONING_THRESHOLD = 30.0
+
+        dep_has_rain = dep_prob >= REASONING_THRESHOLD or any("rain" in str(getattr(fc, "condition", "")).lower() for fc in dep_items)
+        ret_has_rain = ret_prob >= REASONING_THRESHOLD or any("rain" in str(getattr(fc, "condition", "")).lower() for fc in ret_items)
+
+        warning_present = bool(reasoning.active_warnings)
+        recommend_umbrella = dep_has_rain or ret_has_rain or warning_present
+
+        if is_leave_college and not has_explicit_schedule:
+            if ret_has_rain or warning_present:
+                rationale = f"Rain is expected when you leave college (~{ret_str}) with a {ret_prob:.0f}% precipitation chance. Carrying an umbrella is strongly recommended."
+            else:
+                rationale = f"Dry conditions expected when you leave college (~{ret_str}) with a {ret_prob:.0f}% precipitation chance. Carrying an umbrella is not strictly required."
+        elif warning_present:
+            rationale = "Official severe weather alert is active. Carrying an umbrella and protective rain gear is mandatory for your commute."
+        elif dep_has_rain and ret_has_rain:
+            rationale = f"Rain is forecast during both your morning departure at {dep_str} ({dep_prob:.0f}%) and evening return at {ret_str} ({ret_prob:.0f}%). Carrying an umbrella is strongly recommended."
+        elif not dep_has_rain and ret_has_rain:
+            rationale = f"Dry conditions for morning departure at {dep_str} ({dep_prob:.0f}%), but rain is forecast during your evening return at {ret_str} ({ret_prob:.0f}%). Carrying an umbrella is recommended for your return trip."
+        elif dep_has_rain and not ret_has_rain:
+            rationale = f"Rain is forecast during your morning departure at {dep_str} ({dep_prob:.0f}%). Carrying an umbrella is recommended."
+        else:
+            rationale = f"Dry conditions expected during both your departure at {dep_str} ({dep_prob:.0f}%) and return at {ret_str} ({ret_prob:.0f}%). Carrying an umbrella is not strictly required."
+
+        return {
+            "has_schedule": has_explicit_schedule or is_leave_college,
+            "departure_time": dep_str,
+            "return_time": ret_str,
+            "departure_prob": dep_prob,
+            "return_prob": ret_prob,
+            "departure_has_rain": dep_has_rain,
+            "return_has_rain": ret_has_rain,
+            "recommend_umbrella": recommend_umbrella,
+            "umbrella_rationale": rationale,
+            "departure_risk": "high" if dep_prob >= 70 else ("moderate" if dep_prob >= 30 else "low"),
+            "return_risk": "high" if ret_prob >= 70 else ("moderate" if ret_prob >= 30 else "low"),
+        }
 
     @classmethod
     def generate_advisory(
@@ -270,29 +406,78 @@ class DecisionEngine:
             evidence.append(f"Telemetry is aged {reasoning.data_age_minutes}m ({reasoning.freshness.value}); real-time verification recommended.")
 
         # ---------------- PERSONA-SPECIFIC LOGIC ----------------
+        schedule_decision = cls._evaluate_schedule_windows(nlu, forecast, weather, reasoning)
 
         # ---------------- STUDENT PERSONA ----------------
         if resolved_persona == PersonaEnum.STUDENT:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_STUDENT_ALERT")
                 reason_codes.append("STUDENT_COMMUTE_SAFETY")
-                risk_summary = "Significant precipitation or hazardous weather detected during commute window."
+                risk_summary = f"Official warning active: {active_warning.title} ({active_warning.severity.value}). Commute hazard present."
                 if is_tamil:
-                    headline = "கனமழை எச்சரிக்கை — பள்ளி/கல்லூரி பயணத்தில் அதிக கவனம் தேவை"
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
                     advisory_text = (
-                        "கனமழை அல்லது தீவிர வானிலை எச்சரிக்கை நிலவுகிறது. "
-                        "தேவையற்ற வெளிப்பயணங்களைத் தவிர்க்கவும். "
-                        "கல்லூரி/பள்ளி விடுமுறை மற்றும் வகுப்புகள் குறித்த அதிகாரப்பூர்வ நிர்வாக அறிவிப்புகளைச் சரிபார்க்கவும்."
+                        f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "கல்லூரி/பள்ளி மாணவர்களுக்கான ஆலோசனை: தேவையற்ற பயணங்களைத் தவிர்க்கவும். "
+                        "வகுப்புகள் மற்றும் தேர்வுகள் குறித்த அதிகாரப்பூர்வ கல்வி நிறுவன அறிவிப்புகளைச் சரிபார்க்கவும். குடை அல்லது மழைக்கால பாதுகாப்பு எடுத்துச் செல்லவும்."
                     )
                     precautions = [
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை வழிகாட்டுதல்: {active_warning.title}",
                         "மழைக்கோட்டு அல்லது குடை எடுத்துச் செல்லவும்",
                         "நீர் தேங்கிய சாலைகள் மற்றும் தாழ்வான பகுதிகளைத் தவிர்க்கவும்",
                         "அதிகாரப்பூர்வ கல்வி நிறுவன அறிவிப்புகளைத் தொடர்ந்து கண்காணிக்கவும்"
                     ]
                 elif is_hindi:
-                    headline = "मौसम चेतावनी — स्कूल/कॉलेज यात्रा में सावधानी बरतें"
+                    headline = f"⚠️ [आधिकारिक चेतावनी] {active_warning.title}"
                     advisory_text = (
-                        "भारी बारिश या गंभीर मौसम की संभावना है। "
-                        "अनावश्यक बाहरी यात्रा से बचें और कक्षाओं व छुट्टी से संबंधित संस्थान की आधिकारिक घोषणाओं पर नजर रखें।"
+                        f"आधिकारिक IMD चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "छात्रों के लिए सलाह: अनावश्यक यात्रा से बचें। "
+                        "संस्थान की आधिकारिक सूचनाएं देखें (WeatherGPT छुट्टियां घोषित नहीं करता)। छाता या रेनकोट साथ रखें।"
+                    )
+                    precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
+                        "रेनकोट या छाता साथ रखें",
+                        "जलभराव वाले रास्तों और खुले नालों से बचें",
+                        "संस्थान की आधिकारिक सूचनाएं देखें (WeatherGPT छुट्टियां घोषित नहीं करता)"
+                    ]
+                else:
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "For students: Verify institutional circulars regarding class schedules and exams. "
+                        "Do not commute through flooded corridors or waterlogged underpasses. Carrying rain protection is strongly recommended."
+                    )
+                    precautions = [
+                        f"Official Warning Protocol: {active_warning.title}",
+                        "Carry rain protection (waterproof bag, umbrella, raincoat)",
+                        "Avoid waterlogged commuter corridors and open storm drains",
+                        "Check official institutional notifications (WeatherGPT does not declare holidays)"
+                    ]
+            elif schedule_decision["recommend_umbrella"] or risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
+                reason_codes.append("STUDENT_COMMUTE_SAFETY")
+                reason_codes.append("SCHEDULE_RAIN_PROTECTION_RECOMMENDED")
+                risk_summary = f"Precipitation expected during commute window ({schedule_decision['return_prob']:.0f}% return chance)."
+                if is_tamil:
+                    headline = "பயண நேரத்தில் மழை வாய்ப்பு — குடை எடுத்துச் செல்லவும்"
+                    advisory_text = (
+                        f"கல்லூரி பயண நேரத்தில் மழை பெய்ய வாய்ப்புள்ளது ({schedule_decision['return_prob']:.0f}%). "
+                        "குடை அல்லது மழைக்கோட்டு எடுத்துச் செல்வது அவசியமாகும். தாழ்வான சாலைகளைத் தவிர்க்கவும். "
+                        "பள்ளி/கல்லூரி வகுப்புகள் குறித்த கல்வி நிறுவன அதிகாரப்பூர்வ அறிவிப்புகளைச் சரிபார்க்கவும்."
+                    )
+                    precautions = [
+                        "குடை அல்லது மழைக்கோட்டு எடுத்துச் செல்லவும்",
+                        "நீர் தேங்கிய சாலைகள் மற்றும் தாழ்வான பகுதிகளைத் தவிர்க்கவும்",
+                        "அதிகாரப்பூர்வ கல்வி நிறுவன அறிவிப்புகளைத் தொடர்ந்து கண்காணிக்கவும்"
+                    ]
+                elif is_hindi:
+                    headline = "यात्रा में बारिश की संभावना — छाता साथ रखें"
+                    advisory_text = (
+                        f"कॉलेज यात्रा के समय बारिश की संभावना है ({schedule_decision['return_prob']:.0f}%)। "
+                        "छाता या रेनकोट साथ रखना आवश्यक है। जलभराव वाले रास्तों से बचें। "
+                        "संस्थान की आधिकारिक सूचनाएं देखें (WeatherGPT छुट्टियां घोषित नहीं करता)।"
                     )
                     precautions = [
                         "रेनकोट या छाता साथ रखें",
@@ -300,10 +485,10 @@ class DecisionEngine:
                         "संस्थान की आधिकारिक सूचनाएं देखें (WeatherGPT छुट्टियां घोषित नहीं करता)"
                     ]
                 else:
-                    headline = "High Weather Risk — Commute Precaution Advised"
+                    headline = "Rain Expected During Commute — Umbrella Recommended"
                     advisory_text = (
-                        "Significant precipitation or hazardous conditions detected during your travel window. "
-                        "Prioritize personal safety and verify institutional notices regarding class schedules."
+                        f"{schedule_decision['umbrella_rationale']} "
+                        "Prioritize personal safety, avoid waterlogged corridors, and verify institutional notices regarding class schedules."
                     )
                     precautions = [
                         "Carry rain protection (waterproof bag, umbrella, raincoat)",
@@ -323,10 +508,11 @@ class DecisionEngine:
                     precautions = ["छाता साथ रखें", "समय से पहले निकलें"]
                 else:
                     headline = "Moderate Rain Expected — Prepare for Commute"
-                    advisory_text = "Precipitation is likely. Anticipate minor transit delays during morning/evening commute."
+                    advisory_text = f"{schedule_decision['umbrella_rationale']} Anticipate minor transit delays during morning/evening commute."
                     precautions = ["Keep an umbrella handy", "Allow extra commute time"]
             else:
                 reason_codes.append("STUDENT_NORMAL_ROUTINE")
+                reason_codes.append("SCHEDULE_DRY_COMMUTE")
                 risk_summary = "Weather conditions are stable and clear."
                 if is_tamil:
                     headline = "சாதகமான வானிலை"
@@ -338,17 +524,69 @@ class DecisionEngine:
                     precautions = ["सामान्य दिनचर्या लागू होती है"]
                 else:
                     headline = "Normal Weather Conditions"
-                    advisory_text = "Weather conditions are stable for travel and outdoor campus activities."
-                    precautions = ["Standard commuter routine applies"]
+                    advisory_text = f"{schedule_decision['umbrella_rationale']} Weather conditions are stable for travel and outdoor campus activities."
+                    precautions = ["Standard commuter routine applies", "Umbrella not strictly required for dry forecast"]
 
         # ---------------- COMMUTER PERSONA ----------------
         elif resolved_persona == PersonaEnum.COMMUTER:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
+            is_commute_rain = (
+                (weather and (weather.rain_probability or 0) >= 30.0)
+                or schedule_decision["recommend_umbrella"]
+                or risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME)
+                or any("rain" in h.hazard_type.lower() for h in all_hazards)
+            )
+            has_fog = any("fog" in h.hazard_type.lower() or "visibility" in h.hazard_type.lower() for h in all_hazards)
+            w_spd = (weather.wind_speed or 0) if weather else 0
+
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_COMMUTER_ALERT")
                 reason_codes.append("COMMUTER_SEVERE_TRANSIT_DISRUPTION")
-                risk_summary = "Severe weather conditions likely to cause significant traffic slowdowns and waterlogging."
+                risk_summary = f"Official warning active: {active_warning.title}. Hazardous corridor transit conditions."
+                if is_tamil:
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
+                    advisory_text = (
+                        f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "பயணிகளுக்கான ஆலோசனை: சாலைகளில் நீர் தேங்குதல் மற்றும் கடுமையான போக்குவரத்து தாமதங்கள் ஏற்படும். பயணத்திற்கு 20-30 நிமிடங்கள் கூடுதல் நேரம் ஒதுக்கவும்."
+                    )
+                    precautions = [
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை வழிகாட்டுதல்: {active_warning.title}",
+                        "பயணத்திற்கு 20-30 நிமிடங்கள் கூடுதல் நேரம் ஒதுக்கவும்",
+                        "தாழ்வான பாலங்கள் மற்றும் நீர் தேங்கிய சுரங்கப்பாதைகளைத் தவிர்க்கவும்",
+                        "மழைக்கால பாதுகாப்பு கியர் மற்றும் குடையை உடன் வைத்திருக்கவும்"
+                    ]
+                elif is_hindi:
+                    headline = f"⚠️ [आधिकारिक चेतावनी] {active_warning.title}"
+                    advisory_text = (
+                        f"आधिकारिक IMD चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "यात्रियों के लिए सलाह: सड़क और रेल यातायात में भारी देरी की आशंका है। यात्रा के लिए 20-30 मिनट अतिरिक्त समय लें।"
+                    )
+                    precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
+                        "यात्रा के लिए 20-30 मिनट अतिरिक्त समय लें",
+                        "जलभराव वाले अंडरपास, सबवे और खुले नालों से बचें",
+                        "रेनकोट या छाता साथ रखें"
+                    ]
+                else:
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "For commuters: Severe transit delays and corridor waterlogging expected. Allow 20-30 minutes extra travel time. Avoid flooded underpasses."
+                    )
+                    precautions = [
+                        f"Official Warning Protocol: {active_warning.title}",
+                        "Allow 20-30 minutes extra travel time",
+                        "Avoid waterlogged underpasses, subway corridors, and open storm drains",
+                        "Carry waterproof gear and umbrella"
+                    ]
+            elif is_commute_rain:
+                reason_codes.append("COMMUTER_SEVERE_TRANSIT_DISRUPTION" if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) else "COMMUTER_RAIN_TRANSIT_DELAY")
+                risk_summary = "Wet roadways and commuter bottlenecks expected."
                 if is_tamil:
                     headline = "போக்குவரத்து எச்சரிக்கை — பயண தாமதம் மற்றும் நீர் தேங்குதல் வாய்ப்பு"
-                    advisory_text = "கனமழை காரணமாக சாலைகளில் நீர் தேங்க வாய்ப்புள்ளது. அவசியமற்ற பயணங்களைத் தவிர்க்கவும்."
+                    advisory_text = "கனமழை / மழை காரணமாக சாலைகளில் நீர் தேங்க வாய்ப்புள்ளது. பயணத்திற்கு 20-30 நிமிடங்கள் கூடுதல் நேரம் ஒதுக்கவும்."
                     precautions = [
                         "பயணத்திற்கு 20-30 நிமிடங்கள் கூடுதல் நேரம் ஒதுக்கவும்",
                         "தாழ்வான பாலங்கள் மற்றும் நீர் தேங்கிய சுரங்கப்பாதைகளைத் தவிர்க்கவும்",
@@ -356,40 +594,39 @@ class DecisionEngine:
                     ]
                 elif is_hindi:
                     headline = "यातायात चेतावनी — भारी बारिश और जलभराव का खतरा"
-                    advisory_text = "गंभीर मौसम के कारण सड़क और रेल यातायात में देरी हो सकती है। सुरक्षित रहें।"
+                    advisory_text = "बारिश के कारण सड़कों पर जलभराव और फिसलन हो सकती है। यात्रा के लिए 20-30 मिनट अतिरिक्त समय लें।"
                     precautions = [
                         "यात्रा के लिए 20-30 मिनट अतिरिक्त समय लें",
                         "जलभराव वाले अंडरपास, सबवे और खुले नालों से बचें",
-                        "मेट्रो व बस के ताजा अपडेट देखें",
-                        "रेनकोट या छाता साथ रखें"
+                        "छाता या रेनकोट साथ रखें"
                     ]
                 else:
                     headline = "Commute Alert — Travel Delays & Waterlogging Risk"
-                    advisory_text = "Hazardous weather conditions detected. Significant road transit and rail delays expected."
+                    advisory_text = "Wet roadway surfaces and commuter traffic slowdowns expected. Allow 20-30 minutes extra travel time. Avoid waterlogged underpasses and carry rain protection."
                     precautions = [
-                        "Allow 20-30 minutes extra travel time",
+                        "Allow 20-30 minutes extra travel time (buffer time for transit)",
                         "Avoid waterlogged underpasses, subway corridors, and open drains",
-                        "Check public transit and metro status updates before departure",
-                        "Carry waterproof gear and umbrella"
+                        "Keep rain protection handy (waterproof gear and umbrella)",
+                        "Check public transit and metro status updates before departure"
                     ]
-            elif risk == RiskLevelEnum.MEDIUM:
-                reason_codes.append("COMMUTER_MODERATE_RAIN")
-                risk_summary = "Moderate precipitation expected to cause minor commute bottlenecks."
-                if is_tamil:
-                    headline = "பயண ஆலோசனை — மிதமான மழை வாய்ப்பு"
-                    advisory_text = "மழை காரணமாக போக்குவரத்து தாமதமாகலாம். முன்கூட்டியே புறப்படவும்."
-                    precautions = ["குடை அல்லது மழைக்கோட்டு எடுத்துச் செல்லவும்", "கூடுதல் பயண நேரத்தை திட்டமிடவும்"]
-                elif is_hindi:
-                    headline = "यात्रा सलाह — मध्यम बारिश की संभावना"
-                    advisory_text = "बारिश के कारण सड़कों पर फिसलन और यातायात धीमा हो सकता है।"
-                    precautions = ["छाता या रेनकोट साथ रखें", "अतिरिक्त समय लेकर चलें"]
-                else:
-                    headline = "Commute Advisory — Moderate Rain Expected"
-                    advisory_text = "Wet road surfaces and minor transit delays expected along commuter routes."
-                    precautions = [
-                        "Keep rain protection handy",
-                        "Allow buffer time for morning/evening transit"
-                    ]
+            elif has_fog:
+                reason_codes.append("COMMUTER_VISIBILITY_CAUTION")
+                risk_summary = "Reduced visibility / fog along transit corridors."
+                headline = "Commute Advisory — Reduced Visibility / Fog"
+                advisory_text = "Reduced visibility conditions detected along travel corridors. Drive with low-beam headlights on, maintain safe braking distance, and reduce highway speeds."
+                precautions = [
+                    "Drive with low-beam headlights on",
+                    "Maintain safe braking distance and observe speed limits"
+                ]
+            elif w_spd > 30.0:
+                reason_codes.append("COMMUTER_CROSSWIND_HAZARD")
+                risk_summary = "Strong crosswinds on elevated transit corridors."
+                headline = "Commute Advisory — Strong Crosswinds"
+                advisory_text = f"Strong crosswinds ({w_spd:.0f} km/h) reported along flyovers and open expressways. Two-wheeler riders should exercise extra caution."
+                precautions = [
+                    "Exercise caution on bridges, flyovers, and open expressways",
+                    "Two-wheeler riders should reduce speed and brace for gusts"
+                ]
             else:
                 reason_codes.append("COMMUTER_NORMAL_TRAFFIC")
                 risk_summary = "Clear weather with normal traffic flow expected."
@@ -408,7 +645,52 @@ class DecisionEngine:
 
         # ---------------- FISHERMAN PERSONA ----------------
         elif resolved_persona == PersonaEnum.FISHERMAN:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
+            w_spd = (weather.wind_speed or 0) if weather else 0
+
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_FISHERMAN_ALERT")
+                reason_codes.append("FISHERMAN_SEA_VENTURING_PROHIBITION")
+                risk_summary = f"Official warning active: {active_warning.title}. Total sea venturing prohibition."
+                if is_tamil:
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
+                    advisory_text = (
+                        f"அதிகாரப்பூர்வ IMD கடல் எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "மீனவர்களுக்கான உத்தரவு: மீனவர்கள் கடலுக்குள் செல்ல வேண்டாம் என திட்டவட்டமாக எச்சரிக்கப்படுகிறார்கள். படகுகளைப் பாதுகாப்பான மேடான இடங்களில் கட்டவும்."
+                    )
+                    precautions = [
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை உத்தரவு: {active_warning.title}",
+                        "ஆழ்கடல் மீன்பிடிப்பைத் தவிர்க்கவும்",
+                        "படகு மற்றும் வலைகளைப் பாதுகாப்பான மேடான இடங்களில் கட்டவும்",
+                        "மீன்வளத்துறை மற்றும் IMD வானிலை எச்சரிக்கைகளைக் கேட்கவும்"
+                    ]
+                elif is_hindi:
+                    headline = f"⚠️ [आधिकारिक समुद्री चेतावनी] {active_warning.title}"
+                    advisory_text = (
+                        f"आधिकारिक IMD समुद्री चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "मछुआरों को समुद्र में न जाने की सख्त सलाह दी जाती है। नावों और जालों को सुरक्षित ऊंचे स्थानों पर बांधें।"
+                    )
+                    precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
+                        "गहरे समुद्र में मछली पकड़ने न जाएं",
+                        "नावों और जालों को सुरक्षित ऊंचे स्थानों पर बांधें",
+                        "तटीय रेडियो और IMD समुद्री बुलेटिन को सुनते रहें"
+                    ]
+                else:
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "For fishermen: Strictly prohibited from venturing into open or deep sea waters. Secure all small craft and equipment at safe moorings."
+                    )
+                    precautions = [
+                        f"Authoritative IMD Warning Directive: {active_warning.title}",
+                        "Do not venture into open sea",
+                        "Secure all small craft and fishing equipment at designated safe moorings",
+                        "Monitor coastal radio broadcasts for IMD marine bulletins"
+                    ]
+            elif w_spd > 40.0 or any("wind" in h.hazard_type.lower() or "cyclone" in h.hazard_type.lower() for h in all_hazards) or risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
                 reason_codes.append("FISHERMAN_SEA_VENTURING_PROHIBITION")
                 risk_summary = "Dangerous sea state with squally winds and high wave activity."
                 if is_tamil:
@@ -436,7 +718,7 @@ class DecisionEngine:
                 else:
                     headline = "Marine Weather Alert — Avoid Venturing into Sea"
                     advisory_text = (
-                        "Squally weather with hazardous wind gusts and rough seas expected. "
+                        f"Squally weather with hazardous wind gusts ({w_spd:.0f} km/h) and rough seas expected. "
                         "Fishermen are strictly advised not to venture into deep sea or coastal waters."
                     )
                     precautions = [
@@ -444,6 +726,15 @@ class DecisionEngine:
                         "Secure all small craft and fishing equipment at designated safe moorings",
                         "Monitor coastal radio broadcasts for IMD marine bulletins"
                     ]
+            elif w_spd >= 25.0:
+                reason_codes.append("FISHERMAN_COASTAL_CAUTION")
+                risk_summary = "Choppy coastal waters with moderate wind speeds."
+                headline = "Marine Caution — Choppy Coastal Waters"
+                advisory_text = f"Moderate squally winds ({w_spd:.0f} km/h). Avoid deep sea venturing; remain within coastal range with verified VHF equipment."
+                precautions = [
+                    "Avoid venturing into deep offshore waters",
+                    "Ensure mandatory life jackets and communication equipment on board"
+                ]
             else:
                 reason_codes.append("FISHERMAN_FAVORABLE_MARINE")
                 risk_summary = "Wind speed and wave heights within normal safe operating limits."
@@ -457,38 +748,107 @@ class DecisionEngine:
                     precautions = ["मानक लाइफ जैकेट और संचार उपकरण तैयार रखें"]
                 else:
                     headline = "Favorable Marine Conditions"
-                    advisory_text = "Wind speed and sea state are currently within normal operational limits."
-                    precautions = ["Maintain standard onboard communication and life jacket safety"]
+                    advisory_text = f"Wind speed ({w_spd:.0f} km/h) and sea state are currently within normal safe operating limits."
+                    precautions = ["Maintain standard onboard communication and life jacket safety", "Safe for coastal fishing operations"]
 
         # ---------------- FARMER PERSONA ----------------
         elif resolved_persona == PersonaEnum.FARMER:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
+            is_farm_rain = (weather and (weather.rain_probability or 0) >= 40.0) or any((fc.rain_probability or 0) >= 40.0 for fc in (forecast or [])) or any("rain" in h.hazard_type.lower() for h in all_hazards)
+            w_spd = (weather.wind_speed or 0) if weather else 0
+            t_val = (weather.temperature or 0) if weather else 25
+
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_FARMER_ALERT")
                 reason_codes.append("FARMER_CROP_AND_DRAINAGE_PROTECTION")
-                risk_summary = "Heavy rainfall or extreme conditions threatening soil inundation and nutrient runoff."
+                risk_summary = f"Official warning active: {active_warning.title}. Crop and field inundation hazard."
                 if is_tamil:
-                    headline = "கனமழை எச்சரிக்கை — பயிர் பாதுகாப்பு ஆலோசனை"
-                    advisory_text = "கனமழை எதிர்பார்க்கப்படுவதால் நீர் தேங்குவதைத் தடுக்க வடிகால் வசதிகளைச் சரிசெய்யவும்."
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
+                    advisory_text = (
+                        f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "விவசாயிகளுக்கான ஆலோசனை: பாசனத்தை உடனடியாக நிறுத்தவும். உரங்கள் அல்லது பூச்சிக்கொல்லி தெளிப்பதை ஒத்திவைக்கவும். அறுவடை செய்த பயிர்களைப் பாதுகாப்பான இடங்களில் சேமிக்கவும்."
+                    )
+                    precautions = [
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை வழிகாட்டுதல்: {active_warning.title}",
+                        "வயல்களில் பாசனம் செய்வதைத் தவிர்க்கவும்",
+                        "உரங்கள் அல்லது பூச்சிக்கொல்லி தெளிப்பதை ஒத்திவைக்கவும்",
+                        "அறுவடை செய்த பயிர்களைப் பாதுகாப்பான இடங்களில் சேமிக்கவும்"
+                    ]
+                elif is_hindi:
+                    headline = f"⚠️ [आधिकारिक कृषि चेतावनी] {active_warning.title}"
+                    advisory_text = (
+                        f"आधिकारिक IMD चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "किसानों के लिए सलाह: सिंचाई तुरंत रोक दें। उर्वरक और कीटनाशक छिड़काव स्थगित करें। कटी हुई फसलों को सुरक्षित ढके हुए स्थान पर रखें।"
+                    )
+                    precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
+                        "सिंचाई तुरंत रोक दें",
+                        "उर्वरक और कीटनाशक छिड़काव स्थगित करें",
+                        "कटी हुई फसलों को सुरक्षित ढके हुए स्थान पर रखें"
+                    ]
+                else:
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "For farmers: Suspend all irrigation immediately. Postpone fertilizer and pesticide applications to prevent runoff. Clear field drainage channels and secure harvested produce."
+                    )
+                    precautions = [
+                        f"Official Warning Protocol: {active_warning.title}",
+                        "Suspend irrigation immediately",
+                        "Postpone fertilizer and pesticide applications to prevent runoff",
+                        "Clear field drainage channels and secure harvested produce under cover"
+                    ]
+            elif is_farm_rain:
+                reason_codes.append("FARMER_CROP_AND_DRAINAGE_PROTECTION")
+                risk_summary = "Precipitation expected; suspend irrigation to prevent field inundation and nutrient wash-off."
+                if is_tamil:
+                    headline = "விவசாய ஆலோசனை — பாசனத்தை நிறுத்தவும்"
+                    advisory_text = "கனமழை / மழை எதிர்பார்க்கப்படுவதால் நீர் தேங்குவதைத் தடுக்க பாசனத்தை உடனடியாக நிறுத்தவும். உரங்கள் தெளிப்பதை ஒத்திவைக்கவும்."
                     precautions = [
                         "வயல்களில் பாசனம் செய்வதைத் தவிர்க்கவும்",
                         "உரங்கள் அல்லது பூச்சிக்கொல்லி தெளிப்பதை ஒத்திவைக்கவும்",
                         "அறுவடை செய்த பயிர்களைப் பாதுகாப்பான இடங்களில் சேமிக்கவும்"
                     ]
                 elif is_hindi:
-                    headline = "कृषि सलाह — भारी बारिश की चेतावनी"
-                    advisory_text = "भारी बारिश के कारण खेतों में जलभराव हो सकता है। उचित जल निकासी की व्यवस्था करें।"
+                    headline = "कृषि सलाह — सिंचाई स्थगित करें"
+                    advisory_text = "भारी बारिश के कारण खेतों में जलभराव हो सकता है। सिंचाई तुरंत रोक दें और कीटनाशक छिड़काव स्थगित करें।"
                     precautions = [
                         "सिंचाई तुरंत रोक दें",
                         "उर्वरक और कीटनाशक छिड़काव स्थगित करें",
                         "कटी हुई फसलों को सुरक्षित ढके हुए स्थान पर रखें"
                     ]
                 else:
-                    headline = "Agricultural Advisory — Heavy Precipitation Ahead"
-                    advisory_text = "Heavy rainfall can lead to field inundation and nutrient runoff."
+                    headline = "Agricultural Advisory — Rain Ahead: Suspend Irrigation"
+                    advisory_text = "Precipitation expected across agricultural fields. Suspend irrigation immediately to prevent root inundation. Postpone fertilizer and pesticide applications to prevent chemical wash-off and environmental runoff."
                     precautions = [
-                        "Suspend irrigation immediately",
-                        "Postpone fertilizer and pesticide applications to prevent runoff",
-                        "Clear field drainage channels and secure harvested produce under cover"
+                        "Suspend irrigation immediately — natural precipitation sufficient",
+                        "Postpone fertilizer and pesticide spraying until fields dry",
+                        "Ensure field drainage channels are clear of debris",
+                        "Secure harvested produce under waterproof tarpaulins"
                     ]
+                if w_spd > 25.0:
+                    advisory_text += f" Strong winds ({w_spd:.0f} km/h) also detected; secure tall crops against lodging."
+                    precautions.append("Provide staking or earthing-up for tall crops against strong winds")
+            elif w_spd > 25.0 or any("wind" in h.hazard_type.lower() for h in all_hazards):
+                reason_codes.append("FARMER_WIND_SPRAY_DRIFT")
+                risk_summary = "High wind speeds increasing spray drift hazard."
+                headline = "Agricultural Advisory — High Winds: Postpone Spraying"
+                advisory_text = f"Elevated wind speeds ({w_spd:.0f} km/h) detected. Postpone aerial and foliar spraying to prevent chemical drift loss. Provide staking for tall standing crops."
+                precautions = [
+                    "Postpone aerial and foliar spraying due to chemical drift hazard",
+                    "Inspect tall crops and provide mechanical support/earthing-up"
+                ]
+            elif t_val > 35.0:
+                reason_codes.append("FARMER_HEAT_STRESS_IRRIGATION")
+                risk_summary = "Elevated temperatures increasing crop heat stress."
+                headline = "Agricultural Advisory — Heat Stress: Regulate Irrigation"
+                advisory_text = f"Elevated temperatures ({t_val:.0f}°C). Provide light, frequent irrigation during early morning or late evening to prevent crop moisture stress."
+                precautions = [
+                    "Schedule irrigation during early morning or late evening hours",
+                    "Apply mulch to reduce root-zone moisture evaporation"
+                ]
             elif risk == RiskLevelEnum.MEDIUM:
                 reason_codes.append("FARMER_MODERATE_WEATHER")
                 risk_summary = "Moderate showers expected; adjust irrigation schedules accordingly."
@@ -521,157 +881,207 @@ class DecisionEngine:
                 else:
                     headline = "Standard Agricultural Conditions"
                     advisory_text = "Favorable conditions for routine cultivation and field management."
-                    precautions = ["Proceed with standard irrigation schedule"]
+                    precautions = ["Proceed with standard irrigation schedule", "Routine field operations favorable"]
 
         # ---------------- TRAVELLER PERSONA ----------------
         elif resolved_persona == PersonaEnum.TRAVELLER:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_TRAVELLER_ALERT")
                 reason_codes.append("TRAVELLER_SEVERE_WEATHER_ALERT")
-                risk_summary = "Severe weather conditions posing risks to intercity transit, flight, and train schedules."
+                risk_summary = f"Official warning active: {active_warning.title}. Intercity travel disruptions."
                 if is_tamil:
-                    headline = "பயண எச்சரிக்கை — தீவிர வானிலை நிலவுகிறது"
-                    advisory_text = "மோசமான வானிலை காரணமாக நீண்ட தூர பயணங்களைத் தள்ளிப்போடவும்."
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
+                    advisory_text = (
+                        f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "பயணிகளுக்கான ஆலோசனை: மோசமான வானிலை காரணமாக நீண்ட தூர பயணங்களைத் தள்ளிப்போடவும்."
+                    )
                     precautions = [
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை வழிகாட்டுதல்: {active_warning.title}",
                         "விமானம் மற்றும் ரயில் அட்டவணை மாற்றங்களைச் சரிபார்க்கவும்",
-                        "நெடுஞ்சாலை பயணங்களின் போது வேகத்தைக் குறைத்து ஓட்டவும்",
-                        "அவசர மருத்துவ மற்றும் உணவுப் பொருட்களை எடுத்துச் செல்லவும்"
+                        "நெடுஞ்சாலை பயணங்களின் போது வேகத்தைக் குறைத்து ஓட்டவும்"
                     ]
                 elif is_hindi:
-                    headline = "यात्रा चेतावनी — खराब मौसम"
-                    advisory_text = "मौसम खराब होने के कारण लंबी दूरी की यात्रा में रुकावट आ सकती है।"
+                    headline = f"⚠️ [आधिकारिक यात्रा चेतावनी] {active_warning.title}"
+                    advisory_text = (
+                        f"आधिकारिक IMD चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "मौसम खराब होने के कारण लंबी दूरी की यात्रा में रुकावट आ सकती है।"
+                    )
                     precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
                         "हाइवे और ट्रेन के ताजा शेड्यूल चेक करें",
-                        "गाड़ी चलाते समय गति धीमी रखें",
-                        "बाढ़ संभावित रास्तों से बचें"
+                        "गाड़ी चलाते समय गति धीमी रखें"
                     ]
                 else:
-                    headline = "Travel Alert — Severe Weather Ahead"
-                    advisory_text = "Severe weather conditions detected across travel corridors. Significant delays anticipated."
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "For travelers: Severe weather conditions detected across transit corridors. Delay non-essential travel."
+                    )
                     precautions = [
+                        f"Official Warning Protocol: {active_warning.title}",
                         "Verify highway road status and train schedules before departure",
-                        "Expect significant speed restrictions and transit delays",
-                        "Avoid non-essential transit across flood-prone corridors"
+                        "Expect significant speed restrictions and transit delays"
                     ]
+            elif risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
+                reason_codes.append("TRAVELLER_SEVERE_WEATHER_ALERT")
+                risk_summary = "Severe weather conditions posing risks to intercity transit."
+                headline = "Travel Alert — Severe Weather Ahead"
+                advisory_text = "Severe weather conditions detected across travel corridors. Significant transit delays anticipated."
+                precautions = [
+                    "Verify highway road status and train schedules before departure",
+                    "Expect significant speed restrictions and transit delays",
+                    "Avoid non-essential transit across flood-prone corridors"
+                ]
             else:
                 reason_codes.append("TRAVELLER_CLEAR_ITINERARY")
                 risk_summary = "Clear weather with good transit visibility."
-                if is_tamil:
-                    headline = "பயணத்திற்கான சாதகமான வானிலை"
-                    advisory_text = "பயணங்களுக்கு வானிலை சாதகமாக உள்ளது."
-                    precautions = ["வழக்கமான பயண ஏற்பாடுகள் போதுமானது"]
-                elif is_hindi:
-                    headline = "यात्रा के लिए अनुकूल मौसम"
-                    advisory_text = "यात्रा और आउटडोर गतिविधियों के लिए मौसम अच्छा है।"
-                    precautions = ["सामान्य यात्रा कार्यक्रम लागू होता है"]
-                else:
-                    headline = "Favorable Travel Conditions"
-                    advisory_text = "Favorable conditions for intercity and outdoor travel."
-                    precautions = ["Standard travel itinerary applies"]
+                headline = "Favorable Travel Conditions"
+                advisory_text = "Favorable conditions for intercity and outdoor travel."
+                precautions = ["Standard travel itinerary applies"]
 
         # ---------------- DISASTER RESPONSE PERSONA ----------------
         elif resolved_persona == PersonaEnum.DISASTER_RESPONSE:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_DISASTER_ALERT")
                 reason_codes.append("DISASTER_RESPONSE_STANDBY_MOBILIZATION")
-                risk_summary = "High-impact disaster hazard active or impending; emergency preparedness required."
+                risk_summary = f"Official warning active: {active_warning.title} ({active_warning.severity.value}). Standby mobilization required."
                 if is_tamil:
-                    headline = "பேரிடர் மேலாண்மை தயார்நிலை எச்சரிக்கை"
-                    advisory_text = "தீவிர வானிலை காரணமாக உடனடி மீட்பு மற்றும் நிவாரண குழுக்கள் தயார்நிலையில் இருக்க வேண்டும்."
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
+                    advisory_text = (
+                        f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "பேரிடர் மேலாண்மை தயார்நிலை: உடனடி மீட்பு மற்றும் நிவாரண குழுக்கள் தயார்நிலையில் இருக்க வேண்டும்."
+                    )
                     precautions = [
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை வழிகாட்டுதல்: {active_warning.title}",
                         "பாதிக்கப்படக்கூடிய தாழ்வான பகுதிகளைக் கண்காணிக்கவும்",
                         "நீர் இறைக்கும் இயந்திரங்கள் மற்றும் தற்காலிக முகாம்களைத் தயார் செய்யவும்",
                         "IMD மற்றும் மாநில அவசர கட்டுப்பாட்டு மைய அறிவிப்புகளைத் தொடர்ந்து கண்காணிக்கவும்"
                     ]
                 elif is_hindi:
-                    headline = "आपदा प्रबंधन सतर्कता चेतावनी"
-                    advisory_text = "गंभीर मौसम के प्रभाव को देखते हुए आपातकालीन दल स्टैंडबाय पर रहें।"
+                    headline = f"⚠️ [आधिकारिक आपदा चेतावनी] {active_warning.title}"
+                    advisory_text = (
+                        f"आधिकारिक IMD चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "आपदा प्रबंधन सतर्कता: आपातकालीन दल स्टैंडबाय पर रहें और जल निकासी पंप तैयार रखें।"
+                    )
                     precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
                         "निचले संवेदनशील क्षेत्रों की निगरानी करें",
                         "जल निकासी पंप और राहत सामग्री तैयार रखें",
                         "IMD रडार और आधिकारिक चेतावनी बुलेटिन ट्रैक करें"
                     ]
                 else:
-                    headline = "Disaster Response Alert — Standby Mobilization"
-                    advisory_text = "High-impact hazard criteria met. Pre-position emergency dewatering and rescue assets."
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "For emergency teams: High-impact hazard criteria met. Pre-position emergency dewatering pumps, rescue teams, and relief assets."
+                    )
                     precautions = [
+                        f"Official Warning Protocol: {active_warning.title}",
                         "Activate standby response protocols for designated vulnerable sectors",
                         "Ensure emergency dewatering pumps and relief supplies are positioned",
                         "Continuously monitor real-time IMD radar feeds and official emergency bulletins"
                     ]
+            elif risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
+                reason_codes.append("DISASTER_RESPONSE_STANDBY_MOBILIZATION")
+                risk_summary = "High-impact disaster hazard active or impending; emergency preparedness required."
+                headline = "Disaster Response Alert — Standby Mobilization"
+                advisory_text = "High-impact hazard criteria met. Pre-position emergency dewatering and rescue assets in designated sectors."
+                precautions = [
+                    "Activate standby response protocols for designated vulnerable sectors",
+                    "Ensure emergency dewatering pumps and relief supplies are positioned",
+                    "Continuously monitor real-time IMD radar feeds and official emergency bulletins"
+                ]
+            elif risk == RiskLevelEnum.MEDIUM:
+                reason_codes.append("DISASTER_RESPONSE_HEIGHTENED_MONITORING")
+                risk_summary = "Moderate weather hazards; heightened surveillance standard."
+                headline = "Disaster Management — Heightened Monitoring"
+                advisory_text = "Moderate risks detected. Maintain heightened surveillance across low-lying flood corridors and civic drain networks."
+                precautions = [
+                    "Inspect critical stormwater outfalls and pump stations",
+                    "Maintain direct communication with civic emergency teams"
+                ]
             else:
                 reason_codes.append("DISASTER_RESPONSE_SITUATIONAL_MONITORING")
                 risk_summary = "Baseline calm conditions; situational monitoring standard."
-                if is_tamil:
-                    headline = "இயல்பான பேரிடர் கண்காணிப்பு"
-                    advisory_text = "தற்போது தீவிர வானிலை அச்சுறுத்தல்கள் இல்லை. வழக்கமான கண்காணிப்பு தொடர்கிறது."
-                    precautions = ["வழக்கமான கண்காணிப்பு நடைமுறைகளைப் பின்பற்றவும்"]
-                elif is_hindi:
-                    headline = "सामान्य निगरानी स्थिति"
-                    advisory_text = "कोई सक्रिय आपदा खतरा नहीं है। नियमित निगरानी जारी रखें।"
-                    precautions = ["मानक स्थिति निगरानी बनाए रखें", "कोई आपातकालीन लामबंदी आवश्यक नहीं"]
-                else:
-                    headline = "Routine Situational Monitoring"
-                    advisory_text = "No active disaster hazards detected. Maintain routine background surveillance."
-                    precautions = ["Standard situational monitoring standard", "No emergency response mobilization required"]
+                headline = "Routine Situational Monitoring"
+                advisory_text = "No active disaster hazards detected. Maintain routine background surveillance."
+                precautions = [
+                    "Standard situational monitoring standard",
+                    "No emergency response mobilization required"
+                ]
 
         # ---------------- GENERAL / GENERAL_USER PERSONA (DEFAULT) ----------------
         else:
-            if risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME) or warning_present:
-                reason_codes.append("GENERAL_SEVERE_WEATHER_ALERT")
-                risk_summary = "Severe weather conditions active; personal outdoor safety precautions required."
+            if warning_present:
+                reason_codes.append("OFFICIAL_WARNING_GENERAL_ALERT")
+                risk_summary = f"Official warning active: {active_warning.title} ({active_warning.severity.value})."
                 if is_tamil:
-                    headline = "தீவிர வானிலை எச்சரிக்கை"
-                    advisory_text = "மோசமான வானிலை நிலவுகிறது. அவசியமற்ற பயணங்களைத் தவிர்த்து பாதுகாப்புடன் இருக்கவும்."
+                    headline = f"⚠️ [அதிகாரப்பூர்வ எச்சரிக்கை] {active_warning.title}"
+                    advisory_text = (
+                        f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுகிறது: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "பொதுமக்கள் பாதுகாப்பு ஆலோசனை: அவசியமற்ற பயணங்களைத் தவிர்த்து பாதுகாப்புடன் இருக்கவும்."
+                    )
                     precautions = [
-                        "Stay indoors during peak storm activity",
-                        "Keep emergency lights and phones charged",
-                        "Follow official government guidelines"
+                        f"அதிகாரப்பூர்வ எச்சரிக்கை வழிகாட்டுதல்: {active_warning.title}",
+                        "மழை / புயலின் போது பாதுகாப்பான இடங்களில் இருக்கவும்",
+                        "அரசு அறிவிப்புகளைத் தொடர்ந்து பின்பற்றவும்"
                     ]
                 elif is_hindi:
-                    headline = "गंभीर मौसम चेतावनी सक्रिय"
-                    advisory_text = "खराब मौसम की स्थिति बनी हुई है। अनावश्यक यात्रा से बचें और स्थानीय प्रशासन के निर्देशों का पालन करें।"
+                    headline = f"⚠️ [आधिकारिक चेतावनी] {active_warning.title}"
+                    advisory_text = (
+                        f"आधिकारिक IMD चेतावनी सक्रिय है: {active_warning.title} ({active_warning.severity.value})। "
+                        f"{active_warning.description}। "
+                        "सामान्य जनता के लिए सलाह: अनावश्यक यात्रा से बचें और सुरक्षित स्थानों पर रहें।"
+                    )
                     precautions = [
+                        f"आधिकारिक चेतावनी निर्देश: {active_warning.title}",
                         "तूफान के दौरान घर के अंदर रहें",
-                        "इमरजेंसी लाइट और फोन चार्ज रखें",
-                        "सरकारी दिशा-निर्देशों का पालन करें"
+                        "स्थानीय प्रशासन के निर्देशों का पालन करें"
                     ]
                 else:
-                    headline = "Severe Weather Alert Active"
-                    advisory_text = "Adverse weather conditions detected. Avoid non-essential travel and follow local authority advisories."
+                    headline = f"⚠️ [OFFICIAL IMD WARNING] {active_warning.title}"
+                    advisory_text = (
+                        f"OFFICIAL IMD WARNING ACTIVE: {active_warning.title} ({active_warning.severity.value}). "
+                        f"{active_warning.description}. "
+                        "Adverse weather conditions detected. Avoid non-essential travel and follow local authority advisories."
+                    )
                     precautions = [
+                        f"Official Warning Protocol: {active_warning.title}",
                         "Stay indoors during peak storm activity",
-                        "Keep emergency lights and phones charged",
                         "Follow official government guidelines"
                     ]
+            elif risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
+                reason_codes.append("GENERAL_SEVERE_WEATHER_ALERT")
+                risk_summary = "Severe weather conditions active; personal outdoor safety precautions required."
+                headline = "Severe Weather Alert Active"
+                advisory_text = "Adverse weather conditions detected. Avoid non-essential travel and follow local authority advisories."
+                precautions = [
+                    "Stay indoors during peak storm activity",
+                    "Keep emergency lights and phones charged",
+                    "Follow official government guidelines"
+                ]
             elif risk == RiskLevelEnum.MEDIUM:
                 reason_codes.append("GENERAL_MODERATE_WEATHER")
                 risk_summary = "Moderate weather variations; minor precautions advised."
-                if is_tamil:
-                    headline = "மிதமான வானிலை எச்சரிக்கை"
-                    advisory_text = "வானிலையில் மாற்றங்கள் உள்ளன. எச்சரிக்கையுடன் செயல்படவும்."
-                    precautions = ["குடை எடுத்துச் செல்லவும்", "வானிலை மாற்றங்களைக் கவனிக்கவும்"]
-                elif is_hindi:
-                    headline = "मध्यम मौसम सलाह"
-                    advisory_text = "मौसम में बदलाव संभव है। बुनियादी सावधानी बरतें।"
-                    precautions = ["छाता साथ रखें", "मौसम पर नजर रखें"]
-                else:
-                    headline = "Moderate Weather Conditions"
-                    advisory_text = "Variable weather conditions expected. Carry basic outdoor protection."
-                    precautions = ["Carry an umbrella or rain cover", "Plan outdoor activities around peak weather hours"]
+                headline = "Moderate Weather Conditions"
+                advisory_text = "Variable weather conditions expected. Carry basic outdoor protection."
+                precautions = [
+                    "Carry an umbrella or rain cover",
+                    "Plan outdoor activities around peak weather hours"
+                ]
             else:
                 reason_codes.append("GENERAL_NORMAL_WEATHER")
                 risk_summary = "Conditions are pleasant and within comfortable climatological bounds."
-                if is_tamil:
-                    headline = "மிதமான வானிலை"
-                    advisory_text = "தீவிர வானிலை ஆபத்துகள் ஏதுமில்லை."
-                    precautions = ["Standard outdoor precautions"]
-                elif is_hindi:
-                    headline = "सुखद / सामान्य मौसम"
-                    advisory_text = "आपके क्षेत्र में कोई गंभीर मौसम खतरा नहीं है।"
-                    precautions = ["मानक बाहरी सावधानियां"]
-                else:
-                    headline = "Pleasant / Moderate Weather"
-                    advisory_text = "No severe weather hazards detected for your area."
-                    precautions = ["Standard outdoor precautions"]
+                headline = "Pleasant / Moderate Weather"
+                advisory_text = "No severe weather hazards detected for your area."
+                precautions = ["Standard outdoor precautions"]
 
         # If source conflict detected, append conservative note to risk summary
         if "SOURCE_DISAGREEMENT" in reason_codes:
@@ -703,4 +1113,6 @@ class DecisionEngine:
             action_guidance=precautions,
             source_basis=source_basis,
             evidence=evidence,
+            schedule_decision=schedule_decision,
+            language=target_language,
         )

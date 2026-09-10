@@ -65,6 +65,8 @@ class WeatherGPTPipeline:
         if not resolved_context_summary and conversation_id and conversation_id != "default":
             try:
                 from ai.memory import memory_manager, ContextResolver
+                if ContextResolver.is_reset_query(message):
+                    memory_manager.reset_context(conversation_id)
                 ctx = memory_manager.get_context(conversation_id)
                 resolved = ContextResolver.resolve_query(message, context=ctx)
                 resolved_context_summary = resolved.context_summary

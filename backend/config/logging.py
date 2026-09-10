@@ -6,9 +6,12 @@ from backend.config.settings import settings
 REDACTION_PATTERNS = [
     (re.compile(r'AIzaSy[A-Za-z0-9_-]{33}', re.IGNORECASE), '[REDACTED_GEMINI_KEY]'),
     (re.compile(r'sk-[A-Za-z0-9_-]{20,}', re.IGNORECASE), '[REDACTED_OPENAI_KEY]'),
+    (re.compile(r're_[A-Za-z0-9_]{20,}', re.IGNORECASE), '[REDACTED_RESEND_KEY]'),
+    (re.compile(r'ghp_[A-Za-z0-9]{36}', re.IGNORECASE), '[REDACTED_GITHUB_TOKEN]'),
+    (re.compile(r'-----BEGIN[ A-Z0-9_-]*PRIVATE KEY-----[\s\S]*?-----END[ A-Z0-9_-]*PRIVATE KEY-----', re.IGNORECASE), '[REDACTED_PRIVATE_KEY]'),
     (re.compile(r'Bearer\s+[A-Za-z0-9\._-]+', re.IGNORECASE), 'Bearer [REDACTED_TOKEN]'),
     (re.compile(r'(password|token|secret|api_key|access_token)=([^\s&]+)', re.IGNORECASE), r'\1=[REDACTED]'),
-    (re.compile(r'("password"|"token"|"secret"|"api_key"|"access_token")\s*:\s*"[^"]+"', re.IGNORECASE), r'\1: "[REDACTED]"'),
+    (re.compile(r'("password"|"token"|"secret"|"api_key"|"access_token"|"private_key"|"private_key_id")\s*:\s*"[^"]+"', re.IGNORECASE), r'\1: "[REDACTED]"'),
 ]
 
 class RedactFilter(logging.Filter):

@@ -55,7 +55,9 @@ class ConversationMemoryManager:
         language: Optional[str] = None,
         active_topic: Optional[str] = None,
         last_intent: Optional[str] = None,
-        entities: Optional[Dict[str, Any]] = None
+        entities: Optional[Dict[str, Any]] = None,
+        departure_time: Optional[str] = None,
+        return_time: Optional[str] = None
     ) -> ConversationContext:
         """Updates conversational state and appends turns within bounded window."""
         with self._lock:
@@ -75,6 +77,10 @@ class ConversationMemoryManager:
                 ctx.date_context = date_context
             if time_context:
                 ctx.time_context = time_context
+            if departure_time:
+                ctx.departure_time = departure_time
+            if return_time:
+                ctx.return_time = return_time
             if persona:
                 ctx.persona = persona
             if language:

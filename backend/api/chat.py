@@ -21,7 +21,10 @@ router = APIRouter(tags=["AI Chat"])
 chat_service = ChatIntegrationService()
 
 ALLOWED_LANGUAGES = {"ta", "en", "hi", "tanglish", "hinglish", "tamil", "english", "hindi"}
-ALLOWED_PERSONAS = {"student", "farmer", "fisherman", "commuter", "general", "tourist", "event_planner"}
+ALLOWED_PERSONAS = {
+    "student", "farmer", "fisherman", "commuter", "general", "tourist", "event_planner",
+    "disaster_response", "disaster", "safety", "disaster_safety", "traveller", "traveler"
+}
 
 
 @router.post(

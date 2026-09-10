@@ -42,4 +42,13 @@ android/build/
 android/captures/
 android/.idea/
 
-
+# Security & Private Credentials Safeguards
+*.pem
+*.key
+*.p12
+*.jks
+*.keystore
+*service-account*.json
+*firebase*admin*.json
+.env*.local
+secrets/

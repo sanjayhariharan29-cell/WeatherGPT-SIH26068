@@ -38,24 +38,12 @@ async def get_user_profile(
             "notification_enabled": bool(notif)
         }
 
-    # Fallback for unauthenticated guest requests
+    # Reject unauthenticated access to specific registered profiles (Prevent IDOR / Account Enumeration)
     if user_id:
-        target = db.query(User).filter(User.id == user_id).first()
-        if target:
-            notif = target.preferences.notification_enabled if target.preferences else True
-            return {
-                "id": target.id,
-                "name": target.name,
-                "full_name": target.name,
-                "email": target.email,
-                "language": target.language,
-                "preferred_language": target.language,
-                "persona": target.persona,
-                "role": target.role,
-                "is_verified": bool(target.is_verified),
-                "onboarding_completed": bool(target.onboarding_completed),
-                "notification_enabled": bool(notif)
-            }
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required to access user profiles"
+        )
             
     return {
         "id": "guest_user",
