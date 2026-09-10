@@ -443,7 +443,8 @@ function renderWeatherCard(data) {
   const obsTimeStr = data.observed_at ? data.observed_at.split("T")[1]?.slice(0, 5) || "Recent" : "Recent";
   if (data.cached && data.cached_at) {
     const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
-    document.getElementById("currentObsTime").textContent = `Cached at: ${cachedTimeStr} UTC (Observed: ${obsTimeStr} UTC)`;
+    const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
+    document.getElementById("currentObsTime").textContent = `Cached ${minutesAgo}m ago (${cachedTimeStr} UTC) • Observed: ${obsTimeStr} UTC`;
   } else {
     document.getElementById("currentObsTime").textContent = `Observed: ${obsTimeStr} UTC`;
   }
@@ -495,7 +496,8 @@ function renderWeatherCard(data) {
     agreeElement.textContent = "High Agreement (IMD & Open-Meteo)";
     agreeElement.className = "metric-val agreement-high";
   } else {
-    agreeElement.textContent = "Disagreement Detected";
+    const conf = data.comparison?.confidence_level || "CAUTIOUS";
+    agreeElement.textContent = `Disagreement (${conf})`;
     agreeElement.className = "metric-val";
   }
 }

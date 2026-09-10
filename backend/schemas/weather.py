@@ -31,6 +31,8 @@ class ComparisonDataSchema(BaseModel):
     secondary_temperature: float
     secondary_rain_probability: float
     sources_agree: bool
+    confidence_level: Optional[str] = Field(default="HIGH", description="Confidence: HIGH, MEDIUM, CAUTIOUS")
+    disagreement_notes: Optional[str] = Field(default=None, description="Detailed explanation if providers disagree")
 
 
 class LocationDataSchema(BaseModel):
@@ -52,6 +54,9 @@ class CurrentWeatherResponse(BaseModel):
     units: WeatherUnitsSchema = Field(default_factory=WeatherUnitsSchema)
     observed_at: str
     retrieved_at: str
+    data_freshness: Optional[str] = Field(default="FRESH", description="Freshness: FRESH, CACHED, STALE_DEGRADED")
+    cache_age_seconds: Optional[int] = Field(default=None, description="Age of cached observation in seconds")
+
 
 
 class ForecastItemSchema(BaseModel):

@@ -81,7 +81,23 @@ class CurrentWeatherService:
             sec_temp = primary_obs.temperature_c
             sec_rain = primary_obs.rain_probability_pct
 
-        sources_agree = abs(primary_obs.rain_probability_pct - sec_rain) <= 20.0
+        temp_diff = abs(primary_obs.temperature_c - sec_temp)
+        rain_diff = abs(primary_obs.rain_probability_pct - sec_rain)
+        sources_agree = (rain_diff <= 20.0) and (temp_diff <= 4.0)
+
+        disagreement_notes = None
+        if not sources_agree:
+            if temp_diff > 4.0 and rain_diff > 20.0:
+                confidence_level = "CAUTIOUS"
+                disagreement_notes = f"High variance between providers: {primary_obs.source} ({primary_obs.temperature_c}°C, {primary_obs.rain_probability_pct}% rain) vs {self.secondary.name} ({sec_temp}°C, {sec_rain}% rain). Prioritizing authoritative IMD."
+            elif temp_diff > 4.0:
+                confidence_level = "MEDIUM"
+                disagreement_notes = f"Temperature divergence of {temp_diff:.1f}°C detected between {primary_obs.source} and {self.secondary.name}."
+            else:
+                confidence_level = "MEDIUM"
+                disagreement_notes = f"Precipitation probability divergence of {rain_diff:.1f}% detected between {primary_obs.source} and {self.secondary.name}."
+        else:
+            confidence_level = "HIGH"
 
         # 3. Fetch Official Severe Alerts
         try:
@@ -115,13 +131,17 @@ class CurrentWeatherService:
             comparison=ComparisonDataSchema(
                 secondary_temperature=sec_temp,
                 secondary_rain_probability=sec_rain,
-                sources_agree=sources_agree
+                sources_agree=sources_agree,
+                confidence_level=confidence_level,
+                disagreement_notes=disagreement_notes
             ),
             alerts=alert_dicts,
             source=source_label,
             units=WeatherUnitsSchema(),
             observed_at=primary_obs.observed_at,
-            retrieved_at=primary_obs.retrieved_at
+            retrieved_at=primary_obs.retrieved_at,
+            data_freshness="FRESH",
+            cache_age_seconds=0
         )
 
     def _persist_observation(self, db: Session, obs: NormalizedWeatherObservation) -> None:

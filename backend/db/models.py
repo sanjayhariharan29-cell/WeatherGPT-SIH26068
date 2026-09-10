@@ -219,3 +219,24 @@ class Advisory(Base):
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     message = relationship("Message", back_populates="advisory")
+
+
+class AlertDeliveryLog(Base):
+    __tablename__ = "alert_delivery_logs"
+    __table_args__ = (
+        Index("idx_alert_deliv_user", "user_id", "created_at"),
+        Index("idx_alert_deliv_fp", "alert_fingerprint", "created_at"),
+    )
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    alert_id = Column(String(36), ForeignKey("alerts.id", ondelete="SET NULL"), nullable=True, index=True)
+    alert_fingerprint = Column(String(64), nullable=False, index=True)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False)
+    location_name = Column(String(100), nullable=False)
+    channel = Column(String(20), default="fcm")
+    status = Column(String(20), nullable=False)  # 'SENT', 'SKIPPED', 'FAILED'
+    reason = Column(String(100), nullable=False)
+    language = Column(String(10), default="ta")
+    payload_preview = Column(String(255), nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)

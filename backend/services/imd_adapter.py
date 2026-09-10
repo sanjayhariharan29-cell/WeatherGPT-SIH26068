@@ -4,8 +4,9 @@ Primary authoritative provider implementation for observations, forecasts,
 and official disaster alerts in India (especially Tamil Nadu).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
+import hashlib
 
 from backend.services.base_provider import BaseWeatherProvider
 from backend.services.schemas import (
@@ -159,23 +160,50 @@ class IMDAdapter(BaseWeatherProvider):
         provider_cache.set(cache_key, items)
         return items
 
+    @staticmethod
+    def generate_alert_fingerprint(source: str, alert_type: str, area: str, issued_at: str) -> str:
+        """Generates deterministic SHA-256 fingerprint for alert deduplication and tracking."""
+        key = f"{source}:{alert_type}:{area}:{issued_at}".encode("utf-8")
+        return hashlib.sha256(key).hexdigest()[:16]
+
     async def get_official_alerts(
         self,
         latitude: float,
         longitude: float,
         location_name: str = "Coimbatore"
     ) -> List[NormalizedAlertItem]:
-        """Fetch active official IMD disaster warnings."""
+        """Fetch active official IMD disaster warnings with dynamic validity windows."""
         cache_key = f"imd_alerts_{location_name}_{latitude}_{longitude}"
         cached = provider_cache.get(cache_key)
         if cached:
             return cached
 
-        now_utc = datetime.now(timezone.utc).isoformat()
+        now_dt = datetime.now(timezone.utc)
+        now_utc = now_dt.isoformat()
+        expires_24h = (now_dt + timedelta(hours=24)).isoformat()
+        expires_12h = (now_dt + timedelta(hours=12)).isoformat()
+        expired_yesterday = (now_dt - timedelta(hours=12)).isoformat()
+
         loc_lower = location_name.lower()
         items = []
 
-        if "nagapattinam" in loc_lower or "நாகப்பட்டினம்" in loc_lower:
+        if "expired" in loc_lower:
+            # Explicitly simulated expired warning for validation testing
+            items = [
+                NormalizedAlertItem(
+                    alert_type="heatwave_warning",
+                    severity="medium",
+                    title="IMD Expired Heatwave Notice",
+                    description="Historic heatwave advisory now expired.",
+                    instructions="Stay hydrated.",
+                    area="Expired Zone",
+                    source=self.name,
+                    issued_at=(now_dt - timedelta(days=2)).isoformat(),
+                    expires_at=expired_yesterday,
+                    retrieved_at=now_utc
+                )
+            ]
+        elif "nagapattinam" in loc_lower or "நாகப்பட்டினம்" in loc_lower:
             items = [
                 NormalizedAlertItem(
                     alert_type="heavy_rain_cyclone",
@@ -186,7 +214,7 @@ class IMDAdapter(BaseWeatherProvider):
                     area="Nagapattinam Coastal Zone",
                     source=self.name,
                     issued_at=now_utc,
-                    expires_at="2026-09-09T23:59:59Z",
+                    expires_at=expires_24h,
                     retrieved_at=now_utc
                 )
             ]
@@ -201,7 +229,7 @@ class IMDAdapter(BaseWeatherProvider):
                     area="Coimbatore District",
                     source=self.name,
                     issued_at=now_utc,
-                    expires_at="2026-09-09T18:00:00Z",
+                    expires_at=expires_12h,
                     retrieved_at=now_utc
                 )
             ]

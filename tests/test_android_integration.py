@@ -33,6 +33,7 @@ def test_01_android_manifest_permissions_and_config():
     assert 'android.permission.ACCESS_FINE_LOCATION' in content, "Must declare ACCESS_FINE_LOCATION permission"
     assert 'android.permission.RECORD_AUDIO' in content, "Must declare RECORD_AUDIO permission for voice UI"
     assert 'android.permission.MODIFY_AUDIO_SETTINGS' in content, "Must declare MODIFY_AUDIO_SETTINGS permission"
+    assert 'android.permission.POST_NOTIFICATIONS' in content, "Must declare POST_NOTIFICATIONS permission for Android 13+"
     
     # Check hardware feature requirement
     assert 'android.hardware.location.gps' in content, "Must declare GPS hardware feature"

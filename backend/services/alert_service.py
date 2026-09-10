@@ -15,6 +15,7 @@ from backend.services.geocoding_service import GeocodingService
 from backend.services.base_provider import BaseWeatherProvider
 from backend.services.exceptions import ProviderError
 from backend.services.schemas import NormalizedAlertItem
+from backend.services.alert_engine import AlertEngine
 from backend.schemas.weather import (
     AlertResponse,
     AlertItemSchema
@@ -35,6 +36,7 @@ class AlertService:
         self.primary = primary_provider or IMDAdapter()
         self.secondary = secondary_provider or OpenMeteoAdapter()
         self.geocoding = geocoding_service or GeocodingService()
+        self.engine = AlertEngine(imd_adapter=self.primary if isinstance(self.primary, IMDAdapter) else None)
 
     def validate_coordinates(self, lat: Optional[float], lon: Optional[float]) -> None:
         """Validates latitude and longitude numeric bounds."""
@@ -224,3 +226,24 @@ class AlertService:
                 )
             )
         return ai_alerts
+
+    async def process_automatic_pipeline(
+        self,
+        location_name: str = "Nagapattinam",
+        db_session: Optional[Session] = None
+    ) -> List[Dict[str, Any]]:
+        """Executes full automated pipeline: Ingest -> Deduplicate/Update -> Target -> FCM Dispatch -> Track."""
+        if db_session is None:
+            return []
+        loc = await self.geocoding.resolve_location(location_name)
+        persisted = await self.engine.ingest_alerts_for_location(
+            location_name=loc["name"],
+            latitude=loc["latitude"],
+            longitude=loc["longitude"],
+            db=db_session
+        )
+        all_deliveries: List[Dict[str, Any]] = []
+        for alert in persisted:
+            deliveries = await self.engine.process_alert_delivery(alert, db_session)
+            all_deliveries.extend(deliveries)
+        return all_deliveries
