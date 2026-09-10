@@ -59,6 +59,13 @@ class GroundedLLMGenerator:
         historical_weather: Optional[HistoricalWeatherDataset] = None
     ) -> GroundedResponse:
         """Generates a verified, grounded natural language answer conforming to GroundedResponse contract."""
+        from ai.llm.multilingual import resolve_target_language
+        target_lang = resolve_target_language(
+            nlu.detected_language,
+            nlu.original_text,
+            explicit_preference=target_language
+        )
+
         context = build_grounded_context(
             nlu=nlu,
             weather=weather,
@@ -68,14 +75,8 @@ class GroundedLLMGenerator:
             safety_guidance=safety_guidance,
             reference_knowledge=reference_knowledge,
             context_summary=context_summary,
-            historical_weather=historical_weather
-        )
-
-        from ai.llm.multilingual import resolve_target_language
-        target_lang = resolve_target_language(
-            nlu.detected_language,
-            nlu.original_text,
-            explicit_preference=target_language
+            historical_weather=historical_weather,
+            target_language=target_lang
         )
 
         system_prompt = SYSTEM_INSTRUCTION.format(

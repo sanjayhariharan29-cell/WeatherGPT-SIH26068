@@ -115,6 +115,13 @@ class WeatherGPTApiClient {
       const data = isJson ? await response.json() : null;
 
       if (!response.ok) {
+        if (response.status === 401 && this.isAuthenticated()) {
+          // Invalidate stale or invalid session token to prevent persistent 401 loops
+          this.removeToken();
+          if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+            window.dispatchEvent(new CustomEvent("skyzen:auth_expired", { detail: { message: data?.detail || "Session expired" } }));
+          }
+        }
         const errorMsg = data?.detail || data?.error?.message || `HTTP ${response.status} Error`;
         const error = new Error(errorMsg);
         error.status = response.status;

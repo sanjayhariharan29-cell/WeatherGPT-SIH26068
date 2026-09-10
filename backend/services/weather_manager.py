@@ -274,7 +274,12 @@ class WeatherManager:
                 "co": round(co, 1)
             },
             "recommendations": recs,
-            "source": "CPCB / Open-Meteo Air Quality",
+            "source": "Air-quality model: Open-Meteo",
+            "source_type": "modelled",
+            "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
+            "is_official_cpcb": False,
+            "station": None,
+            "methodology": "Open-Meteo Atmospheric Chemistry Model (CAMS)",
             "retrieved_at": now_utc
         }
 

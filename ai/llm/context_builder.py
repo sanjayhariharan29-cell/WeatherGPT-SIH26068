@@ -39,6 +39,7 @@ class GroundedContext:
     formatted_prompt: str
     reference_knowledge: List[Dict[str, Any]] = field(default_factory=list)
     historical_facts: Optional[Dict[str, Any]] = None
+    target_language: str = "en"
 
 
 def build_grounded_context(
@@ -50,7 +51,8 @@ def build_grounded_context(
     safety_guidance: Optional[List[str]] = None,
     reference_knowledge: Optional[List[Any]] = None,
     context_summary: Optional[str] = None,
-    historical_weather: Optional[HistoricalWeatherDataset] = None
+    historical_weather: Optional[HistoricalWeatherDataset] = None,
+    target_language: Optional[Any] = None
 ) -> GroundedContext:
     """Builds the comprehensive grounded context object and formatted prompt."""
     forecast = forecast or []
@@ -383,11 +385,32 @@ def build_grounded_context(
         lines.append(f"Recent Context: {context_summary}")
         lines.append("[NOTICE: Context resolves conversational references only; live meteorological truth strictly comes from sections 1-4 above.]")
 
+    target_lang_str = "en"
+    if target_language:
+        target_lang_str = target_language.value if hasattr(target_language, "value") else str(target_language).lower()
+    elif nlu and nlu.detected_language:
+        target_lang_str = nlu.detected_language.value if hasattr(nlu.detected_language, "value") else str(nlu.detected_language).lower()
+
+    if target_lang_str in ("tanglish", "ta"):
+        target_lang_str = "ta"
+    elif target_lang_str in ("hinglish", "hi"):
+        target_lang_str = "hi"
+    elif target_lang_str not in ("en", "ta", "hi"):
+        target_lang_str = "en"
+
     lines.extend([
         "",
         "=================================================================",
-        "TASK: Generate a concise, factual, empathetic response in the detected language.",
-        "Adhere strictly to the facts above without hallucinating or overriding official warnings.",
+        f"OUTPUT_LANGUAGE: {target_lang_str}",
+        "MANDATORY AI LANGUAGE & FACTUAL CONTRACT:",
+        f"- The ENTIRE generated response MUST be in {target_lang_str.upper()}.",
+        "- If OUTPUT_LANGUAGE is 'ta': generate exclusively in Tamil script. Tanglish input must be understood, but response must be in pure, fluent Tamil script.",
+        "- If OUTPUT_LANGUAGE is 'hi': generate exclusively in Hindi Devanagari script. Hinglish input must be understood, but response must be in pure, fluent Hindi.",
+        "- If OUTPUT_LANGUAGE is 'en': generate exclusively in English.",
+        "- Do NOT mix Tamil, Hindi, and English words within sentences (no code-switching).",
+        "- PRESERVE TECHNICAL PROPER NOUNS VERBATIM: IMD, Open-Meteo, CPCB, OpenWeather, SkyZen.",
+        "- PRESERVE METEOROLOGICAL METRICS & FACTUAL VALUES UNCHANGED:",
+        "  temperature (°C), rainfall (mm), wind speed (km/h), humidity (%), AQI, severity, location, time, and official instructions.",
         "MANDATORY: If an official warning is active, prioritize it at the VERY TOP: (1) Warning status, (2) Affected area, (3) Critical safety instruction, (4) Explanation. No conversational filler or pleasantries before active warnings!",
         "MANDATORY: Do NOT invent weather numbers, warnings, severity, affected areas, sources, timestamps, or historical statistics.",
         "================================================================="
@@ -410,5 +433,6 @@ def build_grounded_context(
         advisory_facts=advisory_facts,
         formatted_prompt=formatted_prompt,
         reference_knowledge=ref_facts,
-        historical_facts=historical_facts
+        historical_facts=historical_facts,
+        target_language=target_lang_str
     )

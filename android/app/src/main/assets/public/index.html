@@ -55,19 +55,19 @@
           <div class="auth-brand-badge" aria-hidden="true">
             <span class="material-symbols-rounded icon-xl">cloud</span>
           </div>
-          <h2 class=\"auth-brand-title\" data-i18n=\"auth.welcome.title\">SkyZen<span class=\"accent-dot\">.</span></h2>
-          <p class=\"auth-brand-tagline\" data-i18n=\"auth.welcome.tagline\">Clearer Skies. Brighter Days.</p>
-          <p class=\"auth-brand-desc\" data-i18n=\"auth.welcome.desc\">AI-powered weather intelligence, severe alerts from IMD, and precision forecasts.</p>
+          <h2 class="auth-brand-title" data-i18n="auth.welcome.title">SkyZen<span class="accent-dot">.</span></h2>
+          <p class="auth-brand-tagline" data-i18n="auth.welcome.tagline">Clearer Skies. Brighter Days.</p>
+          <p class="auth-brand-desc" data-i18n="auth.welcome.desc">AI-powered weather intelligence, severe alerts from IMD, and precision forecasts.</p>
         </div>
 
         <div class="auth-view-actions">
           <button id="welcomeLoginBtn" class="auth-primary-btn" aria-label="Sign In to SkyZen">
             <span class="material-symbols-rounded icon-sm">login</span>
-            <span data-i18n=\"auth.welcome.signin\">Sign In</span>
+            <span data-i18n="auth.welcome.signin">Sign In</span>
           </button>
           <button id="welcomeSignupBtn" class="auth-secondary-btn" aria-label="Create New Account">
             <span class="material-symbols-rounded icon-sm">person_add</span>
-            <span data-i18n=\"auth.welcome.signup\">Create Account</span>
+            <span data-i18n="auth.welcome.signup">Create Account</span>
           </button>
         </div>
 
@@ -421,7 +421,7 @@
         </select>
         <button id="geoBtn" class="icon-btn" title="Use Device Geolocation (GPS)" aria-label="Use Device Geolocation">
           <span class="material-symbols-rounded">my_location</span>
-          <span>GPS</span>
+          <span data-i18n="btn.gps">GPS</span>
         </button>
         <button id="refreshBtn" class="icon-btn" title="Refresh Weather Telemetry" aria-label="Refresh Weather Telemetry">
           <span class="material-symbols-rounded">refresh</span>
@@ -438,13 +438,13 @@
       <div class="alert-header">
         <span id="alertSeverityBadge" class="alert-badge">
           <span class="material-symbols-rounded icon-sm">warning</span>
-          <span id="alertSeverityText">OFFICIAL IMD WARNING</span>
+          <span id="alertSeverityText" data-i18n="alerts.official_warning">OFFICIAL IMD WARNING</span>
         </span>
         <span id="alertTime" class="alert-time">Valid until 08:00 PM</span>
       </div>
       <h2 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h2>
       <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
-      <div class="alert-source-tag" id="alertSourceTag">Source: IMD (India Meteorological Department)</div>
+      <div class="alert-source-tag" id="alertSourceTag" data-i18n="alerts.source_label">Source: IMD (India Meteorological Department)</div>
     </div>
 
     <!-- Main Mobile Content Area -->
@@ -456,18 +456,18 @@
         <!-- Dashboard Loading Skeleton -->
         <div id="dashboardSkeleton" class="glass-panel hidden" aria-label="Loading Telemetry">
           <div class="spinner"></div>
-          <p style="text-align:center; font-size:13px; color:var(--text-secondary); margin-top:8px;">Fetching Live Meteorological Telemetry...</p>
+          <p style="text-align:center; font-size:13px; color:var(--text-secondary); margin-top:8px;" data-i18n="dashboard.loading_telemetry">Fetching Live Meteorological Telemetry...</p>
         </div>
 
         <!-- Dashboard Error Card -->
         <div id="dashboardErrorCard" class="error-card hidden" role="alert">
           <div style="display:flex; align-items:center; gap:8px;">
             <span class="material-symbols-rounded" style="color:var(--alert-red);">error</span>
-            <p id="dashboardErrorText">Failed to retrieve weather data.</p>
+            <p id="dashboardErrorText" data-i18n="dashboard.error_telemetry">Failed to retrieve weather data.</p>
           </div>
           <button id="dashboardRetryBtn" class="retry-btn">
             <span class="material-symbols-rounded icon-sm">refresh</span>
-            <span>Retry Connection</span>
+            <span data-i18n="dashboard.retry">Retry Connection</span>
           </button>
         </div>
 
@@ -510,35 +510,35 @@
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--secondary-blue);">water_drop</span>
-                  <span class="metric-label">Rain Chance</span>
+                  <span class="metric-label" data-i18n="dashboard.rain_prob">Rain Chance</span>
                 </div>
                 <span class="metric-val" id="rainProbVal">--</span>
               </div>
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">air</span>
-                  <span class="metric-label">Wind Speed</span>
+                  <span class="metric-label" data-i18n="dashboard.wind">Wind Speed</span>
                 </div>
                 <span class="metric-val" id="windVal">--</span>
               </div>
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">humidity_percentage</span>
-                  <span class="metric-label">Humidity</span>
+                  <span class="metric-label" data-i18n="dashboard.humidity">Humidity</span>
                 </div>
                 <span class="metric-val" id="humidityVal">--</span>
               </div>
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:#D97706;">sunny</span>
-                  <span class="metric-label">UV Index</span>
+                  <span class="metric-label" data-i18n="dashboard.uv_index">UV Index</span>
                 </div>
                 <span class="metric-val" id="uvIndexVal">--</span>
               </div>
               <div class="metric-item" style="grid-column: span 2;">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">verified</span>
-                  <span class="metric-label">Forecast Consensus</span>
+                  <span class="metric-label" data-i18n="dashboard.consensus">Forecast Consensus</span>
                 </div>
                 <span class="metric-val agreement-high" id="agreementVal">Consensus checking...</span>
               </div>
@@ -550,7 +550,7 @@
             <div class="sources-section-header" id="sourcesHeaderToggle" onclick="toggleSourcesBreakdown()" role="button" tabindex="0" aria-expanded="false" aria-controls="sourcesListContainer">
               <div class="sources-header-left">
                 <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">device_hub</span>
-                <span class="sources-header-title">WEATHER SOURCES</span>
+                <span class="sources-header-title" data-i18n="dashboard.sources_title">WEATHER SOURCES</span>
                 <span id="activeSourcesCount" class="sources-count-badge">Checking...</span>
               </div>
               <div class="sources-header-right">
@@ -573,9 +573,9 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">schedule</span>
-              <span data-i18n=\"dashboard.forecast\">Hourly Forecast</span>
+              <span data-i18n="dashboard.forecast">Hourly Forecast</span>
             </h3>
-            <span class="section-subtitle">Next 24 Hours</span>
+            <span class="section-subtitle" data-i18n="dashboard.hourly_next24">Next 24 Hours</span>
           </div>
           <div id="forecastGridToday" class="horizontal-scroll-row" role="list">
             <!-- Dynamically populated -->
@@ -587,9 +587,9 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">calendar_today</span>
-              <span>7-Day Forecast</span>
+              <span data-i18n="dashboard.daily_7day">7-Day Forecast</span>
             </h3>
-            <span class="section-subtitle">IMD Numerical Model</span>
+            <span class="section-subtitle" data-i18n="dashboard.imd_model">IMD Numerical Model</span>
           </div>
           <div id="dailyForecastList" class="daily-forecast-list" role="list">
             <!-- Dynamically populated -->
@@ -602,9 +602,9 @@
             <div>
               <h3 class="ask-skyzen-title">
                 <span class="material-symbols-rounded icon-lg">psychology</span>
-                <span>Ask SkyZen</span>
+                <span data-i18n="dashboard.ask_skyzen">Ask SkyZen</span>
               </h3>
-              <p class="ask-skyzen-sub">Get weather-aware answers for your daily plans</p>
+              <p class="ask-skyzen-sub" data-i18n="dashboard.ask_sub">Get weather-aware answers for your daily plans</p>
             </div>
           </div>
 
@@ -628,7 +628,7 @@
           </div>
 
           <button class="cta-button" onclick="navigateToScreen('chat')" aria-label="Open AI Assistant Chat">
-            <span>Start Conversation</span>
+            <span data-i18n="dashboard.start_convo">Start Conversation</span>
             <span class="material-symbols-rounded icon-sm">arrow_forward</span>
           </button>
         </section>
@@ -638,34 +638,34 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">grid_view</span>
-              <span>Weather Intelligence Tools</span>
+              <span data-i18n="dashboard.tools_title">Weather Intelligence Tools</span>
             </h3>
-            <span class="section-subtitle">Real-time Telemetry</span>
+            <span class="section-subtitle" data-i18n="dashboard.tools_sub">Real-time Telemetry</span>
           </div>
           <div class="tools-grid">
             <div class="tool-tile" onclick="navigateToScreen('air-quality')">
               <div class="tool-icon-box" style="background:#DCFCE7; color:#166534;">
                 <span class="material-symbols-rounded icon-md">air</span>
               </div>
-              <span class="tool-title">Air Quality</span>
+              <span class="tool-title" data-i18n="dashboard.tool_aqi">Air Quality</span>
             </div>
             <div class="tool-tile" onclick="navigateToScreen('map')">
               <div class="tool-icon-box" style="background:#E3F2FD; color:#1976D2;">
                 <span class="material-symbols-rounded icon-md">map</span>
               </div>
-              <span class="tool-title">Weather Map</span>
+              <span class="tool-title" data-i18n="dashboard.tool_map">Weather Map</span>
             </div>
             <div class="tool-tile" onclick="navigateToScreen('alerts')">
               <div class="tool-icon-box" style="background:#FEE2E2; color:#DC2626;">
                 <span class="material-symbols-rounded icon-md">warning</span>
               </div>
-              <span class="tool-title">Alerts & Radar</span>
+              <span class="tool-title" data-i18n="dashboard.tool_alerts">Alerts & Radar</span>
             </div>
             <div class="tool-tile" onclick="navigateToScreen('locations')">
               <div class="tool-icon-box" style="background:#FEF3C7; color:#B45309;">
                 <span class="material-symbols-rounded icon-md">bookmark</span>
               </div>
-              <span class="tool-title">Saved Cities</span>
+              <span class="tool-title" data-i18n="dashboard.tool_saved">Saved Cities</span>
             </div>
           </div>
         </section>
@@ -678,7 +678,7 @@
             <div>
               <h3 class="section-title">
                 <span class="material-symbols-rounded" style="color:var(--primary-blue);">smart_toy</span>
-                <span>SkyZen AI Assistant</span>
+                <span data-i18n="chat.title">SkyZen AI Assistant</span>
               </h3>
               <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
                 WeatherGPT Decision Assistant • Grounded on Official IMD Telemetry
@@ -687,7 +687,7 @@
             <div style="display:flex; gap:6px; align-items:center;">
               <button id="chatResetBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Reset Conversation Context" aria-label="Reset Conversation Context" onclick="resetConversationContext()">
                 <span class="material-symbols-rounded icon-sm">restart_alt</span>
-                <span id="chatResetText">Reset</span>
+                <span id="chatResetText" data-i18n="chat.reset">Reset</span>
               </button>
               <button id="chatLangToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Switch Language" aria-label="Switch Language">
                 <span class="material-symbols-rounded icon-sm">language</span>
@@ -735,13 +735,13 @@
           </div>
 
           <div class="chat-input-bar" style="margin-top:10px;">
-            <input type="text" id="chatInput" placeholder="Ask SkyZen about your plans... (e.g. Will it rain at 5 PM?)" autocomplete="off" aria-label="Chat input query">
+            <input type="text" id="chatInput" placeholder="Ask SkyZen about your plans... (e.g. Will it rain at 5 PM?)" autocomplete="off" aria-label="Chat input query" data-i18n-placeholder="chat.placeholder">
             <button id="voiceBtn" class="icon-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice input">
               <span class="material-symbols-rounded">mic</span>
             </button>
             <button id="sendBtn" class="send-btn" aria-label="Send message">
               <span class="material-symbols-rounded">send</span>
-              <span>Send</span>
+              <span data-i18n="chat.send">Send</span>
             </button>
           </div>
         </div>
@@ -749,27 +749,27 @@
         <div class="glass-panel chat-right-col" style="padding:16px;">
           <h4 style="font-size:14px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
             <span class="material-symbols-rounded" style="color:var(--primary-blue);">info</span>
-            <span>Reasoning Architecture</span>
+            <span data-i18n="chat.architecture_title">Reasoning Architecture</span>
           </h4>
-          <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;" data-i18n="chat.architecture_sub">
             SkyZen strictly adheres to safety-first meteorological validation:
           </p>
           <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px; font-size:12px;">
             <div style="display:flex; align-items:center; gap:8px; color:var(--alert-red); font-weight:600;">
               <span class="material-symbols-rounded icon-sm">priority_high</span>
-              <span>1. Official Live Disaster Warnings (Top Priority)</span>
+              <span data-i18n="chat.arch_1">1. Official Live Disaster Warnings (Top Priority)</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; color:var(--primary-blue); font-weight:600;">
               <span class="material-symbols-rounded icon-sm">sensors</span>
-              <span>2. Verified IMD & Multi-Source Agreement</span>
+              <span data-i18n="chat.arch_2">2. Verified IMD & Multi-Source Agreement</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; color:var(--text-primary); font-weight:500;">
               <span class="material-symbols-rounded icon-sm">rule</span>
-              <span>3. Deterministic Hazard Decision Rules</span>
+              <span data-i18n="chat.arch_3">3. Deterministic Hazard Decision Rules</span>
             </div>
             <div style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-weight:500;">
               <span class="material-symbols-rounded icon-sm">lock_clock</span>
-              <span>4. Anti-Hallucination Guardrails</span>
+              <span data-i18n="chat.arch_4">4. Anti-Hallucination Guardrails</span>
             </div>
           </div>
         </div>
@@ -780,7 +780,7 @@
         <div class="screen-top-bar" style="grid-column: span 12;">
           <button class="sub-screen-back-btn" onclick="navigateToScreen('home')">
             <span class="material-symbols-rounded icon-sm">arrow_back</span>
-            <span>Back to Home</span>
+            <span data-i18n="nav.back_to_home">Back to Home</span>
           </button>
         </div>
 
@@ -788,9 +788,9 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">schedule</span>
-              <span>Today's Hourly Forecast</span>
+              <span data-i18n="weather.today_hourly">Today's Hourly Forecast</span>
             </h3>
-            <span class="section-subtitle">24-Hour Horizon</span>
+            <span class="section-subtitle" data-i18n="weather.today_sub">24-Hour Horizon</span>
           </div>
           <div id="forecastGridTodayFull" class="forecast-grid" role="list">
             <!-- Dynamically populated -->
@@ -801,7 +801,7 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">wb_twilight</span>
-              <span>Tomorrow's Hourly Forecast</span>
+              <span data-i18n="weather.tomorrow_hourly">Tomorrow's Hourly Forecast</span>
             </h3>
           </div>
           <div id="forecastGridTomorrow" class="forecast-grid" role="list">
@@ -813,7 +813,7 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">date_range</span>
-              <span>Extended Future Forecast</span>
+              <span data-i18n="weather.extended_future">Extended Future Forecast</span>
             </h3>
           </div>
           <div id="forecastGridFuture" class="forecast-grid" role="list">
@@ -825,7 +825,7 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">insights</span>
-              <span>Climate Trend Archive (NASA POWER / IMD)</span>
+              <span data-i18n="weather.climate_archive">Climate Trend Archive (NASA POWER / IMD)</span>
             </h3>
           </div>
           <div id="trendBox" class="trend-box">
@@ -849,31 +849,31 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--alert-red);">warning</span>
-              <span>Official IMD Warnings & Risk Register</span>
+              <span data-i18n="alerts.title">Official IMD Warnings & Risk Register</span>
             </h3>
-            <span class="section-subtitle">Real-time Emergency Feeds</span>
+            <span class="section-subtitle" data-i18n="alerts.subtitle">Real-time Emergency Feeds</span>
           </div>
 
           <div class="filter-tabs" role="tablist">
             <button class="tab-btn active" data-alert-filter="all" role="tab" aria-selected="true">
               <span class="material-symbols-rounded icon-sm">layers</span>
-              <span>All Alerts</span>
+              <span data-i18n="alerts.tab_all">All Alerts</span>
             </button>
             <button class="tab-btn" data-alert-filter="severe" role="tab" aria-selected="false">
               <span class="material-symbols-rounded icon-sm">emergency</span>
-              <span>Severe</span>
+              <span data-i18n="alerts.tab_severe">Severe</span>
             </button>
             <button class="tab-btn" data-alert-filter="rain" role="tab" aria-selected="false">
               <span class="material-symbols-rounded icon-sm">rainy</span>
-              <span>Heavy Rain</span>
+              <span data-i18n="alerts.tab_rain">Heavy Rain</span>
             </button>
             <button class="tab-btn" data-alert-filter="heat" role="tab" aria-selected="false">
               <span class="material-symbols-rounded icon-sm">thermostat</span>
-              <span>Heatwave</span>
+              <span data-i18n="alerts.tab_heat">Heatwave</span>
             </button>
             <button class="tab-btn" data-alert-filter="wind" role="tab" aria-selected="false">
               <span class="material-symbols-rounded icon-sm">air</span>
-              <span>Squall & Wind</span>
+              <span data-i18n="alerts.tab_wind">Squall & Wind</span>
             </button>
           </div>
 
@@ -889,16 +889,16 @@
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">map</span>
-              <span>Geospatial Weather & Radar Map</span>
+              <span data-i18n="map.title">Geospatial Weather & Radar Map</span>
             </h3>
             <div style="display:flex; gap:6px;">
               <button id="mapRecenterBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Recenter Map to Selected Location" aria-label="Recenter Map">
                 <span class="material-symbols-rounded icon-sm">my_location</span>
-                <span>Recenter</span>
+                <span data-i18n="map.recenter">Recenter</span>
               </button>
               <button id="mapLayerToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Toggle Official Alerts Layer" aria-label="Toggle Alert Layer">
                 <span class="material-symbols-rounded icon-sm">warning</span>
-                <span>Toggle Alerts</span>
+                <span data-i18n="map.toggle_alerts">Toggle Alerts</span>
               </button>
             </div>
           </div>
@@ -906,27 +906,27 @@
           <div class="map-layer-pills" role="radiogroup" aria-label="Weather map layers">
             <button class="tab-btn active" data-map-layer="precipitation">
               <span class="material-symbols-rounded icon-sm">rainy</span>
-              <span>Rainfall</span>
+              <span data-i18n="map.layer_rainfall">Rainfall</span>
             </button>
             <button class="tab-btn" data-map-layer="temperature">
               <span class="material-symbols-rounded icon-sm">thermostat</span>
-              <span>Temperature</span>
+              <span data-i18n="map.layer_temp">Temperature</span>
             </button>
             <button class="tab-btn" data-map-layer="wind">
               <span class="material-symbols-rounded icon-sm">air</span>
-              <span>Wind</span>
+              <span data-i18n="map.layer_wind">Wind</span>
             </button>
             <button class="tab-btn" data-map-layer="clouds">
               <span class="material-symbols-rounded icon-sm">cloud</span>
-              <span>Clouds</span>
+              <span data-i18n="map.layer_clouds">Clouds</span>
             </button>
           </div>
           
           <div id="mapContainer" class="map-view-container" role="application" aria-label="Interactive Weather Map">
             <div id="mapFallback" class="map-fallback hidden">
               <span class="material-symbols-rounded icon-xl" style="color:var(--alert-amber);">cloud_off</span>
-              <p style="font-weight:600; color:var(--alert-warning);">Interactive Map Tiles Offline / Unavailable</p>
-              <p style="font-size:12px; color:var(--text-muted);">Displaying coordinate weather telemetry below.</p>
+              <p style="font-weight:600; color:var(--alert-warning);" data-i18n="map.offline_title">Interactive Map Tiles Offline / Unavailable</p>
+              <p style="font-size:12px; color:var(--text-muted);" data-i18n="map.offline_desc">Displaying coordinate weather telemetry below.</p>
             </div>
           </div>
 
@@ -934,10 +934,10 @@
           <div class="map-time-slider">
             <span style="font-size:12px; font-weight:700; color:var(--text-secondary); display:flex; align-items:center; gap:4px;">
               <span class="material-symbols-rounded icon-sm">history_toggle_off</span>
-              <span>Timeline:</span>
+              <span data-i18n="map.timeline">Timeline:</span>
             </span>
             <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="time-step-btn active" data-time-offset="0">Now</button>
+              <button class="time-step-btn active" data-time-offset="0" data-i18n="map.now">Now</button>
               <button class="time-step-btn" data-time-offset="2">+2h</button>
               <button class="time-step-btn" data-time-offset="4">+4h</button>
               <button class="time-step-btn" data-time-offset="6">+6h</button>
@@ -972,15 +972,15 @@
           <div class="screen-top-bar">
             <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
               <span class="material-symbols-rounded icon-sm">arrow_back</span>
-              <span>Back to Hub</span>
+              <span data-i18n="nav.back_to_hub">Back to Hub</span>
             </button>
           </div>
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--success-green);">air</span>
-              <span>Air Quality Index (AQI)</span>
+              <span data-i18n="aqi.title">Air Quality Index (AQI)</span>
             </h3>
-            <span class="section-subtitle">Real-time Ambient Air Monitoring</span>
+            <span class="section-subtitle" data-i18n="aqi.subtitle">Real-time Ambient Air Monitoring</span>
           </div>
 
           <div class="aqi-gauge-card">
@@ -991,11 +991,15 @@
             <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
               <span class="badge" id="aqiCategory" style="background:var(--success-green-bg); color:#166534; font-size:14px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill); width:fit-content;">Moderate</span>
               <p style="font-size:13px; color:var(--text-secondary);" id="aqiSummaryText">Air quality is acceptable for most outdoor activities. Sensitive individuals should consider reducing prolonged heavy exertion.</p>
-              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Authoritative Source: Central Pollution Control Board (CPCB) / Open-Meteo</div>
+              <div id="aqiSourceContainer" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:flex; flex-direction:column; gap:2px;">
+                <div><span id="aqiSourceLabel">Air Quality Model:</span> <strong id="aqiSourceText">Open-Meteo (Modelled)</strong></div>
+                <div id="aqiCpcbStatus" style="color:var(--text-secondary); font-size:10px;">CPCB Ground Monitoring API Not Configured</div>
+                <div id="aqiTimestamp" style="color:var(--text-muted); font-size:10px;">Updated: Just now</div>
+              </div>
             </div>
           </div>
 
-          <h4 style="font-size:14px; font-weight:700; margin-top:6px;">Key Pollutants Breakdown</h4>
+          <h4 style="font-size:14px; font-weight:700; margin-top:6px;" data-i18n="aqi.pollutants_title">Key Pollutants Breakdown</h4>
           <div class="pollutants-grid" id="pollutantsGrid">
             <div class="pollutant-card">
               <span class="pollutant-name">PM2.5 (Fine Particles)</span>
@@ -1023,15 +1027,15 @@
             </div>
           </div>
 
-          <h4 style="font-size:14px; font-weight:700; margin-top:6px;">Health & Activity Recommendations</h4>
+          <h4 style="font-size:14px; font-weight:700; margin-top:6px;" data-i18n="aqi.health_title">Health & Activity Recommendations</h4>
           <div id="aqiRecommendations" style="display:flex; flex-direction:column; gap:8px;">
             <div class="impact-item">
               <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">check_circle</span>
-              <span style="font-size:13px;">Safe for jogging and regular outdoor fitness.</span>
+              <span style="font-size:13px;" data-i18n="aqi.rec_fitness">Safe for jogging and regular outdoor fitness.</span>
             </div>
             <div class="impact-item">
               <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">window</span>
-              <span style="font-size:13px;">Normal home and office ventilation recommended.</span>
+              <span style="font-size:13px;" data-i18n="aqi.rec_ventilation">Normal home and office ventilation recommended.</span>
             </div>
           </div>
         </div>
@@ -1043,17 +1047,17 @@
           <div class="screen-top-bar">
             <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
               <span class="material-symbols-rounded icon-sm">arrow_back</span>
-              <span>Back to Hub</span>
+              <span data-i18n="nav.back_to_hub">Back to Hub</span>
             </button>
           </div>
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">bookmark</span>
-              <span>Saved Locations</span>
+              <span data-i18n="locations.title">Saved Locations</span>
             </h3>
             <button id="addLocModalBtn" class="icon-btn primary" style="font-size:12px; padding:6px 12px;">
               <span class="material-symbols-rounded icon-sm">add_location</span>
-              <span>Add City</span>
+              <span data-i18n="locations.add_city">Add City</span>
             </button>
           </div>
 
@@ -1068,7 +1072,7 @@
             <div class="modal-header">
               <h3 id="addCityTitle" style="font-size:16px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
                 <span class="material-symbols-rounded" style="color:var(--primary-blue);">add_location</span>
-                <span>Add Weather Location</span>
+                <span data-i18n="locations.modal_title">Add Weather Location</span>
               </h3>
               <button id="closeAddCityModalBtn" class="icon-btn" aria-label="Close modal">
                 <span class="material-symbols-rounded">close</span>
@@ -1084,7 +1088,7 @@
               <button class="chip-btn" data-city="Jaipur" data-state="Rajasthan" data-lat="26.9124" data-lon="75.7873">Jaipur</button>
             </div>
             <div style="display:flex; gap:8px;">
-              <input type="text" id="customCityInput" class="auth-input" placeholder="Type city name (e.g. Ooty)..." style="flex:1;" aria-label="Custom city name">
+              <input type="text" id="customCityInput" class="auth-input" placeholder="Type city name (e.g. Ooty)..." style="flex:1;" aria-label="Custom city name" data-i18n-placeholder="locations.custom_placeholder">
               <button id="saveCustomCityBtn" class="action-btn" style="padding:0 18px;">Add</button>
             </div>
           </div>
@@ -1094,76 +1098,76 @@
       <!-- Screen 8: More Hub Screen -->
       <section id="screen-more" class="screen-container" role="region" aria-label="More Hub Screen">
         <div class="glass-panel hub-section">
-          <span class="hub-title">Weather Intelligence Tools</span>
+          <span class="hub-title" data-i18n="more.tools_heading">Weather Intelligence Tools</span>
           <div class="hub-list">
             <div class="hub-item" onclick="navigateToScreen('air-quality')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#16A34A;">air</span>
-                <span>Air Quality Index & Pollutants</span>
+                <span data-i18n="more.aqi_item">Air Quality Index & Pollutants</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
             <div class="hub-item" onclick="navigateToScreen('map')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#1976D2;">map</span>
-                <span>Geospatial Radar & Alert Map</span>
+                <span data-i18n="more.map_item">Geospatial Radar & Alert Map</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
             <div class="hub-item" onclick="navigateToScreen('weather')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#0284C7;">calendar_month</span>
-                <span>Detailed Forecast & Climate Trends</span>
+                <span data-i18n="more.forecast_item">Detailed Forecast & Climate Trends</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
             <div class="hub-item" onclick="navigateToScreen('locations')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#D97706;">bookmark</span>
-                <span>Manage Saved Cities</span>
+                <span data-i18n="more.saved_item">Manage Saved Cities</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
           </div>
 
-          <span class="hub-title" style="margin-top:10px;">AI Advisory Engines</span>
+          <span class="hub-title" style="margin-top:10px;" data-i18n="more.ai_heading">AI Advisory Engines</span>
           <div class="hub-list">
             <div class="hub-item" onclick="navigateToScreen('chat')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#42A5F5;">psychology</span>
-                <span>Ask SkyZen Conversational Assistant</span>
+                <span data-i18n="more.ai_chat_item">Ask SkyZen Conversational Assistant</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
             <div class="hub-item" onclick="sendQuickQuery('What is the travel weather advisory for Tamil Nadu today?')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#6366F1;">travel_explore</span>
-                <span>Inter-District Travel Advisory</span>
+                <span data-i18n="more.travel_item">Inter-District Travel Advisory</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
             <div class="hub-item" onclick="sendQuickQuery('Farmer agricultural advisory for monsoon')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#16A34A;">agriculture</span>
-                <span>Agricultural & Crop Protection</span>
+                <span data-i18n="more.agri_item">Agricultural & Crop Protection</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
           </div>
 
-          <span class="hub-title" style="margin-top:10px;">Preferences & Account</span>
+          <span class="hub-title" style="margin-top:10px;" data-i18n="more.pref_heading">Preferences & Account</span>
           <div class="hub-list">
             <div class="hub-item" onclick="navigateToScreen('profile')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#0F172A;">person</span>
-                <span>User Profile & Authentication</span>
+                <span data-i18n="more.profile_item">User Profile & Authentication</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
             <div class="hub-item" onclick="navigateToScreen('settings')">
               <div class="hub-item-left">
                 <span class="material-symbols-rounded" style="color:#64748B;">settings</span>
-                <span>Application Settings & Language</span>
+                <span data-i18n="more.settings_item">Application Settings & Language</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
             </div>
@@ -1177,13 +1181,13 @@
           <div class="screen-top-bar">
             <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
               <span class="material-symbols-rounded icon-sm">arrow_back</span>
-              <span>Back to Hub</span>
+              <span data-i18n="nav.back_to_hub">Back to Hub</span>
             </button>
           </div>
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">person</span>
-              <span>User Profile & Account</span>
+              <span data-i18n="profile.title">User Profile & Account</span>
             </h3>
           </div>
           
@@ -1196,27 +1200,27 @@
                 </div>
                 <span id="profileVerifiedBadge" class="auth-badge-verified">
                   <span class="material-symbols-rounded icon-sm">verified</span>
-                  <span>Verified</span>
+                  <span data-i18n="profile.verified">Verified</span>
                 </span>
               </div>
               <div style="display:flex; gap:8px; font-size:12px; color:var(--text-secondary); margin-bottom:14px;">
                 <span>Account Role: <strong id="profileUserRole">User</strong></span>
                 <span>•</span>
-                <span>Status: <strong id="userStatusText" style="color:var(--success-green);">Active</strong></span>
+                <span>Status: <strong id="userStatusText" style="color:var(--success-green);" data-i18n="profile.active">Active</strong></span>
               </div>
 
               <!-- Editable Profile & Persona Form -->
               <div class="profile-settings-card" style="margin: 16px 0; padding: 16px; background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
                 <div style="display:flex; align-items:center; gap:6px; margin-bottom:12px;">
                   <span class="material-symbols-rounded" style="color:var(--primary-blue);">tune</span>
-                  <h5 style="font-size:14px; font-weight:700; color:var(--text-primary); margin:0;">Personalize Profile & Persona</h5>
+                  <h5 style="font-size:14px; font-weight:700; color:var(--text-primary); margin:0;" data-i18n="profile.edit_heading">Personalize Profile & Persona</h5>
                 </div>
 
                 <div id="profileEditMessage" class="auth-message-box hidden" style="margin-bottom:12px;" role="alert"></div>
 
                 <form id="profileEditForm" class="auth-form" novalidate>
                   <div class="auth-field">
-                    <label for="profileEditName" class="auth-label">Full Name</label>
+                    <label for="profileEditName" class="auth-label" data-i18n="profile.full_name">Full Name</label>
                     <div class="auth-input-wrapper">
                       <span class="material-symbols-rounded auth-input-icon">person</span>
                       <input type="text" id="profileEditName" class="auth-input with-icon" placeholder="Full name" required>
@@ -1224,7 +1228,7 @@
                   </div>
 
                   <div class="auth-field">
-                    <label for="profileEditRole" class="auth-label">Role / Meteorological Persona</label>
+                    <label for="profileEditRole" class="auth-label" data-i18n="profile.role_label">Role / Meteorological Persona</label>
                     <div class="auth-input-wrapper">
                       <span class="material-symbols-rounded auth-input-icon">work</span>
                       <select id="profileEditRole" class="auth-input with-icon styled-select" style="padding-left:38px;">
@@ -1239,7 +1243,7 @@
                   </div>
 
                   <div class="auth-field">
-                    <label for="profileEditLanguage" class="auth-label">Preferred Language / மொழி</label>
+                    <label for="profileEditLanguage" class="auth-label" data-i18n="profile.lang_label">Preferred Language / மொழி</label>
                     <div class="auth-input-wrapper">
                       <span class="material-symbols-rounded auth-input-icon">language</span>
                       <select id="profileEditLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;">
@@ -1253,27 +1257,27 @@
                   <div class="auth-field">
                     <label class="auth-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
                       <input type="checkbox" id="profileEditNotifications" checked style="width:18px; height:18px; accent-color:var(--primary-blue); cursor:pointer;">
-                      <span style="font-size:13px; font-weight:500; color:var(--text-primary);">Severe meteorological alert notifications</span>
+                      <span style="font-size:13px; font-weight:500; color:var(--text-primary);" data-i18n="profile.alerts_checkbox">Severe meteorological alert notifications</span>
                     </label>
                   </div>
 
                   <button type="submit" id="profileSaveBtn" class="auth-primary-btn" style="margin-top:4px;">
                     <span class="material-symbols-rounded icon-sm">save</span>
-                    <span id="profileSaveBtnText">Save Profile Changes</span>
+                    <span id="profileSaveBtnText" data-i18n="profile.save_btn">Save Profile Changes</span>
                   </button>
                 </form>
               </div>
 
               <button id="profileSignOutBtn" class="auth-btn" style="background:#EF4444; color:#FFFFFF; width:100%; border:none; display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px; border-radius:var(--radius-md); font-weight:600; cursor:pointer;">
                 <span class="material-symbols-rounded icon-sm">logout</span>
-                <span>Sign Out of SkyZen</span>
+                <span data-i18n="profile.signout_btn">Sign Out of SkyZen</span>
               </button>
             </div>
             <div id="guestPromptView" class="hidden" style="text-align:center; padding:12px 0;">
-              <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">Sign in to sync your saved locations, telemetry, and meteorological preferences.</p>
+              <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;" data-i18n="profile.guest_prompt">Sign in to sync your saved locations, telemetry, and meteorological preferences.</p>
               <button id="profileOpenAuthBtn" class="auth-primary-btn" style="width:100%;">
                 <span class="material-symbols-rounded icon-sm">login</span>
-                <span>Sign In / Create Account</span>
+                <span data-i18n="profile.guest_login_btn">Sign In / Create Account</span>
               </button>
               <div id="legacyAuthBridge" style="display:none;" aria-hidden="true">
                 <input type="email" id="authEmail" aria-label="Email address">
@@ -1284,7 +1288,7 @@
           </div>
 
           <div style="margin-top:14px;">
-            <h4 style="font-size:14px; font-weight:700; margin-bottom:8px;">Saved Cities Summary</h4>
+            <h4 style="font-size:14px; font-weight:700; margin-bottom:8px;" data-i18n="profile.saved_summary">Saved Cities Summary</h4>
             <div id="savedLocationsList" style="display:flex; flex-direction:column; gap:6px;">
               <p style="font-size:13px; color:var(--text-secondary);">Sign in to synchronize saved locations.</p>
             </div>
@@ -1298,24 +1302,24 @@
           <div class="screen-top-bar">
             <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
               <span class="material-symbols-rounded icon-sm">arrow_back</span>
-              <span>Back to Hub</span>
+              <span data-i18n="nav.back_to_hub">Back to Hub</span>
             </button>
           </div>
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">settings</span>
-              <span>Application Settings</span>
+              <span data-i18n="settings.title">Application Settings</span>
             </h3>
           </div>
 
             <div class="auth-form-group">
-              <label>Profile & Role Persona</label>
+              <label data-i18n="settings.profile_persona">Profile & Role Persona</label>
               <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#FFFFFF; border:1px solid var(--border-color); border-radius:var(--radius-md); cursor:pointer;" onclick="navigateToScreen('profile')">
                 <div style="display:flex; align-items:center; gap:8px;">
                   <span class="material-symbols-rounded" style="color:var(--primary-blue);">person</span>
                   <div>
                     <div style="font-size:14px; font-weight:600;" id="settingsProfileSummaryName">User Profile</div>
-                    <div style="font-size:12px; color:var(--text-secondary);" id="settingsProfileSummaryRole">Manage name, role persona & language</div>
+                    <div style="font-size:12px; color:var(--text-secondary);" id="settingsProfileSummaryRole" data-i18n="settings.profile_desc">Manage name, role persona & language</div>
                   </div>
                 </div>
                 <span class="material-symbols-rounded" style="color:var(--text-secondary);">chevron_right</span>
@@ -1332,24 +1336,24 @@
             </div>
 
             <div class="auth-form-group">
-              <label>Emergency Warnings & FCM Notifications</label>
+              <label data-i18n="settings.notifications">Emergency Warnings & FCM Notifications</label>
               <div style="padding:14px; background:#FFFFFF; border:1px solid var(--border-color); border-radius:var(--radius-md); display:flex; flex-direction:column; gap:10px;">
                 <div style="display:flex; justify-content:space-between; align-items:center;">
                   <div style="display:flex; align-items:center; gap:8px;">
                     <span class="material-symbols-rounded" style="color:var(--primary-blue);">notifications_active</span>
-                    <span style="font-size:13px; font-weight:600;">Push Alerts Channel</span>
+                    <span style="font-size:13px; font-weight:600;" data-i18n="settings.push_channel">Push Alerts Channel</span>
                   </div>
-                  <span id="pushStatusBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:#DCFCE7; color:#166534; font-weight:600;">Active (FCM)</span>
+                  <span id="pushStatusBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:#DCFCE7; color:#166534; font-weight:600;" data-i18n="settings.push_active">Active (FCM)</span>
                 </div>
                 <button type="button" id="sendTestNotificationBtn" class="auth-secondary-btn" style="min-height:38px; font-size:13px; padding:6px 12px; display:flex; align-items:center; justify-content:center; gap:6px;">
                   <span class="material-symbols-rounded icon-sm">notifications</span>
-                  <span>Send Controlled Test Alert</span>
+                  <span data-i18n="settings.test_alert_btn">Send Controlled Test Alert</span>
                 </button>
               </div>
             </div>
 
             <div class="auth-form-group">
-              <label for="unitsSelect">Preferred Measurement Units</label>
+              <label for="unitsSelect" data-i18n="settings.units">Preferred Measurement Units</label>
               <select id="unitsSelect" class="styled-select" aria-label="Preferred Units">
                 <option value="metric">Metric (°C, km/h, mm, hPa)</option>
                 <option value="imperial">Imperial (°F, mph, in, inHg)</option>
@@ -1357,7 +1361,7 @@
             </div>
 
             <div class="auth-form-group">
-              <label for="envSelect">API Environment Server</label>
+              <label for="envSelect" data-i18n="settings.env_server">API Environment Server</label>
               <select id="envSelect" class="styled-select" aria-label="API Environment Server">
                 <option value="/api/v1">Production Web Shell (/api/v1)</option>
                 <option value="custom">Custom Production Server (HTTPS)...</option>
@@ -1389,23 +1393,23 @@
     <nav class="mobile-bottom-nav" role="navigation" aria-label="Mobile Navigation">
       <button class="nav-item active" data-screen="home" aria-label="Home Screen" aria-selected="true">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
-        <span>Home</span>
+        <span data-i18n="nav.home">Home</span>
       </button>
       <button class="nav-item" data-screen="chat" aria-label="Chat Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">chat</span>
-        <span>AI</span>
+        <span data-i18n="nav.ai">AI</span>
       </button>
       <button class="nav-item" data-screen="map" aria-label="Geospatial Weather Map Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
-        <span data-i18n=\"nav.map\">Map</span>
+        <span data-i18n="nav.map">Map</span>
       </button>
       <button class="nav-item" data-screen="alerts" aria-label="Alerts Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
-        <span data-i18n=\"nav.alerts\">Alerts</span>
+        <span data-i18n="nav.alerts">Alerts</span>
       </button>
       <button class="nav-item" data-screen="more" aria-label="More Options Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">more_horiz</span>
-        <span data-i18n=\"nav.settings\">More</span>
+        <span data-i18n="nav.more">More</span>
       </button>
     </nav>
 

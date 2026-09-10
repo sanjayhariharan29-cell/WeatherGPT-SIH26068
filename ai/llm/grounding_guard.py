@@ -133,5 +133,28 @@ def verify_grounding(response_text: str, context: GroundedContext) -> Tuple[bool
         except ValueError:
             continue
 
+    # 4. Deterministic Language Mismatch Detection
+    target_lang = getattr(context, "target_language", None) or getattr(context, "detected_language", "en")
+    target_lang_str = target_lang.value if hasattr(target_lang, "value") else str(target_lang).lower()
+
+    if target_lang_str in ("ta", "tanglish"):
+        has_tamil = bool(re.search(r"[\u0B80-\u0BFF]", response_text))
+        has_devanagari = bool(re.search(r"[\u0900-\u097F]", response_text))
+        if has_devanagari and not has_tamil:
+            issues.append("Language mismatch: Tamil (ta) was requested, but response is in Hindi/Devanagari script.")
+        elif not has_tamil and len(response_text.split()) > 15:
+            issues.append("Language mismatch: Tamil (ta) was requested, but response contains no Tamil script.")
+    elif target_lang_str in ("hi", "hinglish"):
+        has_devanagari = bool(re.search(r"[\u0900-\u097F]", response_text))
+        has_tamil = bool(re.search(r"[\u0B80-\u0BFF]", response_text))
+        if has_tamil and not has_devanagari:
+            issues.append("Language mismatch: Hindi (hi) was requested, but response is in Tamil script.")
+        elif not has_devanagari and len(response_text.split()) > 15:
+            issues.append("Language mismatch: Hindi (hi) was requested, but response contains no Hindi/Devanagari script.")
+    elif target_lang_str == "en":
+        indic_chars = re.findall(r"[\u0B80-\u0BFF\u0900-\u097F]", response_text)
+        if len(indic_chars) > 20:
+            issues.append("Language mismatch: English (en) was requested, but response contains extensive Indic script.")
+
     is_grounded = len(issues) == 0
     return is_grounded, issues

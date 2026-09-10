@@ -237,7 +237,12 @@ class AirQualityResponse(BaseModel):
     primary_pollutant: str = Field(default="PM2.5", description="Dominant ambient pollutant")
     pollutants: AirQualityPollutantsSchema
     recommendations: List[str] = Field(default_factory=list, description="Health & outdoor activity recommendations")
-    source: str = Field(default="CPCB / Open-Meteo Air Quality", description="Source provider attribution")
+    source: str = Field(default="Air-quality model: Open-Meteo", description="Source provider attribution")
+    source_type: str = Field(default="modelled", description="Classification: official_cpcb, modelled, secondary")
+    cpcb_status: str = Field(default="CPCB OFFICIAL API ACCESS NOT CONFIGURED", description="Status of official CPCB monitoring station access")
+    is_official_cpcb: bool = Field(default=False, description="True only if sourced from official CPCB monitoring stations")
+    station: Optional[str] = Field(default=None, description="Monitoring station name if official ground observation")
+    methodology: Optional[str] = Field(default="Open-Meteo Atmospheric Chemistry Model (CAMS)", description="Calculation or telemetry methodology")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
 
 

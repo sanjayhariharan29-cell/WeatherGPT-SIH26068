@@ -19,6 +19,22 @@ const MAP_PRESET_LOCATIONS = [
 
 let currentUser = null;
 let pendingAuthEmail = "";
+window.lastWeatherData = null;
+
+window.onLanguageChanged = function(lang) {
+  currentLanguage = lang;
+  if (window.I18N) {
+    window.I18N.applyTranslations();
+  }
+  if (window.lastWeatherData) {
+    renderWeatherCard(window.lastWeatherData);
+  }
+  const aqiScreen = document.getElementById("screen-air-quality");
+  if (aqiScreen && aqiScreen.classList.contains("active")) {
+    const loc = document.getElementById("locationSelect")?.value || "Coimbatore";
+    loadAirQuality(loc);
+  }
+};
 
 document.addEventListener("DOMContentLoaded", () => {
   initApp();
@@ -896,6 +912,14 @@ function setupAuthPortalEngine() {
     });
   }
 
+  // Handle Session Expiration Gracefully (Prevent 401 dead loops)
+  window.addEventListener("skyzen:auth_expired", (e) => {
+    currentUser = null;
+    updateProfileUI(null);
+    showAuthPortal("welcome");
+    showMobileNotice(e.detail?.message || "Session expired. Please sign in again.", "info");
+  });
+
   // Password Visibility Toggles
   setupPasswordToggle(document.getElementById("loginPassword"), document.getElementById("loginPassToggle"));
   setupPasswordToggle(document.getElementById("signupPassword"), document.getElementById("signupPassToggle"));
@@ -1539,6 +1563,7 @@ async function loadCurrentWeather(showLoader = false) {
 
 function renderWeatherCard(data) {
   if (!data) return;
+  window.lastWeatherData = data;
 
   const locName = data.location?.name || "Coimbatore";
   const stateStr = data.location?.state ? `, ${data.location.state}` : ", Tamil Nadu";
@@ -1552,24 +1577,26 @@ function renderWeatherCard(data) {
   // Format observation & retrieval timestamps
   const obsTimeStr = data.observed_at ? data.observed_at.split("T")[1]?.slice(0, 5) || "Recent" : "Recent";
   const obsElem = document.getElementById("currentObsTime");
+  const locObs = (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic("Observed at") : "Observed at";
+  const locCached = (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic("Cached") : "Cached";
   if (obsElem) {
     if (data.cached && data.cached_at) {
       const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
       const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
-      obsElem.textContent = `Cached ${minutesAgo}m ago (${cachedTimeStr} UTC) • Observed: ${obsTimeStr} UTC`;
+      obsElem.textContent = `${locCached} ${minutesAgo}m ago (${cachedTimeStr} UTC) • ${locObs}: ${obsTimeStr} UTC`;
     } else if (data.retrieved_at && data.observed_at) {
       try {
         const obsMs = new Date(data.observed_at).getTime();
         const retMs = new Date(data.retrieved_at).getTime();
         const diffMin = Math.max(0, Math.round((retMs - obsMs) / 60000));
         obsElem.textContent = diffMin > 0
-          ? `Observed at ${obsTimeStr} UTC (${diffMin}m ago)`
-          : `Observed at ${obsTimeStr} UTC`;
+          ? `${locObs} ${obsTimeStr} UTC (${diffMin}m ago)`
+          : `${locObs} ${obsTimeStr} UTC`;
       } catch (e) {
-        obsElem.textContent = `Observed at ${obsTimeStr} UTC`;
+        obsElem.textContent = `${locObs} ${obsTimeStr} UTC`;
       }
     } else {
-      obsElem.textContent = `Observed at ${obsTimeStr} UTC`;
+      obsElem.textContent = `${locObs} ${obsTimeStr} UTC`;
     }
   }
 
@@ -1585,39 +1612,48 @@ function renderWeatherCard(data) {
     }
   }
 
-  // Freshness Badge (Strict test assertions match)
+  // Freshness Badge (Strict test assertions match and runtime i18n)
   const freshnessTag = document.getElementById("dataFreshnessTag");
+  const locDyn = (str) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(str) : str;
   if (freshnessTag) {
     if (data.system_state === "DATA_STALE" || (data.cached && data.data_freshness === "STALE_DEGRADED")) {
       freshnessTag.textContent = "Data Stale (Cached)";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag partial";
       updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
     } else if (data.cached || data.system_state === "OFFLINE") {
       freshnessTag.textContent = "Cached Telemetry (Offline)";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag partial";
       updateSystemStateBanner("OFFLINE");
     } else if (data.system_state === "DEGRADED") {
       freshnessTag.textContent = "Degraded Telemetry";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag partial";
       updateSystemStateBanner("DEGRADED");
     } else if (data.system_state === "SERVICE_UNAVAILABLE" || data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
       freshnessTag.textContent = "Data Unavailable";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag unavailable";
       updateSystemStateBanner("SERVICE_UNAVAILABLE");
     } else if (data.freshness_status === "EXPIRED") {
       freshnessTag.textContent = "Telemetry Expired";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag unavailable";
       updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
     } else if (data.freshness_status === "AGING") {
       freshnessTag.textContent = "Aging Telemetry";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag partial";
       updateSystemStateBanner("ONLINE");
     } else if (data.data_status === "PARTIAL" || (data.source && data.source.includes("Fallback"))) {
       freshnessTag.textContent = "Partial Telemetry";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag partial";
       updateSystemStateBanner("DEGRADED");
     } else {
       freshnessTag.textContent = "Fresh Telemetry";
+      freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag fresh";
       updateSystemStateBanner("ONLINE");
     }
@@ -1646,9 +1682,10 @@ function renderWeatherCard(data) {
 
   // Feels Like (No fabrication if null)
   const feelsElem = document.getElementById("feelsLikeText");
+  const locFeels = locDyn("Feels like");
   if (feelsElem) {
     if (data.weather?.feels_like !== undefined && data.weather?.feels_like !== null) {
-      feelsElem.textContent = `Feels like ${Math.round(data.weather.feels_like)}°C • Multi-source telemetry verified`;
+      feelsElem.textContent = `${locFeels} ${Math.round(data.weather.feels_like)}°C • Multi-source telemetry verified`;
     } else {
       feelsElem.textContent = "Multi-source telemetry verified";
     }
@@ -1677,17 +1714,17 @@ function renderWeatherCard(data) {
   const agreeElement = document.getElementById("agreementVal");
   if (agreeElement) {
     if (data.cached) {
-      agreeElement.textContent = "Offline Cached Record";
+      agreeElement.textContent = locDyn("Offline Cached Record");
       agreeElement.className = "metric-val";
     } else if (data.comparison && data.comparison.sources_agree) {
       const srcNames = Array.isArray(data.sources) && data.sources.length > 1
         ? data.sources.join(" & ")
         : "Multi-Source";
-      agreeElement.textContent = `High Agreement (${srcNames})`;
+      agreeElement.textContent = `${locDyn("High Agreement")} (${srcNames})`;
       agreeElement.className = "metric-val agreement-high";
     } else {
       const conf = data.comparison?.confidence_level || "CAUTIOUS";
-      agreeElement.textContent = data.comparison ? `Disagreement (${conf})` : "Single Provider Active";
+      agreeElement.textContent = data.comparison ? `${locDyn("Disagreement")} (${locDyn(conf)})` : locDyn("Single Provider Active");
       agreeElement.className = "metric-val";
     }
   }
@@ -1707,6 +1744,37 @@ function renderSourcesBreakdown(data) {
 
   const records = data.comparison?.provider_records || [];
   const activeCount = records.filter(r => r.status === "HEALTHY" && r.temperature !== null && r.temperature !== undefined).length;
+  const locDyn = (str) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(str) : str;
+
+  if (countBadge) {
+    countBadge.textContent = `${activeCount} Active`;
+  }
+
+  if (agreementSummary) {
+    if (data.cached) {
+      agreementSummary.textContent = "Snapshot: Offline";
+      agreementSummary.style.color = "var(--text-secondary)";
+    } else if (data.comparison?.sources_agree) {
+      agreementSummary.textContent = `Consensus: ${data.comparison.confidence_level || 'HIGH'}`;
+      agreementSummary.style.color = "#166534";
+    } else if (data.comparison) {
+      const conf = data.comparison.confidence_level || "CAUTIOUS";
+      agreementSummary.textContent = `Consensus: ${locDyn(conf)}`;
+      agreementSummary.style.color = "#B45309";
+    } else {
+      agreementSummary.textContent = locDyn("Single Provider");
+      agreementSummary.style.color = "var(--text-secondary)";
+    }
+  }
+
+  if (warningBanner && warningText) {
+    if (!data.cached && data.comparison && !data.comparison.sources_agree && activeCount > 1) {
+      warningBanner.classList.remove("hidden");
+      warningText.textContent = data.comparison.disagreement_notes || "Weather sources currently disagree on conditions.";
+    } else {
+      warningBanner.classList.add("hidden");
+    }
+  }
 
   if (countBadge) {
     countBadge.textContent = `${activeCount} Active`;
@@ -2162,6 +2230,38 @@ async function loadAirQuality(location) {
       }
     }
 
+    // Authentic AQI Source Separation & Status
+    const sourceLabelElem = document.getElementById("aqiSourceLabel");
+    const sourceTextElem = document.getElementById("aqiSourceText");
+    const cpcbStatusElem = document.getElementById("aqiCpcbStatus");
+    const timestampElem = document.getElementById("aqiTimestamp");
+
+    if (aqiData.is_official_cpcb) {
+      if (sourceLabelElem) sourceLabelElem.textContent = window.I18N ? window.I18N.t("aqi.source.official", "Official AQI Source:") : "Official AQI Source:";
+      if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station})` : "Central Pollution Control Board (CPCB)";
+      if (cpcbStatusElem) {
+        cpcbStatusElem.textContent = aqiData.station ? `Ground Monitoring Station: ${aqiData.station}` : "Official Ground Monitoring Station";
+        cpcbStatusElem.style.color = "var(--success-green)";
+      }
+    } else {
+      if (sourceLabelElem) sourceLabelElem.textContent = window.I18N ? window.I18N.t("aqi.source.model", "Air Quality Model:") : "Air Quality Model:";
+      if (sourceTextElem) sourceTextElem.textContent = aqiData.source || "Open-Meteo (Modelled Atmospheric Chemistry)";
+      if (cpcbStatusElem) {
+        cpcbStatusElem.textContent = window.I18N ? window.I18N.t("aqi.cpcb.not_configured", "CPCB Ground Monitoring Station API: Not Configured") : "CPCB Ground Monitoring Station API: Not Configured";
+        cpcbStatusElem.style.color = "var(--text-secondary)";
+      }
+    }
+
+    if (timestampElem && aqiData.retrieved_at) {
+      try {
+        const d = new Date(aqiData.retrieved_at);
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        timestampElem.textContent = `${window.I18N ? window.I18N.t("weather.updated", "Updated") : "Updated"}: ${timeStr} UTC`;
+      } catch (_) {
+        timestampElem.textContent = "Updated: Live telemetry";
+      }
+    }
+
     if (aqiData.pollutants) {
       const p = aqiData.pollutants;
       const v25 = document.getElementById("valPm25");
@@ -2575,30 +2675,92 @@ async function retryFailedMessage(text, persona, location, btnElem) {
 
 // 11. Voice Speech Interaction & Conversational UX
 let activeSpeechUtterance = null;
+let cachedSpeechVoices = [];
+
+function updateSpeechVoices() {
+  if ('speechSynthesis' in window) {
+    try {
+      cachedSpeechVoices = window.speechSynthesis.getVoices() || [];
+    } catch (e) {
+      cachedSpeechVoices = [];
+    }
+  }
+}
+
+if ('speechSynthesis' in window) {
+  updateSpeechVoices();
+  if (typeof window.speechSynthesis.onvoiceschanged !== 'undefined') {
+    window.speechSynthesis.onvoiceschanged = updateSpeechVoices;
+  }
+}
+
+function selectBestVoice(targetLang) {
+  updateSpeechVoices();
+  const voices = cachedSpeechVoices;
+  const t = String(targetLang || "en").toLowerCase();
+
+  let exactLocale = "en-IN";
+  let langFamily = "en";
+  if (t === "ta" || t === "tanglish" || t.startsWith("ta")) {
+    exactLocale = "ta-IN";
+    langFamily = "ta";
+  } else if (t === "hi" || t === "hinglish" || t.startsWith("hi")) {
+    exactLocale = "hi-IN";
+    langFamily = "hi";
+  }
+
+  if (!voices || voices.length === 0) {
+    return { voice: null, isNative: false, langCode: exactLocale };
+  }
+
+  // 1. Exact locale match e.g. 'ta-in' or 'hi-in' or 'en-in'
+  let match = voices.find(v => v.lang && v.lang.toLowerCase().replace('_', '-') === exactLocale.toLowerCase());
+  if (match) return { voice: match, isNative: true, langCode: exactLocale };
+
+  // 2. Language family / regional prefix e.g. 'ta', 'hi', 'en'
+  match = voices.find(v => v.lang && (v.lang.toLowerCase().startsWith(langFamily + "-") || v.lang.toLowerCase() === langFamily));
+  if (match) return { voice: match, isNative: true, langCode: match.lang };
+
+  // 3. Indic fallback: If requested is Tamil or Hindi, but device lacks a Tamil/Hindi voice, record limitation
+  if (langFamily === "ta" || langFamily === "hi") {
+    return { voice: null, isNative: false, langCode: exactLocale, missingFamily: langFamily };
+  }
+
+  // 4. Default English fallback
+  const defaultVoice = voices.find(v => v.default) || voices[0];
+  return { voice: defaultVoice, isNative: false, langCode: "en-IN" };
+}
 
 function extractConciseSpeech(text) {
   if (!text) return "";
   let clean = String(text);
   // Remove parenthetical telemetry/source tags e.g. (Source: ... | Updated ...)
-  clean = clean.replace(/\([^)]*?(?:Source|Updated|Forecast Consistency|தகவல் மூலம்|स्रोत)[^)]*?\)/gi, "");
+  clean = clean.replace(/\([^)]*?(?:Source|Updated|Forecast Consistency|தகவல் மூலம்|स्रोत|AQI)[^)]*?\)/gi, "");
   clean = clean.replace(/\(தகவல் மூலம்:[^)]*?\)/gi, "");
   clean = clean.replace(/\(स्रोत:[^)]*?\)/gi, "");
+  // Remove technical JSON or bracketed code blocks
+  clean = clean.replace(/\{[\s\S]*?\}/g, "");
+  // Strip bracketed status tags e.g. [OFFICIAL IMD WARNING], [HIGH RISK], etc.
+  clean = clean.replace(/\[[^\]]*?\]/g, "");
+  // Strip URLs
+  clean = clean.replace(/https?:\/\/\S+/gi, "");
   // Strip HTML tags and markdown symbols
   clean = clean.replace(/<[^>]+>/g, "");
   clean = clean.replace(/^#{1,6}\s+/gm, "");
   clean = clean.replace(/\*\*([^*]+)\*\*/g, "$1");
+  clean = clean.replace(/\*([^*]+)\*/g, "$1");
   clean = clean.replace(/^\s*[-•*]\s+/gm, "");
   clean = clean.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
   // Strip emojis
   clean = clean.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, "");
   
-  // Filter out debug metadata and disclaimers for voice
+  // Filter out debug metadata and technical disclaimers for natural speech
   const lines = clean.split("\n").map(s => s.trim()).filter(Boolean);
   const selected = [];
   const hasWarning = lines.some(l => /warning|alert|எச்சரிக்கை|चेतावनी/i.test(l));
 
   for (const line of lines) {
-    if (/forecast consistency|data confidence indicator|historical records reflect|does not fabricate/i.test(line)) {
+    if (/forecast consistency|data confidence indicator|historical records reflect|does not fabricate|air quality model/i.test(line)) {
       continue;
     }
     selected.push(line);
@@ -2690,13 +2852,19 @@ function speakText(text, lang) {
 
     const utterance = new SpeechSynthesisUtterance(concise);
     const target = String(lang || currentLanguage || "en").toLowerCase();
-    if (target === "hi" || target === "hinglish") {
-      utterance.lang = "hi-IN";
-    } else if (target === "ta" || target === "tanglish") {
-      utterance.lang = "ta-IN";
+    const voiceResult = selectBestVoice(target);
+
+    if (voiceResult.voice) {
+      utterance.voice = voiceResult.voice;
+      utterance.lang = voiceResult.voice.lang || voiceResult.langCode;
     } else {
-      utterance.lang = "en-IN";
+      utterance.lang = voiceResult.langCode;
+      if (voiceResult.missingFamily) {
+        const langLabel = voiceResult.missingFamily === "ta" ? "Tamil (தமிழ்)" : "Hindi (हिंदी)";
+        showMobileNotice(`Device lacks a native ${langLabel} TTS voice. Pronunciation may use generic voice.`, "info", 3500);
+      }
     }
+
     utterance.rate = 1.0;
     activeSpeechUtterance = utterance;
     window.speechSynthesis.speak(utterance);

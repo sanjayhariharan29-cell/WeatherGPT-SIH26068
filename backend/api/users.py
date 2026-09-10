@@ -10,6 +10,7 @@ from backend.core.security import get_current_user, get_optional_current_user
 router = APIRouter(prefix="/users", tags=["Users"])
 
 @router.get("/me")
+@router.get("/profile")
 async def get_user_profile(
     current_user: Optional[User] = Depends(get_optional_current_user),
     user_id: Optional[str] = None,
@@ -60,6 +61,8 @@ async def get_user_profile(
     }
 
 @router.put("/me")
+@router.put("/profile")
+@router.patch("/profile")
 async def update_user_profile(
     req: UserUpdateRequest,
     user_id: Optional[str] = None,

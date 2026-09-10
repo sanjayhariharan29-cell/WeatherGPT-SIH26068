@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 from typing import List
 from pydantic import BaseModel, Field
 
@@ -19,7 +20,15 @@ class Settings(BaseModel):
     PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8000")))
 
     # Database Settings
-    DATABASE_URL: str = Field(default_factory=lambda: os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db"))
+    DATABASE_URL: str = Field(
+        default_factory=lambda: (
+            f"sqlite:///{(Path(__file__).resolve().parent.parent.parent / os.getenv('DATABASE_URL', 'sqlite:///./weathergpt.db').replace('sqlite:///', '').lstrip('./')).resolve().as_posix()}"
+            if os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db").startswith("sqlite:///")
+            and not os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db").startswith("sqlite:////")
+            and not (len(os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db")) > 11 and os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db")[10] == ":")
+            else os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db")
+        )
+    )
 
     # Security & CORS Settings
     ALLOWED_ORIGINS: List[str] = Field(
