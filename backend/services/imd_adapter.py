@@ -4,7 +4,7 @@ Primary authoritative provider implementation for observations, forecasts,
 and official disaster alerts in India (especially Tamil Nadu).
 """
 
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 
 from backend.services.base_provider import BaseWeatherProvider
@@ -171,7 +171,9 @@ class IMDAdapter(BaseWeatherProvider):
         if cached:
             return cached
 
-        now_utc = datetime.now(timezone.utc).isoformat()
+        now = datetime.now(timezone.utc)
+        now_utc = now.isoformat()
+        expires_utc = (now + timedelta(days=2)).isoformat()
         loc_lower = location_name.lower()
         items = []
 
@@ -186,7 +188,7 @@ class IMDAdapter(BaseWeatherProvider):
                     area="Nagapattinam Coastal Zone",
                     source=self.name,
                     issued_at=now_utc,
-                    expires_at="2026-09-09T23:59:59Z",
+                    expires_at=expires_utc,
                     retrieved_at=now_utc
                 )
             ]
@@ -201,7 +203,7 @@ class IMDAdapter(BaseWeatherProvider):
                     area="Coimbatore District",
                     source=self.name,
                     issued_at=now_utc,
-                    expires_at="2026-09-09T18:00:00Z",
+                    expires_at=expires_utc,
                     retrieved_at=now_utc
                 )
             ]
