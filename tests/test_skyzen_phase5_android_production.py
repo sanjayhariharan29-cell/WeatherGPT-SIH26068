@@ -314,15 +314,48 @@ def test_22_official_alert_integrity():
 
 
 def test_23_app_icon_and_branding_resources():
-    """23. Verify mipmap launcher icons, adaptive XML, and branded launcher resources exist."""
-    mipmap_hdpi = os.path.join(RES_DIR, "mipmap-hdpi", "ic_launcher.png")
+    """23. Verify official SkyZen launcher icons, adaptive XML, manifest references, and app branding."""
+    densities = ["mipmap-mdpi", "mipmap-hdpi", "mipmap-xhdpi", "mipmap-xxhdpi", "mipmap-xxxhdpi"]
+    for d in densities:
+        launcher = os.path.join(RES_DIR, d, "ic_launcher.png")
+        launcher_round = os.path.join(RES_DIR, d, "ic_launcher_round.png")
+        launcher_fg = os.path.join(RES_DIR, d, "ic_launcher_foreground.png")
+        assert os.path.exists(launcher), f"ic_launcher.png must exist in {d}"
+        assert os.path.exists(launcher_round), f"ic_launcher_round.png must exist in {d}"
+        assert os.path.exists(launcher_fg), f"ic_launcher_foreground.png must exist in {d}"
+        assert os.path.getsize(launcher) > 0, f"ic_launcher.png in {d} must not be empty"
+
+    # Adaptive XMLs
     mipmap_anydpi = os.path.join(RES_DIR, "mipmap-anydpi-v26", "ic_launcher.xml")
-    assert os.path.exists(mipmap_hdpi), "ic_launcher.png must exist in mipmap-hdpi"
+    mipmap_round_anydpi = os.path.join(RES_DIR, "mipmap-anydpi-v26", "ic_launcher_round.xml")
     assert os.path.exists(mipmap_anydpi), "ic_launcher.xml must exist in mipmap-anydpi-v26"
+    assert os.path.exists(mipmap_round_anydpi), "ic_launcher_round.xml must exist in mipmap-anydpi-v26"
 
     with open(mipmap_anydpi, "r", encoding="utf-8") as f:
         xml_content = f.read()
     assert "<adaptive-icon" in xml_content
+    assert "@mipmap/ic_launcher_foreground" in xml_content
+    assert "@color/ic_launcher_background" in xml_content
+
+    # Manifest checks
+    manifest_path = os.path.join(APP_DIR, "src", "main", "AndroidManifest.xml")
+    with open(manifest_path, "r", encoding="utf-8") as f:
+        manifest = f.read()
+    assert 'android:icon="@mipmap/ic_launcher"' in manifest
+    assert 'android:roundIcon="@mipmap/ic_launcher_round"' in manifest
+    assert 'android:label="@string/app_name"' in manifest
+
+    # Strings check
+    strings_path = os.path.join(RES_DIR, "values", "strings.xml")
+    with open(strings_path, "r", encoding="utf-8") as f:
+        strings_xml = f.read()
+    assert '<string name="app_name">SkyZen</string>' in strings_xml
+
+    # Verify no generic Capacitor vector launcher drawables exist
+    generic_fg = os.path.join(RES_DIR, "drawable-v24", "ic_launcher_foreground.xml")
+    generic_bg = os.path.join(RES_DIR, "drawable", "ic_launcher_background.xml")
+    assert not os.path.exists(generic_fg), "Generic drawable-v24/ic_launcher_foreground.xml must not exist"
+    assert not os.path.exists(generic_bg), "Generic drawable/ic_launcher_background.xml must not exist"
 
 
 def test_24_production_build_configuration():
