@@ -1160,12 +1160,8 @@ function renderWeatherCard(data) {
   const obsTimeStr = data.observed_at ? data.observed_at.split("T")[1]?.slice(0, 5) || "Recent" : "Recent";
   if (data.cached && data.cached_at) {
     const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
-<<<<<<< HEAD
     const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
     document.getElementById("currentObsTime").textContent = `Cached ${minutesAgo}m ago (${cachedTimeStr} UTC) • Observed: ${obsTimeStr} UTC`;
-=======
-    document.getElementById("currentObsTime").textContent = `Cached at ${cachedTimeStr} UTC (Observed: ${obsTimeStr} UTC)`;
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
   } else {
     document.getElementById("currentObsTime").textContent = `Observed at ${obsTimeStr} UTC`;
   }
@@ -1233,12 +1229,8 @@ function renderWeatherCard(data) {
     agreeElement.textContent = "High Agreement (IMD & Open-Meteo)";
     agreeElement.className = "metric-val agreement-high";
   } else {
-<<<<<<< HEAD
     const conf = data.comparison?.confidence_level || "CAUTIOUS";
-    agreeElement.textContent = `Disagreement (${conf})`;
-=======
-    agreeElement.textContent = "Single Provider Active";
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
+    agreeElement.textContent = data.comparison ? `Disagreement (${conf})` : "Single Provider Active";
     agreeElement.className = "metric-val";
   }
 }

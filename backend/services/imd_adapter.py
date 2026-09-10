@@ -178,18 +178,11 @@ class IMDAdapter(BaseWeatherProvider):
         if cached:
             return cached
 
-<<<<<<< HEAD
         now_dt = datetime.now(timezone.utc)
         now_utc = now_dt.isoformat()
         expires_24h = (now_dt + timedelta(hours=24)).isoformat()
         expires_12h = (now_dt + timedelta(hours=12)).isoformat()
         expired_yesterday = (now_dt - timedelta(hours=12)).isoformat()
-
-=======
-        now = datetime.now(timezone.utc)
-        now_utc = now.isoformat()
-        expires_utc = (now + timedelta(days=2)).isoformat()
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
         loc_lower = location_name.lower()
         items = []
 
@@ -220,11 +213,7 @@ class IMDAdapter(BaseWeatherProvider):
                     area="Nagapattinam Coastal Zone",
                     source=self.name,
                     issued_at=now_utc,
-<<<<<<< HEAD
                     expires_at=expires_24h,
-=======
-                    expires_at=expires_utc,
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
                     retrieved_at=now_utc
                 )
             ]
@@ -239,11 +228,7 @@ class IMDAdapter(BaseWeatherProvider):
                     area="Coimbatore District",
                     source=self.name,
                     issued_at=now_utc,
-<<<<<<< HEAD
                     expires_at=expires_12h,
-=======
-                    expires_at=expires_utc,
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
                     retrieved_at=now_utc
                 )
             ]
