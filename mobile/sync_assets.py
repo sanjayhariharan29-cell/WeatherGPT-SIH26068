@@ -27,9 +27,7 @@ def sync_assets():
         dest_path = os.path.join(ANDROID_PUBLIC_DIR, item)
         
         if os.path.isdir(src_path):
-            if os.path.exists(dest_path):
-                shutil.rmtree(dest_path)
-            shutil.copytree(src_path, dest_path)
+            shutil.copytree(src_path, dest_path, dirs_exist_ok=True)
             print(f"  [DIR]  {item}/ -> assets/public/{item}/")
         else:
             shutil.copy2(src_path, dest_path)

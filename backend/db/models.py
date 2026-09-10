@@ -31,6 +31,11 @@ class User(Base):
     language = Column(String(10), default="ta")
     persona = Column(String(50), default="student")
     role = Column(String(20), default="user", nullable=False)
+    is_verified = Column(Boolean, default=False, nullable=False)
+    verification_token = Column(String(255), nullable=True)
+    verification_token_expires = Column(DateTime(timezone=True), nullable=True)
+    reset_token = Column(String(255), nullable=True)
+    reset_token_expires = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
