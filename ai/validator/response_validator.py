@@ -50,6 +50,7 @@ class ResponseValidator:
         nlu: Optional[NLUResult] = None,
         target_language: Optional[LanguageEnum] = None,
         grounded_context: Optional[Any] = None,
+        historical_weather: Optional[Any] = None,
     ) -> ValidationResult:
         """Performs comprehensive grounding and safety checks on generated response text."""
         issues: List[str] = []
@@ -169,6 +170,24 @@ class ResponseValidator:
                 violations.append(msg)
                 issues.append(msg)
                 violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
+
+            # 1d. Historical Warning Confusion Check (Phase 8 Requirement 4)
+            # Historical data cannot become a current warning when no active warning exists.
+            historical_confusion_patterns = [
+                r"\b(?:flooding|flood|cyclone|storm|heavy\s+rain)\s+is\s+expected\s+today\b",
+                r"\b(?:due\s+to\s+last\s+year|because\s+last\s+year|as\s+last\s+year)\b.*?\b(?:expected|warning|danger)\b",
+                r"\b(?:flood|cyclone|storm)\s+warning\s+(?:is\s+active|in\s+effect|issued)\s+today\b",
+            ]
+            for pat in historical_confusion_patterns:
+                if re.search(pat, lower_text):
+                    msg = (
+                        "Historical Warning Confusion: Historical hazard was converted into an active present-day warning "
+                        "or declared expected today without an active official IMD alert."
+                    )
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
+                    break
 
         # ---------------------------------------------------------
         # 2. Hazard & Severity Validation

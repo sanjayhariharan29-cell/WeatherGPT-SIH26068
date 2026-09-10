@@ -23,6 +23,15 @@ from backend.schemas.weather import (
 from backend.db.models import WeatherRecord
 
 
+from backend.services.cache import provider_cache
+from ai.models import (
+    HistoricalWeatherDataset,
+    LocationInfo as AILocationInfo,
+    WeatherDataType
+)
+from backend.services.exceptions import ProviderError
+
+
 class HistoricalWeatherService:
     """Historical Weather Engine service handling range queries, deduplication, and quality enforcement."""
 
@@ -46,7 +55,7 @@ class HistoricalWeatherService:
 
     @classmethod
     def parse_and_validate_dates(cls, start_date_str: str, end_date_str: str) -> tuple[datetime, datetime]:
-        """Parses ISO date strings, enforces start_date <= end_date, and caps range length."""
+        """Parses ISO date strings, enforces start_date <= end_date, caps range length, and rejects future dates."""
         try:
             start_dt = datetime.fromisoformat(start_date_str)
             if start_dt.tzinfo is None:
@@ -71,6 +80,19 @@ class HistoricalWeatherService:
 
         if start_dt > end_dt:
             raise ValueError(f"Invalid date range: start_date ({start_date_str}) must be <= end_date ({end_date_str}).")
+
+        # Future date prevention: historical weather cannot be in the future
+        now_utc = datetime.now(timezone.utc)
+        if start_dt > (now_utc + timedelta(days=1)):
+            raise ValueError(
+                f"Historical query date cannot be in the future: start_date ({start_date_str}) is ahead of current time. "
+                "For future weather projections, please query live forecast endpoints."
+            )
+        if end_dt > (now_utc + timedelta(days=1)):
+            raise ValueError(
+                f"Historical query date cannot be in the future: end_date ({end_date_str}) is ahead of current time. "
+                "For future weather projections, please query live forecast endpoints."
+            )
 
         delta_days = (end_dt - start_dt).days
         if delta_days > cls.MAX_QUERY_DAYS:
@@ -189,6 +211,13 @@ class HistoricalWeatherService:
         start_dt, end_dt = self.parse_and_validate_dates(start_date, end_date)
         now_utc = datetime.now(timezone.utc).isoformat()
 
+        # Check Cache
+        cache_key = f"hist_{resolved_name}_{resolved_lat:.4f}_{resolved_lon:.4f}_{start_date}_{end_date}_{metric}"
+        if not db_session:
+            cached = provider_cache.get(cache_key)
+            if cached:
+                return cached
+
         # 3. Query Provider
         norm_hist = await self.provider.get_historical_weather(
             resolved_lat, resolved_lon, start_date, end_date, metric
@@ -258,7 +287,7 @@ class HistoricalWeatherService:
         summary_dict = dict(norm_hist.summary)
         summary_dict["record_count"] = len(records_list)
 
-        return HistoricalWeatherResponse(
+        resp = HistoricalWeatherResponse(
             location=resolved_name,
             latitude=resolved_lat,
             longitude=resolved_lon,
@@ -272,6 +301,120 @@ class HistoricalWeatherService:
             units=WeatherUnitsSchema(),
             retrieved_at=now_utc
         )
+        provider_cache.set(cache_key, resp, ttl=86400)
+        return resp
+
+    @property
+    def historical_provider(self) -> BaseWeatherProvider:
+        return self.provider
+
+    async def get_historical_dataset(
+        self,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        location_name: str = "Coimbatore",
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        metric: str = "rainfall",
+        db_session: Optional[Session] = None
+    ) -> HistoricalWeatherDataset:
+        """Retrieves normalized historical weather dataset conforming to AI pipeline contracts."""
+        now_utc = datetime.now(timezone.utc)
+        eff_start = start_date or f"{now_utc.year - 1}-01-01"
+        eff_end = end_date or f"{now_utc.year - 1}-12-31"
+
+        try:
+            hist_resp = await self.fetch_historical_weather(
+                lat=lat,
+                lon=lon,
+                location_name=location_name,
+                start_date=eff_start,
+                end_date=eff_end,
+                metric=metric,
+                db_session=db_session
+            )
+
+            if hist_resp.count == 0 or not hist_resp.records:
+                return HistoricalWeatherDataset(
+                    data_type=WeatherDataType.HISTORICAL,
+                    location=AILocationInfo(
+                        name=hist_resp.location,
+                        latitude=hist_resp.latitude,
+                        longitude=hist_resp.longitude
+                    ),
+                    start_date=eff_start,
+                    end_date=eff_end,
+                    record_count=0,
+                    is_available=False,
+                    data_quality="no_records",
+                    unavailability_reason="No historical records found for this location and date range.",
+                    source=hist_resp.source or "Historical Archive (No Records)",
+                    retrieved_at=now_utc
+                )
+
+            avg_temp = hist_resp.summary.get("average_temperature_c")
+            avg_rain = hist_resp.summary.get("average_annual_rainfall_mm")
+            max_rain = hist_resp.summary.get("max_single_day_rainfall_mm")
+            hottest = hist_resp.summary.get("hottest_month", "May")
+            wettest = hist_resp.summary.get("wettest_month", "November")
+
+            patterns = [
+                f"Historical average temperature: {avg_temp}°C" if avg_temp is not None else "Annual mean temperature tracked",
+                f"Average annual precipitation: {avg_rain} mm" if avg_rain is not None else "Historical rainfall tracked",
+                f"Peak summer temperatures typically observed in {hottest}",
+                f"Maximum rainfall concentration historically recorded in {wettest}"
+            ]
+            recurring_hazards = []
+            if max_rain and max_rain > 100.0:
+                recurring_hazards.append(f"Historical heavy rainfall events (recorded up to {max_rain} mm/day in similar seasons)")
+
+            return HistoricalWeatherDataset(
+                data_type=WeatherDataType.HISTORICAL,
+                location=AILocationInfo(
+                    name=hist_resp.location,
+                    latitude=hist_resp.latitude,
+                    longitude=hist_resp.longitude
+                ),
+                start_date=eff_start,
+                end_date=eff_end,
+                record_count=hist_resp.count,
+                average_temperature_c=avg_temp,
+                total_rainfall_mm=avg_rain,
+                average_annual_rainfall_mm=avg_rain,
+                max_single_day_rainfall_mm=max_rain,
+                hottest_month=hottest,
+                wettest_month=wettest,
+                weather_patterns=patterns,
+                recurring_hazards=recurring_hazards,
+                seasonal_normals={
+                    "summer_peak_month": hottest,
+                    "monsoon_peak_month": wettest,
+                    "annual_mean_temp_c": avg_temp,
+                    "annual_rainfall_mm": avg_rain
+                },
+                records=[r.model_dump() for r in hist_resp.records],
+                source=hist_resp.source,
+                data_quality="verified_archive",
+                retrieved_at=datetime.fromisoformat(hist_resp.retrieved_at) if hist_resp.retrieved_at else now_utc,
+                is_available=True
+            )
+        except Exception as exc:
+            return HistoricalWeatherDataset(
+                data_type=WeatherDataType.HISTORICAL,
+                location=AILocationInfo(
+                    name=location_name,
+                    latitude=lat if lat is not None else 11.0168,
+                    longitude=lon if lon is not None else 76.9558
+                ),
+                start_date=eff_start,
+                end_date=eff_end,
+                record_count=0,
+                is_available=False,
+                data_quality="provider_error",
+                unavailability_reason=str(exc),
+                source="Historical Archive (Unavailable)",
+                retrieved_at=now_utc
+            )
 
     async def fetch_climate_trends(
         self,

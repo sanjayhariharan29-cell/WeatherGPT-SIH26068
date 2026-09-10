@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, List, Optional
 from sqlalchemy.orm import Session
 
+import re
 from backend.services.weather_manager import WeatherManager
 from backend.services.exceptions import ProviderError
 from backend.db.models import Conversation, Message, Advisory, User
@@ -18,8 +19,10 @@ from ai.models import (
     ForecastItem as AIForecastItem,
     OfficialAlert as AIOfficialAlert,
     LocationInfo as AILocationInfo,
+    HistoricalWeatherDataset,
     PersonaEnum,
-    RiskLevelEnum
+    RiskLevelEnum,
+    IntentEnum
 )
 from ai.memory import memory_manager, ContextResolver, ConversationTurn
 
@@ -196,6 +199,49 @@ class ChatIntegrationService:
         user_ctx_str = f"User Profile: Name={user_name}, Persona={persona_enum.value.capitalize()}." if user_name else None
         full_context_summary = f"{user_ctx_str} {resolved.context_summary}" if (user_ctx_str and resolved.context_summary) else (user_ctx_str or resolved.context_summary)
 
+        # 4b. Check for Historical Weather / Seasonal Comparison Queries (Phase 8)
+        historical_dataset = None
+        lower_msg = message.lower()
+        from ai.nlu import parse_query
+        pre_nlu = parse_query(message)
+        is_historical_query = (
+            pre_nlu.intent in (IntentEnum.HISTORICAL_WEATHER, IntentEnum.CLIMATE_TREND)
+            or any(k in lower_msg for k in [
+                "last year", "previous years", "past years", "typical", "unusual compared",
+                "in the past", "last month", "record", "history", "historical",
+                "கடந்த ஆண்டு", "முந்தைய ஆண்டுகள்", "வழக்கமான",
+                "पिछले साल", "पिछले वर्षों", "सामान्य"
+            ])
+            or bool(re.search(r"\b(in|during)\s+(19\d\d|20[0-2]\d)\b", lower_msg))
+        )
+        if is_historical_query:
+            now_year = now_dt.year
+            start_date = None
+            end_date = None
+            year_match = re.search(r"\b(?:in|during|year)\s+(19\d\d|20[0-2]\d)\b", lower_msg)
+            if year_match:
+                y = int(year_match.group(1))
+                start_date = f"{y}-01-01"
+                end_date = f"{y}-12-31"
+            elif any(k in lower_msg for k in ["previous years", "past years", "compared with previous", "compared to previous"]):
+                start_date = f"{now_year - 5}-01-01"
+                end_date = f"{now_year - 1}-12-31"
+            else:
+                start_date = f"{now_year - 1}-01-01"
+                end_date = f"{now_year - 1}-12-31"
+
+            try:
+                historical_dataset = await self.weather_mgr.get_historical_dataset(
+                    lat=resolved_lat,
+                    lon=resolved_lon,
+                    location_name=resolved_name,
+                    start_date=start_date,
+                    end_date=end_date,
+                    db_session=db_session
+                )
+            except Exception:
+                historical_dataset = None
+
         # 5. Process through Person 1's WeatherGPTPipeline
         pipeline_result = self.ai_pipeline.process_query(
             message=resolved.resolved_message,
@@ -207,7 +253,8 @@ class ChatIntegrationService:
             conversation_id=conv_id,
             target_language=language,
             context_summary=full_context_summary,
-            request_id=request_id
+            request_id=request_id,
+            historical_weather=historical_dataset
         )
 
         # Update Short-Term Conversational Memory
@@ -322,4 +369,6 @@ class ChatIntegrationService:
             "advisory": pipeline_result.get("advisory", {}),
             "fallback_used": pipeline_result.get("fallback_used", False),
             "decision_trace": pipeline_result.get("decision_trace"),
+            "historical": pipeline_result.get("historical"),
+            "data_types_used": pipeline_result.get("data_types_used", []),
         }

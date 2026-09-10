@@ -36,6 +36,8 @@ from ai.models import (
     DegradationTelemetry,
     EvidenceLink,
     DecisionTrace,
+    WeatherDataType,
+    HistoricalWeatherDataset,
 )
 from ai.nlu import (
     classify_intent,
@@ -86,6 +88,8 @@ __all__ = [
     "LanguageEnum",
     "IntentEnum",
     "RiskLevelEnum",
+    "WeatherDataType",
+    "HistoricalWeatherDataset",
     "LocationInfo",
     "WeatherRecord",
     "ForecastItem",

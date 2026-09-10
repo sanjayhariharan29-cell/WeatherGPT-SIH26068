@@ -16,6 +16,8 @@ from ai.models import (
     OfficialAlert,
     WeatherReasoningResult,
     WeatherRecord,
+    HistoricalWeatherDataset,
+    WeatherDataType,
 )
 
 
@@ -36,6 +38,7 @@ class GroundedContext:
     advisory_facts: Dict[str, Any]
     formatted_prompt: str
     reference_knowledge: List[Dict[str, Any]] = field(default_factory=list)
+    historical_facts: Optional[Dict[str, Any]] = None
 
 
 def build_grounded_context(
@@ -46,7 +49,8 @@ def build_grounded_context(
     forecast: Optional[List[ForecastItem]] = None,
     safety_guidance: Optional[List[str]] = None,
     reference_knowledge: Optional[List[Any]] = None,
-    context_summary: Optional[str] = None
+    context_summary: Optional[str] = None,
+    historical_weather: Optional[HistoricalWeatherDataset] = None
 ) -> GroundedContext:
     """Builds the comprehensive grounded context object and formatted prompt."""
     forecast = forecast or []
@@ -282,9 +286,63 @@ def build_grounded_context(
     else:
         lines.append("Static Reference Knowledge: NONE_RETRIEVED")
 
+    # 8. Historical Meteorological Archives & Climate Normals
+    historical_facts: Optional[Dict[str, Any]] = None
+    if historical_weather:
+        if historical_weather.is_available:
+            historical_facts = {
+                "data_type": WeatherDataType.HISTORICAL.value,
+                "location": historical_weather.location.name,
+                "start_date": historical_weather.start_date,
+                "end_date": historical_weather.end_date,
+                "record_count": historical_weather.record_count,
+                "average_temperature_c": historical_weather.average_temperature_c,
+                "average_annual_rainfall_mm": historical_weather.average_annual_rainfall_mm,
+                "total_rainfall_mm": historical_weather.total_rainfall_mm,
+                "max_single_day_rainfall_mm": historical_weather.max_single_day_rainfall_mm,
+                "hottest_month": historical_weather.hottest_month,
+                "wettest_month": historical_weather.wettest_month,
+                "weather_patterns": historical_weather.weather_patterns,
+                "recurring_hazards": historical_weather.recurring_hazards,
+                "source": historical_weather.source,
+                "status": "AVAILABLE"
+            }
+        else:
+            historical_facts = {
+                "data_type": WeatherDataType.HISTORICAL.value,
+                "location": historical_weather.location.name,
+                "start_date": historical_weather.start_date,
+                "end_date": historical_weather.end_date,
+                "status": "UNAVAILABLE",
+                "unavailability_reason": historical_weather.unavailability_reason or "No historical records found for requested period."
+            }
+
+    lines.append("")
+    lines.append("--- 8. HISTORICAL WEATHER INTELLIGENCE & CLIMATE ARCHIVES (PAST RECORDS) ---")
+    if historical_facts and historical_facts.get("status") == "AVAILABLE":
+        lines.append(f"• Dataset Scope: Historical meteorological observations for {historical_facts['location']} from {historical_facts['start_date']} to {historical_facts['end_date']}")
+        lines.append(f"• Historical Average Temperature: {historical_facts.get('average_temperature_c', 'N/A')}°C")
+        lines.append(f"• Historical Average Annual Rainfall: {historical_facts.get('average_annual_rainfall_mm', 'N/A')} mm")
+        if historical_facts.get('max_single_day_rainfall_mm'):
+            lines.append(f"• Max Single-Day Rainfall Recorded: {historical_facts['max_single_day_rainfall_mm']} mm")
+        lines.append(f"• Seasonal Normals: Hottest Month = {historical_facts.get('hottest_month', 'N/A')}, Wettest Month = {historical_facts.get('wettest_month', 'N/A')}")
+        if historical_facts.get('weather_patterns'):
+            lines.append(f"• Typical Recurring Patterns: {'; '.join(historical_facts['weather_patterns'])}")
+        if historical_facts.get('recurring_hazards'):
+            lines.append(f"• Historical Hazard Context: {'; '.join(historical_facts['recurring_hazards'])}")
+        lines.append(f"• Archive Source: {historical_facts.get('source', 'NASA POWER / IMD Historical Archive')}")
+        lines.append("")
+        lines.append("CRITICAL SAFETY INVARIANT:")
+        lines.append("Historical data represents PAST meteorological records. Historical records must NEVER be stated as or confused with a current weather warning. If the historical data notes flooding or cyclones occurred in the past, state clearly that it is a historical record and current conditions must be evaluated using current forecasts and official warnings.")
+    elif historical_facts and historical_facts.get("status") == "UNAVAILABLE":
+        lines.append(f"• Historical Archive Status: UNAVAILABLE ({historical_facts.get('unavailability_reason', 'No archive data available for requested dates')})")
+        lines.append("• Instruction: Inform the user that historical records for this specific timeframe are unavailable in official meteorological archives. NEVER fabricate historical data or figures.")
+    else:
+        lines.append("Historical Archives: NOT_QUERIED (Current live observations and forecasts apply)")
+
     if context_summary:
         lines.append("")
-        lines.append("--- 8. SHORT-TERM CONVERSATIONAL CONTEXT ---")
+        lines.append("--- 9. SHORT-TERM CONVERSATIONAL CONTEXT ---")
         lines.append(f"Recent Context: {context_summary}")
         lines.append("[NOTICE: Context resolves conversational references only; live meteorological truth strictly comes from sections 1-4 above.]")
 
@@ -312,5 +370,6 @@ def build_grounded_context(
         missing_fields=missing_fields,
         advisory_facts=advisory_facts,
         formatted_prompt=formatted_prompt,
-        reference_knowledge=ref_facts
+        reference_knowledge=ref_facts,
+        historical_facts=historical_facts
     )

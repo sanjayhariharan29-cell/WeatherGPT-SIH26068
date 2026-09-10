@@ -48,7 +48,14 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
         return IntentEnum.AGRICULTURE_ADVISORY, 0.90
 
     # 5. Historical & Climate Trends
-    if any(k in clean for k in ["last year", "five years", "5 years", "10 years", "history", "historical", "கடந்த ஆண்டு", "पिछले साल"]):
+    if any(k in clean for k in [
+        "last year", "five years", "5 years", "10 years", "history", "historical",
+        "previous years", "past years", "compared with previous years", "compared to previous years",
+        "unusual compared", "typical temperature", "typical rainfall", "typical weather", "typical this month",
+        "normal temperature", "normal rainfall", "in the past", "last month", "last summer", "last monsoon",
+        "கடந்த ஆண்டு", "முந்தைய ஆண்டுகள்", "வழக்கமான வெப்பநிலை", "வழக்கமான மழை",
+        "पिछले साल", "पिछले वर्षों", "सामान्य तापमान", "सामान्य बारिश"
+    ]) or bool(re.search(r"\b(in|during)\s+(19\d\d|20[0-2]\d)\b", clean)):
         if any(k in clean for k in ["trend", "climate change", "hotter over", "increasing", "மாற்றம்", "बदलाव", "परिवर्तन"]):
             return IntentEnum.CLIMATE_TREND, 0.88
         return IntentEnum.HISTORICAL_WEATHER, 0.88

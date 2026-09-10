@@ -105,6 +105,13 @@ class SourceAgreementEnum(str, Enum):
     SINGLE_SOURCE = "single_source"
 
 
+class WeatherDataType(str, Enum):
+    HISTORICAL = "HISTORICAL"
+    CURRENT = "CURRENT"
+    FORECAST = "FORECAST"
+    OFFICIAL_WARNING = "OFFICIAL_WARNING"
+
+
 class LocationInfo(BaseModel):
     name: str
     latitude: float
@@ -115,6 +122,7 @@ class LocationInfo(BaseModel):
 
 class WeatherRecord(BaseModel):
     """Normalized observation schema (docs/06_Data_sources.md)."""
+    data_type: WeatherDataType = WeatherDataType.CURRENT
     location: LocationInfo
     observed_at: datetime
     retrieved_at: datetime
@@ -128,6 +136,7 @@ class WeatherRecord(BaseModel):
 
 
 class ForecastItem(BaseModel):
+    data_type: WeatherDataType = WeatherDataType.FORECAST
     time: str
     temperature: float
     rain_probability: float
@@ -138,6 +147,7 @@ class ForecastItem(BaseModel):
 
 class OfficialAlert(BaseModel):
     """Official severe weather warning (docs/08_Api_Contracts.md)."""
+    data_type: WeatherDataType = WeatherDataType.OFFICIAL_WARNING
     type: str = Field(description="e.g. heavy_rain, cyclone, thunderstorm, heatwave")
     severity: RiskLevelEnum = Field(description="low, medium, high, extreme")
     title: str
@@ -146,6 +156,43 @@ class OfficialAlert(BaseModel):
     issued_at: datetime
     expires_at: datetime
     affected_locations: List[str] = Field(default_factory=list)
+
+
+class HistoricalWeatherDataset(BaseModel):
+    """Normalized historical weather dataset and climate reference for a location."""
+    data_type: WeatherDataType = WeatherDataType.HISTORICAL
+    location: LocationInfo
+    start_date: str
+    end_date: str
+    record_count: int = 0
+    average_temperature_c: Optional[float] = None
+    min_temperature_c: Optional[float] = None
+    max_temperature_c: Optional[float] = None
+    total_rainfall_mm: Optional[float] = None
+    average_annual_rainfall_mm: Optional[float] = None
+    max_single_day_rainfall_mm: Optional[float] = None
+    hottest_month: Optional[str] = None
+    wettest_month: Optional[str] = None
+    weather_patterns: List[str] = Field(default_factory=list)
+    recurring_hazards: List[str] = Field(default_factory=list)
+    seasonal_normals: Dict[str, Any] = Field(default_factory=dict)
+    records: List[Dict[str, Any]] = Field(default_factory=list)
+    source: str = Field(default="NASA POWER / IMD Historical Archive")
+    primary_source: Optional[str] = Field(default="IMD Archive / NASA POWER")
+    data_quality: Optional[str] = Field(default="verified_archive")
+    safety_disclaimer: Optional[str] = Field(
+        default="Historical records reflect past meteorological observations and climate baselines. "
+                "They do not represent active forecasts or warnings."
+    )
+    rainfall_normal_mm: Optional[float] = None
+    temp_normal_c: Optional[float] = None
+    retrieved_at: Optional[datetime] = None
+    is_available: bool = True
+    unavailability_reason: Optional[str] = None
+
+    @property
+    def avg_temperature_c(self) -> Optional[float]:
+        return self.average_temperature_c
 
 
 class ExtractedEntities(BaseModel):
@@ -360,6 +407,8 @@ class DecisionTrace(BaseModel):
     final_recommendation: Optional[str] = None
     explanation_points: List[str] = Field(default_factory=list)
     sources: List[str] = Field(default_factory=list)
+    historical_context: Optional[Dict[str, Any]] = None
+    data_types_used: List[str] = Field(default_factory=list)
 
     def to_debug_dict(self) -> Dict[str, Any]:
         """Controlled debug dictionary for developer testing, SIH demo, and evaluators."""
@@ -419,6 +468,8 @@ class DecisionTrace(BaseModel):
             "final_response_status": self.final_response_status,
             "evidence_links_count": len(self.evidence_links),
             "evidence_links": [link.model_dump() for link in self.evidence_links],
+            "historical_context": self.historical_context,
+            "data_types_used": self.data_types_used,
         }
 
     def to_explanation_dict(self) -> Dict[str, Any]:
@@ -451,4 +502,6 @@ class DecisionTrace(BaseModel):
             "explanation_points": self.explanation_points,
             "sources": self.sources,
             "evidence_links": [link.model_dump() for link in self.evidence_links],
+            "historical_context": self.historical_context,
+            "data_types_used": self.data_types_used,
         }

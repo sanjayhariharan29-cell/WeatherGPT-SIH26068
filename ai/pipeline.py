@@ -11,6 +11,8 @@ from ai.models import (
     OfficialAlert,
     PersonaEnum,
     WeatherRecord,
+    HistoricalWeatherDataset,
+    WeatherDataType,
 )
 from ai.nlu import parse_query, normalize_query
 from ai.rag import retrieve_safety_guidance
@@ -44,7 +46,8 @@ class WeatherGPTPipeline:
         target_language: Optional[Any] = None,
         context_summary: Optional[str] = None,
         request_id: Optional[str] = None,
-        llm_timeout_seconds: Optional[float] = None
+        llm_timeout_seconds: Optional[float] = None,
+        historical_weather: Optional[HistoricalWeatherDataset] = None
     ) -> Dict[str, Any]:
         """Runs the complete conversational pipeline from user text to validated answer."""
         t_start = time.perf_counter()
@@ -190,6 +193,7 @@ class WeatherGPTPipeline:
                 reasoning=reasoning,
                 advisory=advisory,
                 target_language=target_lang,
+                historical_weather=historical_weather,
             )
         else:
             try:
@@ -210,7 +214,8 @@ class WeatherGPTPipeline:
                         safety_guidance=safety_notes,
                         reference_knowledge=ref_chunks,
                         context_summary=resolved_context_summary,
-                        target_language=target_lang
+                        target_language=target_lang,
+                        historical_weather=historical_weather,
                     )
 
                 raw_answer = llm_breaker.execute(
@@ -229,6 +234,7 @@ class WeatherGPTPipeline:
                     reasoning=reasoning,
                     advisory=advisory,
                     target_language=target_lang,
+                    historical_weather=historical_weather,
                 )
         t_llm = (time.perf_counter() - t4) * 1000
 
@@ -242,6 +248,7 @@ class WeatherGPTPipeline:
             advisory=advisory,
             nlu=nlu,
             target_language=target_lang,
+            historical_weather=historical_weather,
         )
         t_validator = (time.perf_counter() - t5) * 1000
 
@@ -266,6 +273,7 @@ class WeatherGPTPipeline:
                 reasoning=reasoning,
                 advisory=advisory,
                 target_language=target_lang,
+                historical_weather=historical_weather,
             )
         t_fallback = (time.perf_counter() - t_fb) * 1000
 
@@ -628,6 +636,34 @@ class WeatherGPTPipeline:
             hz_names = [h.hazard_type.replace('_', ' ').title() for h in reasoning.detected_hazards[:2]]
             explanation_points.append(f"Hazard signals monitored: {', '.join(hz_names)}")
 
+        # Build strict Data Type Tags and Historical Context for Trace (Phase 8 Requirement 1)
+        data_types_used = []
+        if historical_weather:
+            data_types_used.append(WeatherDataType.HISTORICAL.value)
+        if weather and weather.source != "DATA_UNAVAILABLE":
+            data_types_used.append(WeatherDataType.CURRENT.value)
+        if forecast:
+            data_types_used.append(WeatherDataType.FORECAST.value)
+        if active_alerts:
+            data_types_used.append(WeatherDataType.OFFICIAL_WARNING.value)
+
+        historical_context_dict = None
+        if historical_weather:
+            historical_context_dict = {
+                "data_type": WeatherDataType.HISTORICAL.value,
+                "location": historical_weather.location.name,
+                "start_date": historical_weather.start_date,
+                "end_date": historical_weather.end_date,
+                "average_temperature_c": historical_weather.average_temperature_c,
+                "average_annual_rainfall_mm": historical_weather.average_annual_rainfall_mm,
+                "max_single_day_rainfall_mm": historical_weather.max_single_day_rainfall_mm,
+                "hottest_month": historical_weather.hottest_month,
+                "wettest_month": historical_weather.wettest_month,
+                "weather_patterns": historical_weather.weather_patterns,
+                "recurring_hazards": historical_weather.recurring_hazards,
+                "source": historical_weather.source,
+                "is_available": historical_weather.is_available,
+            }
 
         query_summary_str = (cleaned_msg or message or "")[:120]
         decision_trace = DecisionTrace(
@@ -676,6 +712,8 @@ class WeatherGPTPipeline:
             final_recommendation=final_recommendation,
             explanation_points=explanation_points,
             sources=reasoning.sources_used or ["IMD"],
+            historical_context=historical_context_dict,
+            data_types_used=data_types_used,
         )
 
         # Return Canonical Payload conforming to docs/08_Api_Contracts.md & Phase 16/19
@@ -729,6 +767,8 @@ class WeatherGPTPipeline:
             },
             "decision_trace": decision_trace.to_debug_dict(),
             "decision_trace_model": decision_trace,
+            "historical": historical_context_dict,
+            "data_types_used": data_types_used,
         }
 
     # Canonical entrypoint alias (Phase 15 Step 4)

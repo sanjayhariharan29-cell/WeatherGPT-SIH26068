@@ -83,7 +83,18 @@ def extract_entities(text: str) -> ExtractedEntities:
                 break
 
     # 2. Relative Date Extraction
-    if any(k in clean for k in ["day after tomorrow", "parso", "நாளை மறுநாள்", "परसों"]):
+    year_match = re.search(r"\b(?:in|during|year)\s+(19\d\d|20[0-2]\d)\b", clean)
+    if year_match:
+        entities.date = year_match.group(1)
+    elif any(k in clean for k in ["last year", "கடந்த ஆண்டு", "पिछले साल"]):
+        entities.date = "last year"
+    elif any(k in clean for k in ["previous years", "past years", "முந்தைய ஆண்டுகள்", "पिछले वर्षों"]):
+        entities.date = "previous years"
+    elif any(k in clean for k in ["last month", "கடந்த மாதம்", "पिछले महीने"]):
+        entities.date = "last month"
+    elif any(k in clean for k in ["this month", "இந்த மாதம்", "इस महीने"]):
+        entities.date = "this month"
+    elif any(k in clean for k in ["day after tomorrow", "parso", "நாளை மறுநாள்", "परसों"]):
         entities.date = "day after tomorrow"
     elif any(k in clean for k in ["tomorrow", "naalaiku", "nalaiku", "naalaikku", "நாளை", "kal", "कल"]):
         entities.date = "tomorrow"

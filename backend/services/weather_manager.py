@@ -19,7 +19,8 @@ from backend.services.base_provider import BaseWeatherProvider
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
     ForecastItem as AIForecastItem,
-    OfficialAlert as AIOfficialAlert
+    OfficialAlert as AIOfficialAlert,
+    HistoricalWeatherDataset
 )
 
 
@@ -113,6 +114,21 @@ class WeatherManager:
             lat, lon, location_name, start_date, end_date, metric, db_session
         )
         return res.model_dump()
+
+    async def get_historical_dataset(
+        self,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        location_name: str = "Coimbatore",
+        start_date: Optional[str] = None,
+        end_date: Optional[str] = None,
+        metric: str = "rainfall",
+        db_session: Optional[Session] = None
+    ) -> HistoricalWeatherDataset:
+        """Returns normalized AI-ready HistoricalWeatherDataset."""
+        return await self.historical_service.get_historical_dataset(
+            lat, lon, location_name, start_date, end_date, metric, db_session
+        )
 
     async def get_trends(
         self,

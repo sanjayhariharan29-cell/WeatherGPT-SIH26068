@@ -18,6 +18,8 @@ from ai.models import (
     NLUResult,
     WeatherReasoningResult,
     WeatherRecord,
+    HistoricalWeatherDataset,
+    IntentEnum,
 )
 
 
@@ -52,7 +54,8 @@ class GroundedLLMGenerator:
         safety_guidance: Optional[List[str]] = None,
         reference_knowledge: Optional[List[Any]] = None,
         context_summary: Optional[str] = None,
-        target_language: Optional[LanguageEnum] = None
+        target_language: Optional[LanguageEnum] = None,
+        historical_weather: Optional[HistoricalWeatherDataset] = None
     ) -> GroundedResponse:
         """Generates a verified, grounded natural language answer conforming to GroundedResponse contract."""
         context = build_grounded_context(
@@ -63,7 +66,8 @@ class GroundedLLMGenerator:
             forecast=forecast,
             safety_guidance=safety_guidance,
             reference_knowledge=reference_knowledge,
-            context_summary=context_summary
+            context_summary=context_summary,
+            historical_weather=historical_weather
         )
 
         from ai.llm.multilingual import resolve_target_language
@@ -105,7 +109,9 @@ class GroundedLLMGenerator:
 
         # Fallback triggered (due to provider failure, timeout, or failed grounding check)
         self.last_is_fallback = True
-        fallback_answer = self._generate_fallback(nlu, weather, reasoning, advisory, context, target_language=target_lang)
+        fallback_answer = self._generate_fallback(
+            nlu, weather, reasoning, advisory, context, target_language=target_lang, historical_weather=historical_weather
+        )
         return GroundedResponse(
             answer=fallback_answer,
             grounded_facts=[f"{k}: {v}" for k, v in context.observed_facts.items() if v != "UNAVAILABLE"],
@@ -126,7 +132,8 @@ class GroundedLLMGenerator:
         safety_guidance: Optional[List[str]] = None,
         reference_knowledge: Optional[List[Any]] = None,
         context_summary: Optional[str] = None,
-        target_language: Optional[LanguageEnum] = None
+        target_language: Optional[LanguageEnum] = None,
+        historical_weather: Optional[HistoricalWeatherDataset] = None
     ) -> str:
         """String generation interface preserving complete backward compatibility."""
         return self.generate_response(
@@ -138,7 +145,8 @@ class GroundedLLMGenerator:
             safety_guidance=safety_guidance,
             reference_knowledge=reference_knowledge,
             context_summary=context_summary,
-            target_language=target_language
+            target_language=target_language,
+            historical_weather=historical_weather
         ).answer
 
     def _generate_fallback(
@@ -148,7 +156,8 @@ class GroundedLLMGenerator:
         reasoning: WeatherReasoningResult,
         advisory: DecisionAdvisory,
         context: Optional[GroundedContext] = None,
-        target_language: Optional[LanguageEnum] = None
+        target_language: Optional[LanguageEnum] = None,
+        historical_weather: Optional[HistoricalWeatherDataset] = None
     ) -> str:
         """Deterministic, grounded template generator for offline/resilience/guard failure use."""
         from ai.llm.multilingual import resolve_target_language, translate_condition
@@ -171,6 +180,115 @@ class GroundedLLMGenerator:
                 fname = name_match.group(1).strip().split()[0]
                 if fname:
                     user_prefix = f"{fname}, "
+
+        # -----------------------------------------------------------------
+        # Historical Weather & Risk Intelligence Handler
+        # -----------------------------------------------------------------
+        is_historical = False
+        if nlu and nlu.intent in (IntentEnum.HISTORICAL_WEATHER, IntentEnum.CLIMATE_TREND):
+            is_historical = True
+        elif context and context.historical_facts and context.historical_facts.get("status") in ("AVAILABLE", "UNAVAILABLE"):
+            is_historical = True
+        elif historical_weather is not None:
+            is_historical = True
+        elif nlu and any(k in nlu.original_text.lower() for k in ["last year", "previous years", "typical", "unusual compared", "history", "historical"]):
+            is_historical = True
+
+        if is_historical:
+            hf = (context.historical_facts if context else None)
+            if not hf and historical_weather:
+                if historical_weather.is_available:
+                    hf = {
+                        "status": "AVAILABLE",
+                        "location": historical_weather.location.name,
+                        "start_date": historical_weather.start_date,
+                        "end_date": historical_weather.end_date,
+                        "average_temperature_c": historical_weather.average_temperature_c,
+                        "average_annual_rainfall_mm": historical_weather.average_annual_rainfall_mm,
+                        "total_rainfall_mm": historical_weather.total_rainfall_mm,
+                        "max_single_day_rainfall_mm": historical_weather.max_single_day_rainfall_mm,
+                        "hottest_month": historical_weather.hottest_month,
+                        "wettest_month": historical_weather.wettest_month,
+                        "weather_patterns": historical_weather.weather_patterns,
+                        "recurring_hazards": historical_weather.recurring_hazards,
+                        "source": historical_weather.source
+                    }
+                else:
+                    hf = {
+                        "status": "UNAVAILABLE",
+                        "location": historical_weather.location.name,
+                        "start_date": historical_weather.start_date,
+                        "end_date": historical_weather.end_date,
+                        "unavailability_reason": historical_weather.unavailability_reason
+                    }
+
+            if hf and hf.get("status") == "AVAILABLE":
+                h_loc = hf.get("location", loc)
+                start_d = hf.get("start_date", "")
+                end_d = hf.get("end_date", "")
+                rain_val = hf.get("average_annual_rainfall_mm") or hf.get("total_rainfall_mm")
+                temp_val = hf.get("average_temperature_c")
+                hottest_m = hf.get("hottest_month", "May")
+                wettest_m = hf.get("wettest_month", "November")
+                src_name = hf.get("source", "NASA POWER / IMD Historical Archive")
+
+                user_msg = nlu.original_text.lower() if nlu else ""
+                is_comparison = any(c in user_msg for c in ["unusual compared", "compared to previous", "compared with previous", "different from previous", "higher than normal", "lower than normal"])
+
+                if target_lang == LanguageEnum.TA:
+                    lines.append(f"📊 [வரலாற்று வானிலை தரவு — {h_loc}] (கால அளவு: {start_d} முதல் {end_d} வரை):")
+                    if rain_val is not None:
+                        lines.append(f"• பதிவு செய்யப்பட்ட சராசரி மழை அளவு: {rain_val:.1f} மி.மீ.")
+                    if temp_val is not None:
+                        lines.append(f"• வரலாற்று சராசரி வெப்பநிலை: {temp_val:.1f}°C (அதிகபட்ச வெப்ப மாதம்: {hottest_m}, அதிக மழை மாதம்: {wettest_m}).")
+                    if is_comparison and weather:
+                        curr_rain = weather.rainfall_amount_mm or 0.0
+                        comp_text = "வழக்கத்தை விட அதிகம்" if curr_rain > ((rain_val or 950.0) / 52.0) else "வழக்கமான வரம்பிற்குள் உள்ளது"
+                        lines.append(f"• ஒப்பீடு: தற்போதைய மழைவீழ்ச்சி ({curr_rain:.1f} மி.மீ) வரலாற்று சராசரியுடன் ஒப்பிடும்போது {comp_text}.")
+                    lines.append(f"\nஆலோசனை: {advisory.advisory_text}")
+                    lines.append("\n⚠️ [பாதுகாப்பு குறிப்பு]: வரலாற்று தரவுகள் கடந்த கால பதிவுகளை மட்டுமே குறிக்கின்றன. இன்றைய நிலைமையை தற்போதைய முன்னறிவிப்புகள் மற்றும் அதிகாரப்பூர்வ IMD எச்சரிக்கைகள் மூலம் மதிப்பீடு செய்ய வேண்டும்.")
+                    lines.append(f"\n(தகவல் மூலம்: {src_name})")
+                    return "\n".join(lines)
+                elif target_lang == LanguageEnum.HI:
+                    lines.append(f"📊 [ऐतिहासिक मौसम डेटा — {h_loc}] (अवधि: {start_d} से {end_d}):")
+                    if rain_val is not None:
+                        lines.append(f"• दर्ज औसत वार्षिक वर्षा: {rain_val:.1f} मिमी")
+                    if temp_val is not None:
+                        lines.append(f"• ऐतिहासिक औसत तापमान: {temp_val:.1f}°C (सबसे गर्म महीना: {hottest_m}, सबसे अधिक बारिश: {wettest_m})।")
+                    if is_comparison and weather:
+                        curr_rain = weather.rainfall_amount_mm or 0.0
+                        comp_text = "सामान्य से अधिक" if curr_rain > ((rain_val or 950.0) / 52.0) else "सामान्य सीमा में"
+                        lines.append(f"• तुलना: वर्तमान वर्षा ({curr_rain:.1f} मिमी) ऐतिहासिक औसत की तुलना में {comp_text} है।")
+                    lines.append(f"\nसलाह: {advisory.advisory_text}")
+                    lines.append("\n⚠️ [सुरक्षा नोट]: ऐतिहासिक डेटा केवल पिछले रिकॉर्ड को दर्शाता है। आज की स्थिति का मूल्यांकन वर्तमान पूर्वानुमान और आधिकारिक IMD चेतावनियों के आधार पर किया जाना चाहिए।")
+                    lines.append(f"\n(स्रोत: {src_name})")
+                    return "\n".join(lines)
+                else:
+                    lines.append(f"📊 Historical Weather Intelligence for {h_loc} (Period: {start_d} to {end_d}):")
+                    if rain_val is not None:
+                        lines.append(f"• Recorded Annual Average Precipitation: {rain_val:.1f} mm")
+                    if temp_val is not None:
+                        lines.append(f"• Historical Average Temperature: {temp_val:.1f}°C (Typical peak summer: {hottest_m}, wettest month: {wettest_m})")
+                    if hf.get("max_single_day_rainfall_mm"):
+                        lines.append(f"• Extreme Historical Event: Max single-day rainfall of {hf['max_single_day_rainfall_mm']:.1f} mm recorded.")
+                    if is_comparison and weather:
+                        curr_rain = weather.rainfall_amount_mm or 0.0
+                        benchmark = ((rain_val or 950.0) / 52.0)
+                        comp_desc = f"elevated above typical weekly baseline ({benchmark:.1f} mm)" if curr_rain > benchmark else "within expected seasonal baseline"
+                        lines.append(f"• Seasonal Comparison: Current observed rainfall ({curr_rain:.1f} mm) is {comp_desc}.")
+                    lines.append(f"\nAdvisory: {advisory.advisory_text}")
+                    lines.append("\n⚠️ Safety Notice: Historical records reflect past climate patterns and must not be confused with current conditions. Today's decisions should be evaluated using live forecasts and official IMD warnings.")
+                    lines.append(f"\n(Source: {src_name})")
+                    return "\n".join(lines)
+            elif hf and hf.get("status") == "UNAVAILABLE":
+                h_loc = hf.get("location", loc)
+                start_d = hf.get("start_date", "")
+                end_d = hf.get("end_date", "")
+                lines.append(f"Historical weather records for {h_loc} ({start_d} to {end_d}) are currently unavailable in official meteorological archives.")
+                lines.append("SkyZen does not fabricate historical statistics when archive records cannot be retrieved.")
+                lines.append(f"\nAdvisory: {advisory.advisory_text}")
+                lines.append("\nPlease refer to current live weather observations and official IMD forecast warnings.")
+                return "\n".join(lines)
 
         if target_lang == LanguageEnum.TA:
             temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "கிடைக்கவில்லை"
