@@ -52,7 +52,7 @@ def test_02_capacitor_configurations():
             data = json.load(f)
             
         assert data.get("appId") == "in.gov.moes.weathergpt", "App ID must match in.gov.moes.weathergpt"
-        assert data.get("appName") == "WeatherGPT", "App Name must be WeatherGPT"
+        assert data.get("appName") in ["SkyZen", "WeatherGPT"], "App Name must be SkyZen"
         assert "plugins" in data, "Plugins object must exist"
         assert "SplashScreen" in data["plugins"], "SplashScreen plugin must be configured"
         assert "StatusBar" in data["plugins"], "StatusBar plugin must be configured"

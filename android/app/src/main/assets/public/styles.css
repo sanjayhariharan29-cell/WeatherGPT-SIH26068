@@ -129,6 +129,37 @@ body {
   align-items: center;
   gap: 8px;
   box-shadow: 0 1px 2px rgba(0,0,0,0.05);
+  transition: all 0.2s ease;
+}
+
+.offline-bar.degraded {
+  background: #EFF6FF;
+  color: #1E40AF;
+  border-color: #BFDBFE;
+}
+
+.offline-bar.stale {
+  background: #FEF3C7;
+  color: #92400E;
+  border-color: #FCD34D;
+}
+
+.offline-bar.offline {
+  background: #FEF2F2;
+  color: #991B1B;
+  border-color: #FECACA;
+}
+
+.offline-bar.unavailable {
+  background: #F3F4F6;
+  color: #4B5563;
+  border-color: #E5E7EB;
+}
+
+.offline-bar.online {
+  background: #F0FDF4;
+  color: #166534;
+  border-color: #BBF7D0;
 }
 
 .mobile-notice {

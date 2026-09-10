@@ -127,6 +127,21 @@ class SkyZenNotificationManager {
     // 4. Action Performed (User tapped notification in system tray)
     plugin.addListener("pushNotificationActionPerformed", (action) => {
       console.log("[SkyZen FCM] Notification tapped from system tray:", action);
+      const notificationData = action?.notification?.data || {};
+      const targetDistrict = notificationData.district || notificationData.location;
+
+      if (targetDistrict) {
+        const locSelect = document.getElementById("locationSelect");
+        if (locSelect) {
+          for (let i = 0; i < locSelect.options.length; i++) {
+            if (locSelect.options[i].value.toLowerCase() === targetDistrict.toLowerCase()) {
+              locSelect.selectedIndex = i;
+              break;
+            }
+          }
+        }
+      }
+
       if (typeof window.navigateToScreen === "function") {
         window.navigateToScreen("alerts");
       }

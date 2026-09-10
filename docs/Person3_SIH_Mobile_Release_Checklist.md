@@ -11,11 +11,12 @@
 ## 1. APK & Packaging Readiness
 
 - [x] **Frontend Web Assets**: Production assets validated in `frontend/` (zero compile lag, vanilla HTML5/CSS3/ES6).
-- [x] **Capacitor Assets Synchronized**: 100% mirrored to `android/app/src/main/assets/public/` via `mobile/sync_assets.py`.
+- [x] **Capacitor Assets Synchronized**: 100% mirrored to `android/app/src/main/assets/public/` via `npx cap sync android`.
 - [x] **Package Identifier**: `in.gov.moes.weathergpt` declared in `capacitor.config.json` and `AndroidManifest.xml`.
+- [x] **Application Branding**: `SkyZen` configured across Capacitor config and `strings.xml`.
 - [x] **SDK Targets**: Target SDK 34 (Android 14) / Min SDK 22 (Android 5.1 Lollipop).
 - [x] **Zero Secrets / Artifact Safety**: Zero embedded API keys, tokens, or `.env` files present in mobile assets.
-- [ ] **Native APK Binary Compilation**: `./gradlew assembleDebug` (Requires JDK 17+ on build runner — owned by Person 4).
+- [x] **Native APK Binary Compilation**: `./gradlew assembleRelease` and `./gradlew assembleDebug` passed cleanly with Gradle 8.2.1 / JDK 17 (`app-release-unsigned.apk` generated).
 
 ---
 

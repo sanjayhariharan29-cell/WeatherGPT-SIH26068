@@ -1,9 +1,16 @@
 /**
- * WeatherGPT Global Runtime Environment Configuration
+ * SkyZen Global Runtime Environment Configuration
  * 
- * In production hosting (e.g. Render, Railway, AWS, Cloud Run), window.ENV.API_BASE
- * can be overridden to point to a custom API host or relative API prefix.
+ * - Web Deployments (Cloud Run, Docker, Reverse Proxy):
+ *   Defaults to relative "/api/v1" communicating with same-origin backend.
+ * 
+ * - Native Android / Capacitor (Physical Phone / Emulator):
+ *   Set window.SKYZEN_API_BASE or window.SKYZEN_PRODUCTION_API_URL to your deployed
+ *   production backend URL (e.g., https://api.skyzen.gov.in/api/v1).
+ *   Alternatively, configure dynamically via in-app Settings > API Environment Server.
  */
 window.ENV = window.ENV || {
-  API_BASE: "/api/v1"
+  API_BASE: (typeof window !== "undefined" && (window.SKYZEN_API_BASE || window.SKYZEN_PRODUCTION_API_URL)) || "/api/v1",
+  PRODUCTION_API_BASE: (typeof window !== "undefined" && (window.SKYZEN_PRODUCTION_API_URL || window.SKYZEN_API_BASE)) || null
 };
+

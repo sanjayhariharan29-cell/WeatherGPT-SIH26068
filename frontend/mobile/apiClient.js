@@ -8,9 +8,31 @@
 class WeatherGPTApiClient {
   constructor() {
     const savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
-    this.baseUrl = savedBase || (window.ENV && window.ENV.API_BASE) || "/api/v1";
+    const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.API_BASE || window.ENV.PRODUCTION_API_BASE)) || null;
+
+    if (savedBase) {
+      this.baseUrl = savedBase.trim().replace(/\/+$/, "");
+    } else if (envBase && envBase !== "/api/v1") {
+      this.baseUrl = envBase.trim().replace(/\/+$/, "");
+    } else {
+      this.baseUrl = "/api/v1";
+    }
     this.tokenKey = "weathergpt_auth_token";
     this.timeoutMs = 10000;
+  }
+
+  isNativeAndroid() {
+    return Boolean(
+      (typeof window !== "undefined" && window.Capacitor && window.Capacitor.isNativePlatform()) ||
+      (typeof window !== "undefined" && window.location && window.location.protocol === "https:" && window.location.hostname === "localhost" && !window.location.port)
+    );
+  }
+
+  hasConfiguredBackend() {
+    if (this.isNativeAndroid()) {
+      return Boolean(this.baseUrl && this.baseUrl !== "/api/v1" && !this.baseUrl.includes("localhost"));
+    }
+    return true;
   }
 
   // Dynamic Base URL for Android WebView / Local Dev / Prod
@@ -20,7 +42,7 @@ class WeatherGPTApiClient {
 
   setBaseUrl(url) {
     if (url) {
-      this.baseUrl = url.replace(/\/+$/, "");
+      this.baseUrl = url.trim().replace(/\/+$/, "");
       if (typeof localStorage !== "undefined") {
         localStorage.setItem("weathergpt_api_base", this.baseUrl);
       }
@@ -68,6 +90,11 @@ class WeatherGPTApiClient {
   async request(endpoint, options = {}) {
     if (!navigator.onLine) {
       throw new Error("NETWORK_OFFLINE: You are currently offline. Please check your internet connection.");
+    }
+
+    // Guard against unconfigured relative /api/v1 on native Android
+    if (this.isNativeAndroid() && (!this.baseUrl || this.baseUrl === "/api/v1")) {
+      throw new Error("PRODUCTION_BACKEND_URL_REQUIRED: Production backend URL is not configured. Please set your SkyZen API server in Settings.");
     }
 
     const controller = new AbortController();

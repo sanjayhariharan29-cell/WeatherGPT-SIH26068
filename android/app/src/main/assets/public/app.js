@@ -110,24 +110,74 @@ function handleHashNavigation() {
   navigateToScreen(target);
 }
 
-// 2. Offline / Connectivity Monitoring
-function setupNetworkMonitoring() {
-  const offlineBar = document.getElementById("offlineBar");
+// 2. Offline / Connectivity & System State Monitoring
+let currentSystemState = "ONLINE";
 
-  function updateStatus() {
-    if (navigator.onLine) {
-      offlineBar.classList.add("hidden");
-    } else {
+function updateSystemStateBanner(state, details = {}) {
+  const offlineBar = document.getElementById("offlineBar");
+  const iconElem = document.getElementById("offlineBarIcon");
+  const textElem = document.getElementById("offlineBarText");
+  if (!offlineBar || !iconElem || !textElem) return;
+
+  currentSystemState = state;
+  offlineBar.className = "offline-bar";
+
+  switch (state) {
+    case "OFFLINE":
+      offlineBar.classList.add("offline");
+      iconElem.textContent = "cloud_off";
+      textElem.textContent = "You're offline. Reconnect to refresh weather.";
       offlineBar.classList.remove("hidden");
+      break;
+    case "DATA_STALE":
+      offlineBar.classList.add("stale");
+      iconElem.textContent = "history";
+      const updatedStr = details.updated ? `Last updated: ${details.updated}` : "Showing recently cached weather";
+      textElem.textContent = `${updatedStr} (Status: DATA STALE)`;
+      offlineBar.classList.remove("hidden");
+      break;
+    case "DEGRADED":
+      offlineBar.classList.add("degraded");
+      iconElem.textContent = "warning";
+      textElem.textContent = "Some weather sources are unavailable (DEGRADED).";
+      offlineBar.classList.remove("hidden");
+      break;
+    case "SERVICE_UNAVAILABLE":
+      offlineBar.classList.add("unavailable");
+      iconElem.textContent = "error";
+      textElem.textContent = "Weather service temporarily unavailable. Please try again later.";
+      offlineBar.classList.remove("hidden");
+      break;
+    case "ONLINE":
+    default:
+      offlineBar.classList.add("online", "hidden");
+      iconElem.textContent = "cloud_done";
+      textElem.textContent = "Weather data is live.";
+      break;
+  }
+}
+
+function setupNetworkMonitoring() {
+  function updateNetworkStatus() {
+    if (navigator.onLine) {
+      if (currentSystemState === "OFFLINE") {
+        updateSystemStateBanner("ONLINE");
+      }
+    } else {
+      updateSystemStateBanner("OFFLINE");
     }
   }
 
+  let reconnectDebounce = null;
   window.addEventListener("online", () => {
-    updateStatus();
-    loadCurrentWeather(true);
+    updateNetworkStatus();
+    if (reconnectDebounce) clearTimeout(reconnectDebounce);
+    reconnectDebounce = setTimeout(() => {
+      loadCurrentWeather(true);
+    }, 600);
   });
-  window.addEventListener("offline", updateStatus);
-  updateStatus();
+  window.addEventListener("offline", updateNetworkStatus);
+  updateNetworkStatus();
 }
 
 // 3. User Feedback & Notices
@@ -294,18 +344,48 @@ function setupEventListeners() {
 
   // Environment Server Switcher (Settings Screen)
   const envSelect = document.getElementById("envSelect");
+  const customEnvContainer = document.getElementById("customEnvContainer");
+  const customEnvInput = document.getElementById("customEnvInput");
+  const saveCustomEnvBtn = document.getElementById("saveCustomEnvBtn");
+
   if (envSelect) {
     const currentBase = window.apiClient.getBaseUrl();
+    let matched = false;
     for (let i = 0; i < envSelect.options.length; i++) {
       if (envSelect.options[i].value === currentBase) {
         envSelect.selectedIndex = i;
+        matched = true;
         break;
       }
     }
+    if (!matched && currentBase && currentBase !== "/api/v1") {
+      envSelect.value = "custom";
+      if (customEnvContainer) customEnvContainer.classList.remove("hidden");
+      if (customEnvInput) customEnvInput.value = currentBase;
+    }
+
     envSelect.addEventListener("change", () => {
-      window.apiClient.setBaseUrl(envSelect.value);
-      showMobileNotice(`API endpoint updated: ${envSelect.value}`, "info", 3000);
+      if (envSelect.value === "custom") {
+        if (customEnvContainer) customEnvContainer.classList.remove("hidden");
+        if (customEnvInput) customEnvInput.focus();
+      } else {
+        if (customEnvContainer) customEnvContainer.classList.add("hidden");
+        window.apiClient.setBaseUrl(envSelect.value);
+        showMobileNotice(`API endpoint updated: ${envSelect.value}`, "info", 3000);
+      }
     });
+
+    if (saveCustomEnvBtn && customEnvInput) {
+      saveCustomEnvBtn.addEventListener("click", () => {
+        const val = (customEnvInput.value || "").trim();
+        if (!val || (!val.startsWith("http://") && !val.startsWith("https://"))) {
+          showMobileNotice("Please enter a valid HTTP or HTTPS backend URL.", "warning", 4000);
+          return;
+        }
+        window.apiClient.setBaseUrl(val);
+        showMobileNotice(`Custom backend URL saved: ${val}`, "info", 3500);
+      });
+    }
   }
 
   // Add Location Modal Listeners
@@ -1470,18 +1550,30 @@ function renderWeatherCard(data) {
 
   // Freshness Badge (Strict test assertions match)
   const freshnessTag = document.getElementById("dataFreshnessTag");
-  if (data.cached) {
+  if (data.system_state === "DATA_STALE" || (data.cached && data.data_freshness === "STALE_DEGRADED")) {
+    freshnessTag.textContent = "Data Stale (Cached)";
+    freshnessTag.className = "freshness-tag partial";
+    updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
+  } else if (data.cached || data.system_state === "OFFLINE") {
     freshnessTag.textContent = "Cached Telemetry (Offline)";
     freshnessTag.className = "freshness-tag partial";
-  } else if (data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
+    updateSystemStateBanner("OFFLINE");
+  } else if (data.system_state === "DEGRADED") {
+    freshnessTag.textContent = "Degraded Telemetry";
+    freshnessTag.className = "freshness-tag partial";
+    updateSystemStateBanner("DEGRADED");
+  } else if (data.system_state === "SERVICE_UNAVAILABLE" || data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
     freshnessTag.textContent = "Data Unavailable";
     freshnessTag.className = "freshness-tag unavailable";
-  } else if (data.data_status === "PARTIAL" || data.source !== "IMD") {
+    updateSystemStateBanner("SERVICE_UNAVAILABLE");
+  } else if (data.data_status === "PARTIAL" || (data.source && data.source.includes("Fallback"))) {
     freshnessTag.textContent = "Partial Telemetry";
     freshnessTag.className = "freshness-tag partial";
+    updateSystemStateBanner("DEGRADED");
   } else {
     freshnessTag.textContent = "Fresh Telemetry";
     freshnessTag.className = "freshness-tag fresh";
+    updateSystemStateBanner("ONLINE");
   }
 
   // Temperature rendering (No fake zeros)
@@ -1759,28 +1851,70 @@ function renderAlertsList(alerts) {
     const item = document.createElement("div");
     const sev = a.severity || 'moderate';
     item.className = `disaster-item ${sev}`;
+
+    let validityStr = "";
+    if (a.valid_from && a.expires_at) {
+      try {
+        const vf = new Date(a.valid_from).toLocaleString();
+        const exp = new Date(a.expires_at).toLocaleString();
+        validityStr = `${vf} to ${exp}`;
+      } catch (e) {
+        validityStr = `${a.valid_from} to ${a.expires_at}`;
+      }
+    } else if (a.expires_at) {
+      try {
+        validityStr = `Until ${new Date(a.expires_at).toLocaleString()}`;
+      } catch (e) {
+        validityStr = `Until ${a.expires_at}`;
+      }
+    }
+
+    const areaName = a.area || (a.affected_locations && a.affected_locations.length > 0 ? a.affected_locations.join(", ") : "District Bulletin");
+    const instructions = a.instructions || "";
+
     item.innerHTML = `
-      <div style="display:flex; justify-content:space-between; align-items:center;">
-        <strong style="font-size:15px; color:var(--text-primary);">${escapeHTML(a.title)}</strong>
-        <span class="alert-badge ${sev}" style="font-size:10px;">${(a.severity || 'WARNING').toUpperCase()}</span>
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+        <span class="official-imd-badge" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
+          <span class="material-symbols-rounded icon-sm" style="font-size:14px;">verified</span>
+          OFFICIAL IMD WARNING
+        </span>
+        <span class="alert-badge ${sev}" style="font-size:10px; font-weight:700;">${(a.severity || 'WARNING').toUpperCase()}</span>
       </div>
+      <strong style="font-size:15px; color:var(--text-primary); display:block;">${escapeHTML(a.title)}</strong>
       <p style="font-size:13px; color:var(--text-secondary); margin-top:4px;">${escapeHTML(a.description)}</p>
+      
+      <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:12px; color:var(--text-secondary);">
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-rounded icon-sm" style="color:var(--alert-red, #ef4444); font-size:16px;">location_on</span>
+          <span><strong>Affected Area:</strong> ${escapeHTML(areaName)}</span>
+        </div>
+        ${validityStr ? `
+        <div style="display:flex; align-items:center; gap:6px;">
+          <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue, #3b82f6); font-size:16px;">schedule</span>
+          <span><strong>Validity:</strong> ${escapeHTML(validityStr)}</span>
+        </div>` : ''}
+      </div>
+
+      ${instructions ? `
+      <div class="official-instructions" style="background:rgba(239, 68, 68, 0.08); border-left:3px solid var(--alert-red, #ef4444); padding:8px 10px; margin-top:8px; border-radius:4px;">
+        <strong style="font-size:12px; color:var(--text-primary); display:flex; align-items:center; gap:4px;">
+          <span class="material-symbols-rounded icon-sm" style="font-size:16px; color:var(--alert-red, #ef4444);">emergency</span>
+          Official Safety Instructions:
+        </strong>
+        <p style="font-size:12px; margin:4px 0 0 0; color:var(--text-primary);">${escapeHTML(instructions)}</p>
+      </div>` : `
       <div class="impact-checklist">
         <strong>Potential Impacts & Safety Guidance:</strong>
         <div class="impact-item">
           <span class="material-symbols-rounded icon-sm" style="color:var(--alert-amber);">warning</span>
-          <span>Waterlogging on arterial roads and low-lying zones.</span>
+          <span>Follow official district collector advisories and stay alert.</span>
         </div>
-        <div class="impact-item">
-          <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">visibility</span>
-          <span>Reduced driving visibility during peak precipitation hours.</span>
-        </div>
-        <div class="impact-item">
-          <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">shield</span>
-          <span>Carry rain gear and follow official district collector advisories.</span>
-        </div>
+      </div>`}
+
+      <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; color:var(--text-muted);">
+        <span>Authority: <strong>${escapeHTML(a.source || 'IMD')}</strong> (India Meteorological Department)</span>
+        ${a.source_url ? `<a href="${escapeHTML(a.source_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary-blue); text-decoration:none; display:inline-flex; align-items:center; gap:2px;"><span class="material-symbols-rounded icon-sm" style="font-size:14px;">open_in_new</span>Official Bulletin</a>` : ''}
       </div>
-      <span style="font-size:11px; color:var(--text-muted); margin-top:6px;">Source: ${escapeHTML(a.source || 'IMD')}</span>
     `;
     disasterList.appendChild(item);
   });
@@ -2076,14 +2210,16 @@ function appendBotMessage(data) {
       const alertTitle = escapeHTML(alert.title || "Official Warning");
       const alertDesc = escapeHTML(alert.description || "");
       const alertSource = escapeHTML(alert.source || "IMD");
+      const alertInstructions = alert.instructions ? `<div style="margin-top:6px; font-size:12px; color:var(--text-primary);"><strong>Official Instructions:</strong> ${escapeHTML(alert.instructions)}</div>` : "";
       warningsHtml += `
         <div class="chat-warning-box">
           <div class="chat-warning-title">
-            <span class="material-symbols-rounded icon-sm">warning</span>
-            <span>OFFICIAL WARNING: ${alertTitle}</span>
+            <span class="material-symbols-rounded icon-sm" style="color:#ffffff;">verified</span>
+            <span>OFFICIAL IMD WARNING: ${alertTitle}</span>
           </div>
           <p class="chat-warning-desc">${alertDesc}</p>
-          <div class="chat-warning-source">Authoritative Source: ${alertSource}</div>
+          ${alertInstructions}
+          <div class="chat-warning-source">Authoritative Meteorological Source: ${alertSource} (India Meteorological Department)</div>
         </div>
       `;
     });

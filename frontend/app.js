@@ -344,18 +344,48 @@ function setupEventListeners() {
 
   // Environment Server Switcher (Settings Screen)
   const envSelect = document.getElementById("envSelect");
+  const customEnvContainer = document.getElementById("customEnvContainer");
+  const customEnvInput = document.getElementById("customEnvInput");
+  const saveCustomEnvBtn = document.getElementById("saveCustomEnvBtn");
+
   if (envSelect) {
     const currentBase = window.apiClient.getBaseUrl();
+    let matched = false;
     for (let i = 0; i < envSelect.options.length; i++) {
       if (envSelect.options[i].value === currentBase) {
         envSelect.selectedIndex = i;
+        matched = true;
         break;
       }
     }
+    if (!matched && currentBase && currentBase !== "/api/v1") {
+      envSelect.value = "custom";
+      if (customEnvContainer) customEnvContainer.classList.remove("hidden");
+      if (customEnvInput) customEnvInput.value = currentBase;
+    }
+
     envSelect.addEventListener("change", () => {
-      window.apiClient.setBaseUrl(envSelect.value);
-      showMobileNotice(`API endpoint updated: ${envSelect.value}`, "info", 3000);
+      if (envSelect.value === "custom") {
+        if (customEnvContainer) customEnvContainer.classList.remove("hidden");
+        if (customEnvInput) customEnvInput.focus();
+      } else {
+        if (customEnvContainer) customEnvContainer.classList.add("hidden");
+        window.apiClient.setBaseUrl(envSelect.value);
+        showMobileNotice(`API endpoint updated: ${envSelect.value}`, "info", 3000);
+      }
     });
+
+    if (saveCustomEnvBtn && customEnvInput) {
+      saveCustomEnvBtn.addEventListener("click", () => {
+        const val = (customEnvInput.value || "").trim();
+        if (!val || (!val.startsWith("http://") && !val.startsWith("https://"))) {
+          showMobileNotice("Please enter a valid HTTP or HTTPS backend URL.", "warning", 4000);
+          return;
+        }
+        window.apiClient.setBaseUrl(val);
+        showMobileNotice(`Custom backend URL saved: ${val}`, "info", 3500);
+      });
+    }
   }
 
   // Add Location Modal Listeners

@@ -1333,10 +1333,19 @@
             <div class="auth-form-group">
               <label for="envSelect">API Environment Server</label>
               <select id="envSelect" class="styled-select" aria-label="API Environment Server">
-                <option value="/api/v1">Production / Web Shell (/api/v1)</option>
+                <option value="/api/v1">Production Web Shell (/api/v1)</option>
+                <option value="custom">Custom Production Server (HTTPS)...</option>
                 <option value="http://localhost:8000/api/v1">Local Dev Server (localhost:8000)</option>
                 <option value="http://10.0.2.2:8000/api/v1">Android Emulator (10.0.2.2:8000)</option>
               </select>
+            </div>
+
+            <div id="customEnvContainer" class="auth-form-group hidden" style="margin-top: 8px;">
+              <label for="customEnvInput">Custom Backend URL (e.g. https://api.example.com/api/v1)</label>
+              <div style="display:flex; gap:8px;">
+                <input type="url" id="customEnvInput" class="styled-input" placeholder="https://api.skyzen.gov.in/api/v1" aria-label="Custom Backend URL" />
+                <button type="button" id="saveCustomEnvBtn" class="action-btn" style="padding: 0 16px; min-height:42px; font-size:13px;">Save</button>
+              </div>
             </div>
 
             <div style="padding:12px; background:var(--blue-subtle); border-radius:var(--radius-md); font-size:12px; color:var(--text-secondary);">
