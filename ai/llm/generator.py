@@ -394,7 +394,7 @@ class GroundedLLMGenerator:
                 )
             else:
                 lines.append(
-                    f"{user_prefix}in {loc}, current observation data is partially unavailable (Temperature: {temp_str}, Precipitation probability: {rain_str})." if user_prefix else f"In {loc}, current observation data is partially unavailable (Temperature: {temp_str}, Precipitation probability: {rain_str})."
+                    f"{user_prefix}in {loc}, current rainfall and live weather conditions could not be verified because live weather data is unavailable." if user_prefix else f"In {loc}, current rainfall and live weather conditions could not be verified because live weather data is unavailable."
                 )
 
             # Schedule-aware commute decision assistance (deterministic Phase 7)
@@ -404,17 +404,22 @@ class GroundedLLMGenerator:
             if has_sched or "umbrella" in user_text or ("8 am" in user_text and "5 pm" in user_text) or "commute" in user_text:
                 dep_t = sched.get("departure_time", "8:00 AM")
                 ret_t = sched.get("return_time", "5:00 PM")
-                rec_umb = sched.get("recommend_umbrella", False)
-                if not sched and weather and weather.rain_probability is not None:
-                    rec_umb = (weather.rain_probability >= 30.0 or bool(reasoning.active_warnings))
-                umbrella_rec = "Yes, carrying an umbrella is recommended" if rec_umb else "Carrying an umbrella is not strictly required for dry morning hours, but recommended if evening clouds build"
-                risk_lvl = sched.get("departure_risk", "low")
-                dep_prob_val = sched.get("departure_prob", weather.rain_probability if weather and weather.rain_probability is not None else 0.0)
-                commute_line = f"{user_prefix}your commute has a {risk_lvl} rain risk around {dep_t}." if user_prefix else f"Your commute has a {risk_lvl} rain risk around {dep_t}."
-                lines.append(f"\nCommute Decision ({dep_t} Departure — {ret_t} Return):")
-                lines.append(f"- {commute_line}")
-                lines.append(f"- Recommendation: {user_prefix}{umbrella_rec.lower() if user_prefix else umbrella_rec}.")
-                lines.append(f"- Precipitation Risk: {dep_prob_val:.0f}% precipitation chance during transit window.")
+                if not weather and not sched:
+                    lines.append(f"\nCommute Decision:")
+                    lines.append(f"- Current rainfall and transit conditions could not be verified because live weather data is unavailable.")
+                    lines.append(f"- Recommendation: Check official IMD advisories before departure.")
+                else:
+                    rec_umb = sched.get("recommend_umbrella", False)
+                    if not sched and weather and weather.rain_probability is not None:
+                        rec_umb = (weather.rain_probability >= 30.0 or bool(reasoning.active_warnings))
+                    umbrella_rec = "Yes, carrying an umbrella is recommended" if rec_umb else "Carrying an umbrella is not strictly required for dry morning hours, but recommended if evening clouds build"
+                    risk_lvl = sched.get("departure_risk", "low")
+                    dep_prob_val = sched.get("departure_prob", weather.rain_probability if weather and weather.rain_probability is not None else 0.0)
+                    commute_line = f"{user_prefix}your commute has a {risk_lvl} rain risk around {dep_t}." if user_prefix else f"Your commute has a {risk_lvl} rain risk around {dep_t}."
+                    lines.append(f"\nCommute Decision ({dep_t} Departure — {ret_t} Return):")
+                    lines.append(f"- {commute_line}")
+                    lines.append(f"- Recommendation: {user_prefix}{umbrella_rec.lower() if user_prefix else umbrella_rec}.")
+                    lines.append(f"- Precipitation Risk: {dep_prob_val:.0f}% precipitation chance during transit window.")
 
             lines.append(f"\nAdvisory: {advisory.advisory_text}")
 

@@ -6,6 +6,7 @@ Isolates provider failure modes behind predictable internal exceptions.
 
 from abc import ABC, abstractmethod
 from typing import Dict, Any, List, Optional
+import asyncio
 import httpx
 from backend.config.settings import settings
 from backend.services.exceptions import (
@@ -58,11 +59,15 @@ class BaseWeatherProvider(ABC):
         params: Optional[Dict[str, Any]] = None,
         headers: Optional[Dict[str, str]] = None
     ) -> Dict[str, Any]:
-        """Shared async HTTP request execution with retry policy, connection pooling, and exception mapping."""
+        """Shared async HTTP request execution with retry policy, exponential backoff, and exception mapping."""
         last_exception = None
         client = get_shared_http_client(self.timeout)
 
         for attempt in range(self.max_retries + 1):
+            if attempt > 0:
+                # Exponential backoff delay: 0.05s, 0.1s, 0.2s... capped at 1.0s
+                await asyncio.sleep(min(0.05 * (2 ** (attempt - 1)), 1.0))
+
             try:
                 resp = await client.get(url, params=params, headers=headers)
 
@@ -82,12 +87,13 @@ class BaseWeatherProvider(ABC):
                         diagnostics=diag
                     )
                 elif resp.status_code >= 500:
-                    raise ProviderUnavailableError(
+                    last_exception = ProviderUnavailableError(
                         f"Server error response {resp.status_code}",
                         provider_name=self.name,
                         status_code=resp.status_code,
                         diagnostics=diag
                     )
+                    continue
                 elif resp.status_code != 200:
                     raise ProviderError(
                         f"Unexpected HTTP status {resp.status_code}",

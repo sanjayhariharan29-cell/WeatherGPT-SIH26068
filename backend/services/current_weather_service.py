@@ -53,7 +53,8 @@ class CurrentWeatherService:
         lat: Optional[float] = None,
         lon: Optional[float] = None,
         location_name: str = "Coimbatore",
-        db_session: Optional[Session] = None
+        db_session: Optional[Session] = None,
+        allow_stale: bool = False
     ) -> CurrentWeatherResponse:
         """Fetches, normalizes, compares, and optionally persists current weather observations."""
         self.validate_coordinates(lat, lon)
@@ -63,15 +64,24 @@ class CurrentWeatherService:
         longitude = lon if lon is not None else loc["longitude"]
         resolved_name = loc["name"]
 
-        # 1. Fetch Primary Observation (IMD) with failover to Secondary (Open-Meteo)
-        source_label = f"{self.primary.name} (Primary), {self.secondary.name} (Secondary)"
+        # 1. Fetch Primary & Secondary Observations with failover and resilient caching
+        is_primary_healthy = True
+        is_secondary_healthy = True
         primary_diag: Optional[Dict[str, Any]] = None
+        source_label = f"{self.primary.name} (Primary), {self.secondary.name} (Secondary)"
         provider_status = "HEALTHY"
+
+        primary_obs: Optional[NormalizedWeatherObservation] = None
+        sec_obs: Optional[NormalizedWeatherObservation] = None
+        cache_key = f"current_obs_{resolved_name}_{latitude}_{longitude}"
+
+        from backend.services.cache import provider_cache
 
         try:
             primary_obs = await self.primary.get_current_weather(latitude, longitude, resolved_name)
+            is_primary_healthy = True
         except ProviderError as e:
-            # Primary provider failed -> capture diagnostic details and failover to secondary
+            is_primary_healthy = False
             primary_diag = {
                 "failed_provider": self.primary.name,
                 "error_type": type(e).__name__,
@@ -80,22 +90,78 @@ class CurrentWeatherService:
                 "diagnostics": getattr(e, "diagnostics", {})
             }
             provider_status = "DEGRADED"
-            primary_obs = await self.secondary.get_current_weather(latitude, longitude, resolved_name)
-            source_label = f"{self.secondary.name} (Fallback)"
 
-        # 2. Fetch Secondary Observation for multi-source agreement metric
-        sec_obs: Optional[NormalizedWeatherObservation] = None
-        try:
-            sec_obs = await self.secondary.get_current_weather(latitude, longitude, resolved_name)
+        if is_primary_healthy:
+            # Primary succeeded -> fetch secondary for multi-source agreement metric
+            try:
+                sec_obs = await self.secondary.get_current_weather(latitude, longitude, resolved_name)
+                is_secondary_healthy = True
+                source_label = f"{self.primary.name} (Primary), {self.secondary.name} (Secondary)"
+            except Exception:
+                is_secondary_healthy = False
+                source_label = f"{self.primary.name} (Primary)"
+                provider_status = "DEGRADED"
+                sec_obs = None
+        else:
+            # Primary failed -> failover to secondary as observation
+            try:
+                primary_obs = await self.secondary.get_current_weather(latitude, longitude, resolved_name)
+                is_secondary_healthy = True
+                source_label = f"{self.secondary.name} (Fallback)"
+                sec_obs = primary_obs
+            except Exception:
+                is_secondary_healthy = False
+                sec_obs = None
+
+        # Handle outage when both providers fail
+        if not is_primary_healthy and not is_secondary_healthy:
+            from backend.services.exceptions import ProviderUnavailableError
+            if allow_stale:
+                cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(cache_key, max_stale_seconds=7200)
+                if not cached_val:
+                    cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(
+                        f"imd_current_{resolved_name}_{latitude}_{longitude}", max_stale_seconds=7200
+                    )
+                if not cached_val:
+                    cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(
+                        f"openmeteo_current_{resolved_name}_{latitude}_{longitude}", max_stale_seconds=7200
+                    )
+
+                if cached_val:
+                    primary_obs = cached_val
+                    primary_obs.is_cached = True
+                    primary_obs.cache_age_seconds = cache_age
+                    source_label = f"{cached_val.source} (Cached Telemetry)"
+                    provider_status = "UNAVAILABLE"
+                else:
+                    raise ProviderUnavailableError(
+                        "All weather providers are unavailable and no usable cached observation exists.",
+                        provider_name="All Providers",
+                        diagnostics=primary_diag or {}
+                    )
+            else:
+                sec_name = getattr(self.secondary, "name", "Open-Meteo")
+                raise ProviderUnavailableError(
+                    f"All weather providers are unavailable: {self.primary.name} and {sec_name}",
+                    provider_name=sec_name,
+                    diagnostics=primary_diag or {}
+                )
+        else:
+            # Store successfully retrieved observation for future degraded/offline resilience
+            if primary_obs:
+                provider_cache.set(cache_key, primary_obs)
+
+        # 2. Extract comparison data
+        if sec_obs:
             sec_temp = sec_obs.temperature_c
             sec_rain = sec_obs.rain_probability_pct
-        except Exception as e:
+        else:
             sec_temp = primary_obs.temperature_c
             sec_rain = primary_obs.rain_probability_pct
 
         # 3. Multi-source agreement evaluation using canonical ai.reasoner.agreement
         from ai.reasoner.agreement import evaluate_source_agreement
-        from ai.models import SourceAgreementEnum, WeatherRecord as AIWeatherRecord
+        from ai.models import SourceAgreementEnum
 
         primary_ai_rec = primary_obs.to_ai_weather_record()
         secondary_ai_rec = sec_obs.to_ai_weather_record() if sec_obs else None
@@ -116,11 +182,13 @@ class CurrentWeatherService:
             confidence_level = "CAUTIOUS"
             disagreement_notes = agr_text
 
-        # 4. Freshness and Completeness evaluation
+        # 4. Freshness, Completeness, and System State evaluation
         from backend.services.weather_reliability import (
             evaluate_weather_freshness,
             validate_weather_completeness,
-            FreshnessClassification
+            determine_system_state,
+            FreshnessClassification,
+            SystemStateEnum
         )
 
         fresh_class, obs_age_min, fresh_meta = evaluate_weather_freshness(
@@ -131,6 +199,13 @@ class CurrentWeatherService:
         )
 
         comp_class, val_class, val_issues = validate_weather_completeness(primary_obs.model_dump())
+
+        derived_state = determine_system_state(
+            is_primary_healthy=is_primary_healthy,
+            is_secondary_healthy=is_secondary_healthy,
+            is_cached=getattr(primary_obs, "is_cached", False),
+            freshness=fresh_class
+        ).value
 
         # Update primary_obs reliability fields
         primary_obs.freshness_status = fresh_class.value
@@ -191,7 +266,8 @@ class CurrentWeatherService:
             is_cached=getattr(primary_obs, "is_cached", False),
             cache_age_seconds=getattr(primary_obs, "cache_age_seconds", None),
             provider_status=provider_status,
-            provider_diagnostics=primary_diag
+            provider_diagnostics=primary_diag,
+            system_state=derived_state
         )
 
     def _persist_observation(self, db: Session, obs: NormalizedWeatherObservation) -> None:

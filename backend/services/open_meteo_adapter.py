@@ -74,25 +74,13 @@ class OpenMeteoAdapter(BaseWeatherProvider):
             )
             provider_cache.set(cache_key, obs)
             return obs
-        except ProviderError:
-            # Deterministic fallback when Open-Meteo API is unreachable or times out
-            obs = NormalizedWeatherObservation(
-                location_name=location_name,
-                latitude=latitude,
-                longitude=longitude,
-                temperature_c=28.5,
-                humidity_pct=70.0,
-                rain_probability_pct=60.0,
-                wind_speed_kmh=16.5,
-                rainfall_mm=0.0,
-                condition="Rain",
-                source=self.name,
-                authority_level=self.authority_level,
-                observed_at=now_utc,
-                retrieved_at=now_utc
-            )
-            provider_cache.set(cache_key, obs)
-            return obs
+        except ProviderError as e:
+            # Check if stale cached data is available
+            cached_val, is_fresh, age = provider_cache.get_with_metadata(cache_key)
+            if cached_val:
+                return cached_val
+            # Do NOT fabricate synthetic weather: re-raise provider failure to preserve reliability
+            raise e
 
     async def get_forecast(
         self,

@@ -99,17 +99,47 @@ class AlertService:
 
         source_label = f"{self.primary.name} Official"
         verification_status = "VERIFIED"
+        system_state_val = "ONLINE"
+        now_utc = datetime.now(timezone.utc)
+        now_utc_str = now_utc.isoformat()
+
         try:
             raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
         except ProviderError:
             raw_alerts = []
             source_label = f"{self.primary.name} Official (Degraded)"
             verification_status = "UNVERIFIED"
+            system_state_val = "DEGRADED"
+
+            # Check for unexpired persisted alerts in DB to maintain safety awareness during outages
+            if db_session is not None:
+                try:
+                    persisted_alerts = db_session.query(DBAlert).filter(
+                        DBAlert.location_name == resolved_name
+                    ).all()
+                    for pa in persisted_alerts:
+                        # Only include unexpired alerts; never reactivate expired alerts
+                        if pa.expires_at:
+                            pa_exp = pa.expires_at if pa.expires_at.tzinfo else pa.expires_at.replace(tzinfo=timezone.utc)
+                            if pa_exp > now_utc:
+                                raw_alerts.append(NormalizedAlertItem(
+                                    alert_id=getattr(pa, "alert_id", None) or f"cached_{pa.id}",
+                                    alert_type=pa.alert_type,
+                                    severity=pa.severity,
+                                    title=pa.title,
+                                    description=pa.description,
+                                    instructions=getattr(pa, "instructions", None),
+                                    area=getattr(pa, "area", None) or resolved_name,
+                                    source=f"{pa.source} (Persisted)",
+                                    issued_at=pa.issued_at.isoformat() if pa.issued_at else now_utc_str,
+                                    expires_at=pa.expires_at.isoformat() if pa.expires_at else now_utc_str,
+                                    retrieved_at=now_utc_str
+                                ))
+                except Exception:
+                    pass
 
         from backend.services.alert_engine import normalize_and_validate_imd_alert
 
-        now_utc = datetime.now(timezone.utc)
-        now_utc_str = now_utc.isoformat()
         alert_schemas: List[AlertItemSchema] = []
 
         for item in raw_alerts:
@@ -161,8 +191,8 @@ class AlertService:
             if not active_only or active_flag:
                 alert_schemas.append(schema_item)
 
-        # Optional DB persistence with deduplication
-        if db_session is not None:
+        # Optional DB persistence with deduplication (only when verified fresh)
+        if db_session is not None and verification_status == "VERIFIED":
             self._persist_alerts(db_session, resolved_name, latitude, longitude, alert_schemas)
 
         active_count = sum(1 for a in alert_schemas if a.is_active)
@@ -175,7 +205,8 @@ class AlertService:
             active_count=active_count,
             source=source_label,
             status=verification_status,
-            retrieved_at=now_utc_str
+            retrieved_at=now_utc_str,
+            system_state=system_state_val
         )
 
     def _persist_alerts(

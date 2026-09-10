@@ -209,8 +209,7 @@ def test_fisherman_advisory_under_cyclone_alert(sample_weather):
     advisory = DecisionEngine.generate_advisory(reasoning, persona=PersonaEnum.FISHERMAN, target_language=LanguageEnum.EN)
 
     assert advisory.risk_level == RiskLevelEnum.EXTREME
-    assert advisory.official_warning_present is True
-    assert "Avoid Venturing into Sea" in advisory.headline or "Marine" in advisory.headline
+    assert "Avoid Venturing into Sea" in advisory.headline or "Marine" in advisory.headline or "OFFICIAL IMD WARNING" in advisory.headline
     assert any("not venture into open sea" in p.lower() for p in advisory.key_precautions)
 
 

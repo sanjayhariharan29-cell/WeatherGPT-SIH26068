@@ -110,24 +110,74 @@ function handleHashNavigation() {
   navigateToScreen(target);
 }
 
-// 2. Offline / Connectivity Monitoring
-function setupNetworkMonitoring() {
-  const offlineBar = document.getElementById("offlineBar");
+// 2. Offline / Connectivity & System State Monitoring
+let currentSystemState = "ONLINE";
 
-  function updateStatus() {
-    if (navigator.onLine) {
-      offlineBar.classList.add("hidden");
-    } else {
+function updateSystemStateBanner(state, details = {}) {
+  const offlineBar = document.getElementById("offlineBar");
+  const iconElem = document.getElementById("offlineBarIcon");
+  const textElem = document.getElementById("offlineBarText");
+  if (!offlineBar || !iconElem || !textElem) return;
+
+  currentSystemState = state;
+  offlineBar.className = "offline-bar";
+
+  switch (state) {
+    case "OFFLINE":
+      offlineBar.classList.add("offline");
+      iconElem.textContent = "cloud_off";
+      textElem.textContent = "You're offline. Reconnect to refresh weather.";
       offlineBar.classList.remove("hidden");
+      break;
+    case "DATA_STALE":
+      offlineBar.classList.add("stale");
+      iconElem.textContent = "history";
+      const updatedStr = details.updated ? `Last updated: ${details.updated}` : "Showing recently cached weather";
+      textElem.textContent = `${updatedStr} (Status: DATA STALE)`;
+      offlineBar.classList.remove("hidden");
+      break;
+    case "DEGRADED":
+      offlineBar.classList.add("degraded");
+      iconElem.textContent = "warning";
+      textElem.textContent = "Some weather sources are unavailable (DEGRADED).";
+      offlineBar.classList.remove("hidden");
+      break;
+    case "SERVICE_UNAVAILABLE":
+      offlineBar.classList.add("unavailable");
+      iconElem.textContent = "error";
+      textElem.textContent = "Weather service temporarily unavailable. Please try again later.";
+      offlineBar.classList.remove("hidden");
+      break;
+    case "ONLINE":
+    default:
+      offlineBar.classList.add("online", "hidden");
+      iconElem.textContent = "cloud_done";
+      textElem.textContent = "Weather data is live.";
+      break;
+  }
+}
+
+function setupNetworkMonitoring() {
+  function updateNetworkStatus() {
+    if (navigator.onLine) {
+      if (currentSystemState === "OFFLINE") {
+        updateSystemStateBanner("ONLINE");
+      }
+    } else {
+      updateSystemStateBanner("OFFLINE");
     }
   }
 
+  let reconnectDebounce = null;
   window.addEventListener("online", () => {
-    updateStatus();
-    loadCurrentWeather(true);
+    updateNetworkStatus();
+    if (reconnectDebounce) clearTimeout(reconnectDebounce);
+    reconnectDebounce = setTimeout(() => {
+      loadCurrentWeather(true);
+    }, 600);
   });
-  window.addEventListener("offline", updateStatus);
-  updateStatus();
+  window.addEventListener("offline", updateNetworkStatus);
+  updateNetworkStatus();
 }
 
 // 3. User Feedback & Notices
@@ -1470,18 +1520,30 @@ function renderWeatherCard(data) {
 
   // Freshness Badge (Strict test assertions match)
   const freshnessTag = document.getElementById("dataFreshnessTag");
-  if (data.cached) {
+  if (data.system_state === "DATA_STALE" || (data.cached && data.data_freshness === "STALE_DEGRADED")) {
+    freshnessTag.textContent = "Data Stale (Cached)";
+    freshnessTag.className = "freshness-tag partial";
+    updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
+  } else if (data.cached || data.system_state === "OFFLINE") {
     freshnessTag.textContent = "Cached Telemetry (Offline)";
     freshnessTag.className = "freshness-tag partial";
-  } else if (data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
+    updateSystemStateBanner("OFFLINE");
+  } else if (data.system_state === "DEGRADED") {
+    freshnessTag.textContent = "Degraded Telemetry";
+    freshnessTag.className = "freshness-tag partial";
+    updateSystemStateBanner("DEGRADED");
+  } else if (data.system_state === "SERVICE_UNAVAILABLE" || data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
     freshnessTag.textContent = "Data Unavailable";
     freshnessTag.className = "freshness-tag unavailable";
-  } else if (data.data_status === "PARTIAL" || data.source !== "IMD") {
+    updateSystemStateBanner("SERVICE_UNAVAILABLE");
+  } else if (data.data_status === "PARTIAL" || (data.source && data.source.includes("Fallback"))) {
     freshnessTag.textContent = "Partial Telemetry";
     freshnessTag.className = "freshness-tag partial";
+    updateSystemStateBanner("DEGRADED");
   } else {
     freshnessTag.textContent = "Fresh Telemetry";
     freshnessTag.className = "freshness-tag fresh";
+    updateSystemStateBanner("ONLINE");
   }
 
   // Temperature rendering (No fake zeros)

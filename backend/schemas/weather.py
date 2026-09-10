@@ -63,6 +63,7 @@ class CurrentWeatherResponse(BaseModel):
     cache_age_seconds: Optional[int] = Field(default=None, description="Age of cached observation in seconds")
     provider_status: Optional[str] = Field(default="HEALTHY", description="Provider status: HEALTHY, DEGRADED, FAILED, UNAVAILABLE")
     provider_diagnostics: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic telemetry from provider")
+    system_state: Optional[str] = Field(default="ONLINE", description="System state: ONLINE, DEGRADED, OFFLINE, DATA_STALE, SERVICE_UNAVAILABLE")
 
 
 
@@ -110,6 +111,7 @@ class ForecastResponse(BaseModel):
     units: WeatherUnitsSchema = Field(default_factory=WeatherUnitsSchema)
     issued_at: str = Field(description="Forecast issuance ISO 8601 UTC timestamp")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+    system_state: Optional[str] = Field(default="ONLINE", description="System state: ONLINE, DEGRADED, OFFLINE, DATA_STALE, SERVICE_UNAVAILABLE")
 
 
 class AlertItemSchema(BaseModel):
@@ -144,6 +146,7 @@ class AlertResponse(BaseModel):
     source: str = Field(default="IMD Official", description="Source authority attribution")
     status: str = Field(default="VERIFIED", description="Alert status: VERIFIED or UNVERIFIED")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+    system_state: Optional[str] = Field(default="ONLINE", description="System state: ONLINE, DEGRADED, OFFLINE, DATA_STALE, SERVICE_UNAVAILABLE")
 
 
 class HistoricalRecordItemSchema(BaseModel):

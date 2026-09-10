@@ -446,4 +446,46 @@ SkyZen Alert / Warning Screen (`navigateToScreen('alerts')`)
 4. **Multi-Device Support**: Dispatches to all active devices of an eligible user. An invalid or unregistered token deactivates that specific token (`is_active = False`) without blocking sibling devices.
 5. **Translation Preservation**: English, Tamil, and Hindi formatting strictly preserves severity (`LOW`, `MEDIUM`, `HIGH`, `EXTREME`), timing, areas, numbers, units, and official instructions. Danger is never softened, invented, or removed.
 6. **Non-Destructive FCM Failures**: FCM outages, invalid tokens, or network failures are recorded in `AlertDeliveryLog` as `FAILED`, but **never** delete or suppress the official IMD warning inside SkyZen.
+
+---
+
+# 22. Offline, Degraded & Failure Handling Layer (Phase 4)
+
+SkyZen provides a deterministic, production-grade resilience layer for offline, degraded, timeout, stale-data, and provider failure conditions.
+
+### 1. Non-Negotiable Invariant: Never Fabricate Current Weather
+- If live weather data cannot be verified, SkyZen communicates the degraded state transparently instead of presenting cached, simulated, fallback, or unavailable data as live.
+- The LLM is barred from inventing missing temperature, rainfall, wind speed, humidity, pressure, visibility, weather conditions, or observation times.
+- When observations are missing, user queries regarding current rain or transit decisions are answered explicitly with: `"Current rainfall and live weather conditions could not be verified because live weather data is unavailable."`
+
+### 2. Deterministic System States
+SkyZen implements five deterministic operational states (`SystemStateEnum`), derived programmatically by `determine_system_state()`:
+- **`ONLINE`**: Fresh, verified live weather data is available from primary and secondary providers.
+- **`DEGRADED`**: Some required providers or services failed, or telemetry is aging, but verified data remains available (e.g. Open-Meteo fallback active, clearly labeled as fallback).
+- **`OFFLINE`**: Network or backend connectivity is completely unavailable.
+- **`DATA_STALE`**: Cached weather exists outside the configured fresh threshold ($\le 7200\text{s}$), labeled transparently with observation time and `DATA STALE` status. Never labeled `LIVE`.
+- **`SERVICE_UNAVAILABLE`**: Required providers cannot provide usable data and no usable cache exists. Returns a structured 502/504 error without inventing synthetic data.
+
+### 3. Multi-Provider Degradation Matrix
+- **Case A** (IMD & Open-Meteo healthy): State `ONLINE`. High confidence multi-source agreement.
+- **Case B** (IMD down, Open-Meteo healthy): State `DEGRADED`. Open-Meteo used as fallback, attributed as `Open-Meteo (Fallback)`. Never claimed as IMD.
+- **Case C** (IMD healthy, Open-Meteo down): State `DEGRADED`. IMD authoritative observation used directly.
+- **Case D** (All providers down, cache exists): State `DATA_STALE`. Cached observation returned with explicit timestamp and `Cached Telemetry` label.
+- **Case E** (All providers down, no cache or cache $> 7200\text{s}$): State `SERVICE_UNAVAILABLE`. Clean `ProviderUnavailableError` raised; no phantom weather returned.
+- **Case F** (Network offline): State `OFFLINE`. Mobile client displays cached telemetry if present, or clean offline placeholder with reconnect prompt.
+
+### 4. Controlled Timeouts & Exponential Backoff Retry
+- **Bounded Retries**: HTTP requests are bounded by `WEATHER_HTTP_MAX_RETRIES` (default 2 retries).
+- **Exponential Backoff**: Sleep interval increases exponentially between retry attempts ($0.05\text{s} \times 2^{\text{attempt}-1}$, capped at $1.0\text{s}$) to avoid request storms.
+- **No Retry Amplification**: Permanent errors (401/403 authentication, 400 bad request) are never retried and fail fast on attempt 1.
+
+### 5. Official IMD Warning Safety During Outages
+- IMD provider failure **never** converts an existing warning into "no warning".
+- When IMD is unreachable, response status becomes `UNVERIFIED` (`source="IMD Official (Degraded)"`).
+- Unexpired persisted alerts in the database remain accessible to users with active status and full metadata.
+- Expired warnings are strictly filtered and never reactivated or presented as active.
+
+### 6. Network Recovery
+- When connectivity returns, the application automatically requests fresh provider telemetry with rapid reconnect debouncing ($600\text{ms}$).
+- Stale cache values are purged or updated with fresh observation timestamps and live status.
 

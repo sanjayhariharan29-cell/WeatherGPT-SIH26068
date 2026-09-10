@@ -68,6 +68,7 @@ class ForecastService:
         # 1. Fetch Primary Forecast (IMD) with failover to Secondary (Open-Meteo)
         source_label = self.primary.name
         primary_diag = None
+        system_state_val = "ONLINE"
         try:
             raw_items = await self.primary.get_forecast(latitude, longitude, resolved_name)
         except ProviderError as e:
@@ -78,6 +79,7 @@ class ForecastService:
                 "timestamp": getattr(e, "timestamp", datetime.now(timezone.utc).isoformat()),
                 "diagnostics": getattr(e, "diagnostics", {})
             }
+            system_state_val = "DEGRADED"
             raw_items = await self.secondary.get_forecast(latitude, longitude, resolved_name)
             source_label = f"{self.secondary.name} (Fallback)"
 
@@ -125,7 +127,8 @@ class ForecastService:
             source=source_label,
             units=WeatherUnitsSchema(),
             issued_at=issued_at_timestamp,
-            retrieved_at=now_utc
+            retrieved_at=now_utc,
+            system_state=system_state_val
         )
 
     def _aggregate_daily_forecast(

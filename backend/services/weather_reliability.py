@@ -46,6 +46,47 @@ class ValidationStatusEnum(str, Enum):
     INVALID = "INVALID"          # Physical limit violations or corrupted types
 
 
+class SystemStateEnum(str, Enum):
+    """Deterministic system/data operational state of SkyZen."""
+    ONLINE = "ONLINE"                          # Fresh verified live weather data is available
+    DEGRADED = "DEGRADED"                      # Some providers failed or telemetry is aging, but verified data exists
+    OFFLINE = "OFFLINE"                        # Network / backend connectivity is unavailable
+    DATA_STALE = "DATA_STALE"                  # Cached weather exists outside fresh threshold, labeled transparently
+    SERVICE_UNAVAILABLE = "SERVICE_UNAVAILABLE" # Required providers cannot provide usable data and no usable cache exists
+
+
+def determine_system_state(
+    is_primary_healthy: bool,
+    is_secondary_healthy: bool,
+    is_cached: bool = False,
+    freshness: FreshnessClassification = FreshnessClassification.FRESH,
+    is_offline: bool = False
+) -> SystemStateEnum:
+    """Deterministically derives the SkyZen operational system state.
+
+    Never allows the LLM or arbitrary heuristics to determine state.
+    """
+    if is_offline:
+        return SystemStateEnum.OFFLINE
+
+    if not is_primary_healthy and not is_secondary_healthy:
+        if is_cached and freshness in (
+            FreshnessClassification.FRESH,
+            FreshnessClassification.AGING,
+            FreshnessClassification.STALE
+        ):
+            return SystemStateEnum.DATA_STALE
+        return SystemStateEnum.SERVICE_UNAVAILABLE
+
+    if not is_primary_healthy or not is_secondary_healthy or freshness in (
+        FreshnessClassification.AGING,
+        FreshnessClassification.STALE
+    ):
+        return SystemStateEnum.DEGRADED
+
+    return SystemStateEnum.ONLINE
+
+
 class PhysicalBounds:
     """Earth atmosphere physical boundaries for sanity validation."""
     MIN_LATITUDE: float = -90.0
