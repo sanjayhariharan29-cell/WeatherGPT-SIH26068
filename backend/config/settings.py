@@ -43,6 +43,8 @@ class Settings(BaseModel):
     IMD_API_KEY: str = Field(default_factory=lambda: os.getenv("IMD_API_KEY", ""))
     IMD_BASE_URL: str = Field(default_factory=lambda: os.getenv("IMD_BASE_URL", "https://api.imd.gov.in"))
     OPEN_METEO_BASE_URL: str = Field(default_factory=lambda: os.getenv("OPEN_METEO_BASE_URL", "https://api.open-meteo.com/v1"))
+    OPENWEATHER_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENWEATHER_API_KEY", ""))
+    OPENWEATHER_BASE_URL: str = Field(default_factory=lambda: os.getenv("OPENWEATHER_BASE_URL", "https://api.openweathermap.org/data/2.5"))
     WEATHER_HTTP_TIMEOUT_SECONDS: float = Field(default_factory=lambda: float(os.getenv("WEATHER_HTTP_TIMEOUT_SECONDS", "5.0")))
     WEATHER_HTTP_MAX_RETRIES: int = Field(default_factory=lambda: int(os.getenv("WEATHER_HTTP_MAX_RETRIES", "2")))
     WEATHER_CACHE_TTL_SECONDS: int = Field(default_factory=lambda: int(os.getenv("WEATHER_CACHE_TTL_SECONDS", "300")))

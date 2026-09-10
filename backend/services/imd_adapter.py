@@ -8,6 +8,11 @@ from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional
 import hashlib
 
+from backend.config.settings import settings
+from backend.services.exceptions import (
+    ProviderError,
+    ProviderUnavailableError
+)
 from backend.services.base_provider import BaseWeatherProvider
 from backend.services.schemas import (
     NormalizedWeatherObservation,
@@ -28,19 +33,70 @@ class IMDAdapter(BaseWeatherProvider):
     def authority_level(self) -> str:
         return "primary_authoritative"
 
+    @property
+    def is_live_configured(self) -> bool:
+        """Checks if genuine live official IMD credentials / endpoint access are configured."""
+        return bool(settings.IMD_API_KEY and settings.IMD_API_KEY.strip())
+
     async def get_current_weather(
         self,
         latitude: float,
         longitude: float,
         location_name: str = "Coimbatore"
     ) -> NormalizedWeatherObservation:
-        """Fetch current weather observations from IMD with caching and provenance."""
+        """Fetch current weather observations from IMD with caching and provenance.
+        
+        If live IMD credentials are configured, makes real HTTP requests.
+        If live credentials are not configured, uses the deterministic IMD reference dataset
+        with transparent provenance indicating official fixture status.
+        """
         cache_key = f"imd_current_{location_name}_{latitude}_{longitude}"
         cached = provider_cache.get(cache_key)
         if cached:
             return cached
 
         now_utc = datetime.now(timezone.utc).isoformat()
+
+        # If live credentials configured, attempt real HTTP fetch
+        if self.is_live_configured:
+            try:
+                url = f"{settings.IMD_BASE_URL}/observations/current"
+                params = {"lat": latitude, "lon": longitude, "key": settings.IMD_API_KEY}
+                payload = await self._fetch_json(url, params=params)
+                obs_data = payload.get("observation", {}) or payload
+                temp = float(obs_data.get("temp", obs_data.get("temperature", 29.0)))
+                hum = float(obs_data.get("humidity", 70.0))
+                wind = float(obs_data.get("wind_speed", 15.0))
+                cond = obs_data.get("condition", "Cloudy")
+                obs_time = obs_data.get("observed_at", now_utc)
+
+                live_obs = NormalizedWeatherObservation(
+                    location_name=location_name,
+                    latitude=latitude,
+                    longitude=longitude,
+                    temperature_c=temp,
+                    humidity_pct=hum,
+                    rain_probability_pct=float(obs_data.get("rain_prob", 40.0)),
+                    wind_speed_kmh=wind,
+                    rainfall_mm=float(obs_data.get("rainfall_mm", 0.0)),
+                    condition=cond,
+                    source=self.name,
+                    authority_level=self.authority_level,
+                    observed_at=obs_time,
+                    retrieved_at=now_utc
+                )
+                provider_cache.set(cache_key, live_obs)
+                return live_obs
+            except ProviderError:
+                raise
+            except Exception as e:
+                raise ProviderUnavailableError(
+                    f"Live IMD endpoint error: {str(e)}",
+                    provider_name=self.name,
+                    diagnostics={"error": str(e), "is_live_configured": True}
+                )
+
+        # Deterministic IMD Reference Fixture (when live credentials are not set)
         loc_lower = location_name.lower()
 
         if "nagapattinam" in loc_lower or "நாகப்பட்டினம்" in loc_lower:
@@ -212,7 +268,7 @@ class IMDAdapter(BaseWeatherProvider):
                     instructions="Avoid sea ventures. Move to cyclone relief centers if in low-lying areas.",
                     area="Nagapattinam Coastal Zone",
                     source=self.name,
-                    issued_at=now_utc,
+                    issued_at=(now_dt - timedelta(hours=1)).isoformat(),
                     expires_at=expires_24h,
                     retrieved_at=now_utc
                 )
@@ -227,7 +283,7 @@ class IMDAdapter(BaseWeatherProvider):
                     instructions="Avoid open ground and under isolated trees during thunderstorm activity.",
                     area="Coimbatore District",
                     source=self.name,
-                    issued_at=now_utc,
+                    issued_at=(now_dt - timedelta(hours=1)).isoformat(),
                     expires_at=expires_12h,
                     retrieved_at=now_utc
                 )

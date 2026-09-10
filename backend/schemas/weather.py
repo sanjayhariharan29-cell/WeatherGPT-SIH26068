@@ -26,6 +26,22 @@ class WeatherDataSchema(BaseModel):
     rainfall_mm: float = Field(default=0.0, description="Rainfall amount in mm")
 
 
+class ProviderObservationSummarySchema(BaseModel):
+    """Normalized summary of an individual provider's observation for source transparency."""
+    provider: str = Field(description="Provider name e.g. IMD, Open-Meteo, OpenWeather")
+    authority_level: str = Field(description="Authority level classification")
+    temperature: Optional[float] = Field(default=None, description="Observed temperature in °C")
+    feels_like: Optional[float] = Field(default=None, description="Feels like temperature in °C")
+    humidity: Optional[float] = Field(default=None, description="Observed humidity %")
+    wind_speed: Optional[float] = Field(default=None, description="Observed wind speed in km/h")
+    rain_probability: Optional[float] = Field(default=None, description="Rain probability %")
+    condition: Optional[str] = Field(default=None, description="Observed weather condition")
+    observed_at: Optional[str] = Field(default=None, description="Provider observation timestamp")
+    freshness: str = Field(default="FRESH", description="Freshness status")
+    is_real_time: bool = Field(default=True, description="True if fresh, live, non-cached telemetry")
+    status: str = Field(default="HEALTHY", description="Operational status: HEALTHY, DEGRADED, FAILED, UNAVAILABLE")
+
+
 class ComparisonDataSchema(BaseModel):
     """Multi-source agreement comparison metrics."""
     secondary_temperature: float
@@ -33,6 +49,7 @@ class ComparisonDataSchema(BaseModel):
     sources_agree: bool
     confidence_level: Optional[str] = Field(default="HIGH", description="Confidence: HIGH, MEDIUM, CAUTIOUS")
     disagreement_notes: Optional[str] = Field(default=None, description="Detailed explanation if providers disagree")
+    provider_records: List[ProviderObservationSummarySchema] = Field(default_factory=list, description="Unaveraged records per provider")
 
 
 class LocationDataSchema(BaseModel):
@@ -51,6 +68,7 @@ class CurrentWeatherResponse(BaseModel):
     comparison: ComparisonDataSchema
     alerts: List[Dict[str, Any]] = Field(default_factory=list)
     source: str
+    sources: List[str] = Field(default_factory=list, description="List of active contributing provider names")
     units: WeatherUnitsSchema = Field(default_factory=WeatherUnitsSchema)
     observed_at: str
     retrieved_at: str

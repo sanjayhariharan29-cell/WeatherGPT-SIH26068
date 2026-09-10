@@ -46,30 +46,76 @@ class OpenMeteoAdapter(BaseWeatherProvider):
         params = {
             "latitude": latitude,
             "longitude": longitude,
-            "current_weather": "true"
+            "current_weather": "true",
+            "current": "temperature_2m,relative_humidity_2m,apparent_temperature,precipitation,weather_code,surface_pressure,wind_speed_10m,wind_direction_10m"
         }
 
         try:
             payload = await self._fetch_json(url, params=params)
-            cw = payload.get("current_weather", {})
-            temp = float(cw.get("temperature", 28.5))
-            wind = float(cw.get("windspeed", 16.0))
-            code = int(cw.get("weathercode", 0))
-            cond = "Cloudy" if code > 2 else "Clear"
+            current = payload.get("current", {}) or {}
+            cw = payload.get("current_weather", {}) or {}
+
+            # Prioritize current block if present, fallback to current_weather block
+            temp = float(current.get("temperature_2m", cw.get("temperature", 0.0)))
+            feels_like = float(current.get("apparent_temperature", temp)) if current.get("apparent_temperature") is not None else None
+            hum = float(current.get("relative_humidity_2m", 50.0))
+            wind = float(current.get("wind_speed_10m", cw.get("windspeed", 0.0)))
+            wind_dir = float(current.get("wind_direction_10m", cw.get("winddirection", 0.0))) if (current.get("wind_direction_10m") is not None or cw.get("winddirection") is not None) else None
+            pressure = float(current.get("surface_pressure", 1013.25)) if current.get("surface_pressure") is not None else None
+            precip = float(current.get("precipitation", 0.0))
+            code = int(current.get("weather_code", cw.get("weathercode", 0)))
+            
+            # Map WMO weather code to standard descriptive condition
+            if code == 0:
+                cond = "Clear"
+            elif code in (1, 2):
+                cond = "Partly Cloudy"
+            elif code == 3:
+                cond = "Overcast"
+            elif code in (45, 48):
+                cond = "Fog"
+            elif code in (51, 53, 55, 56, 57):
+                cond = "Drizzle"
+            elif code in (61, 63, 65, 66, 67, 80, 81, 82):
+                cond = "Rain"
+            elif code in (71, 73, 75, 77, 85, 86):
+                cond = "Snow"
+            elif code in (95, 96, 99):
+                cond = "Thunderstorm"
+            else:
+                cond = "Cloudy"
+
+            # Parse provider observation timestamp
+            obs_time_raw = current.get("time") or cw.get("time")
+            if obs_time_raw:
+                try:
+                    if "T" in obs_time_raw and not obs_time_raw.endswith("Z") and "+" not in obs_time_raw:
+                        obs_utc = f"{obs_time_raw}Z"
+                    else:
+                        obs_utc = obs_time_raw
+                except Exception:
+                    obs_utc = now_utc
+            else:
+                obs_utc = now_utc
+
+            rain_prob = 80.0 if (precip > 0 or "Rain" in cond or "Thunder" in cond) else (20.0 if "Cloud" in cond else 5.0)
 
             obs = NormalizedWeatherObservation(
                 location_name=location_name,
                 latitude=latitude,
                 longitude=longitude,
                 temperature_c=temp,
-                humidity_pct=70.0,
-                rain_probability_pct=60.0,
+                feels_like_c=feels_like,
+                humidity_pct=hum,
+                pressure_hpa=pressure,
+                rain_probability_pct=rain_prob,
                 wind_speed_kmh=wind,
-                rainfall_mm=0.0,
+                wind_direction_deg=wind_dir,
+                rainfall_mm=precip,
                 condition=cond,
                 source=self.name,
                 authority_level=self.authority_level,
-                observed_at=now_utc,
+                observed_at=obs_utc,
                 retrieved_at=now_utc
             )
             provider_cache.set(cache_key, obs)

@@ -1620,7 +1620,10 @@ function renderWeatherCard(data) {
     agreeElement.textContent = "Offline Cached Record";
     agreeElement.className = "metric-val";
   } else if (data.comparison && data.comparison.sources_agree) {
-    agreeElement.textContent = "High Agreement (IMD & Open-Meteo)";
+    const srcNames = Array.isArray(data.sources) && data.sources.length > 1
+      ? data.sources.join(" & ")
+      : "Multi-Source";
+    agreeElement.textContent = `High Agreement (${srcNames})`;
     agreeElement.className = "metric-val agreement-high";
   } else {
     const conf = data.comparison?.confidence_level || "CAUTIOUS";
@@ -2066,10 +2069,12 @@ function formatSourcesBadge(sourceStr, sourcesList) {
 
   const hasIMD = list.some(s => s.includes("IMD"));
   const hasOM = list.some(s => s.toLowerCase().includes("open-meteo") || s.toLowerCase().includes("openmeteo"));
+  const hasOW = list.some(s => s.toLowerCase().includes("openweather"));
 
   const badges = [];
   if (hasIMD) badges.push("IMD (Primary)");
   if (hasOM) badges.push("Open-Meteo (Secondary)");
+  if (hasOW) badges.push("OpenWeather (Independent)");
 
   if (badges.length === 0) {
     const deduped = Array.from(new Set(list.filter(Boolean)));

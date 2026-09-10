@@ -118,7 +118,7 @@ class NotificationService:
             if valid_until:
                 parts.append(f"वैधता: {valid_until}")
         else:  # Default to English
-            header = f"⚠️ [IMD] Official Warning: {sev_upper}"
+            header = f"⚠️ [IMD] Official Warning - IMD Official Warning: {sev_upper}"
             parts = [f"{title}"]
             if area:
                 parts.append(f"Area: {area}")

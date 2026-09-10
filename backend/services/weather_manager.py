@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from backend.services.imd_adapter import IMDAdapter
 from backend.services.open_meteo_adapter import OpenMeteoAdapter
+from backend.services.openweather_adapter import OpenWeatherAdapter
 from backend.services.nasa_power_adapter import NasaPowerAdapter
 from backend.services.geocoding_service import GeocodingService
 from backend.services.current_weather_service import CurrentWeatherService
@@ -31,16 +32,19 @@ class WeatherManager:
         self,
         primary_provider: Optional[BaseWeatherProvider] = None,
         secondary_provider: Optional[BaseWeatherProvider] = None,
+        tertiary_provider: Optional[BaseWeatherProvider] = None,
         historical_provider: Optional[BaseWeatherProvider] = None,
         geocoding_service: Optional[GeocodingService] = None
     ):
         self.imd = primary_provider or IMDAdapter()
         self.open_meteo = secondary_provider or OpenMeteoAdapter()
+        self.openweather = tertiary_provider or OpenWeatherAdapter()
         self.nasa_power = historical_provider or NasaPowerAdapter()
         self.geocoding = geocoding_service or GeocodingService()
         self.current_service = CurrentWeatherService(
             primary_provider=self.imd,
             secondary_provider=self.open_meteo,
+            tertiary_provider=self.openweather,
             geocoding_service=self.geocoding
         )
         self.forecast_service = ForecastService(
@@ -61,6 +65,7 @@ class WeatherManager:
         self.providers: Dict[str, BaseWeatherProvider] = {
             self.imd.name: self.imd,
             self.open_meteo.name: self.open_meteo,
+            self.openweather.name: self.openweather,
             self.nasa_power.name: self.nasa_power
         }
 

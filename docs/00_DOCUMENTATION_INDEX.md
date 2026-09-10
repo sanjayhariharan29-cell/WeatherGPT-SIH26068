@@ -87,5 +87,6 @@ Welcome to the comprehensive documentation index for **WeatherGPT (SIH26068)**. 
 | [Phase_24_Backend_Performance_Report.md](file:///c:/WeatherGPT-SIH26068/docs/Phase_24_Backend_Performance_Report.md) | Performance Hardening | Validation, timeouts, connection lifecycles |
 | [Phase_25_Database_Recovery_Report.md](file:///c:/WeatherGPT-SIH26068/docs/Phase_25_Database_Recovery_Report.md) | Database Safety & Recovery | Backup scripts, WAL configuration, restore procedures |
 | [Phase_26_Final_Backend_AI_Audit.md](file:///c:/WeatherGPT-SIH26068/docs/Phase_26_Final_Backend_AI_Audit.md) | Final Backend-AI Audit | Person 2 final integration audit & handoff specs |
+| [Phase_07_Real_Time_Multi_Source_Weather_Engine.md](file:///c:/WeatherGPT-SIH26068/docs/Phase_07_Real_Time_Multi_Source_Weather_Engine.md) | Phase 7 Real-Time Multi-Source Engine | Real-time multi-source engine, provenance, agreement & IMD authority |
 | [Person3_Mobile_Readiness_Report.md](file:///c:/WeatherGPT-SIH26068/docs/Person3_Mobile_Readiness_Report.md) | Mobile Readiness | Client PWA readiness summary |
 | [Person3_Task3_Android_Integration_Report.md](file:///c:/WeatherGPT-SIH26068/docs/Person3_Task3_Android_Integration_Report.md) | Android Integration | Capacitor Android integration report |
