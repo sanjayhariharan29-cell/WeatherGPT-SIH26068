@@ -65,52 +65,95 @@ class CurrentWeatherService:
 
         # 1. Fetch Primary Observation (IMD) with failover to Secondary (Open-Meteo)
         source_label = f"{self.primary.name} (Primary), {self.secondary.name} (Secondary)"
+        primary_diag: Optional[Dict[str, Any]] = None
+        provider_status = "HEALTHY"
+
         try:
             primary_obs = await self.primary.get_current_weather(latitude, longitude, resolved_name)
-        except ProviderError:
-            # Primary provider unavailable -> Failover to secondary provider
+        except ProviderError as e:
+            # Primary provider failed -> capture diagnostic details and failover to secondary
+            primary_diag = {
+                "failed_provider": self.primary.name,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "timestamp": getattr(e, "timestamp", datetime.now(timezone.utc).isoformat()),
+                "diagnostics": getattr(e, "diagnostics", {})
+            }
+            provider_status = "DEGRADED"
             primary_obs = await self.secondary.get_current_weather(latitude, longitude, resolved_name)
             source_label = f"{self.secondary.name} (Fallback)"
 
         # 2. Fetch Secondary Observation for multi-source agreement metric
+        sec_obs: Optional[NormalizedWeatherObservation] = None
         try:
             sec_obs = await self.secondary.get_current_weather(latitude, longitude, resolved_name)
             sec_temp = sec_obs.temperature_c
             sec_rain = sec_obs.rain_probability_pct
-        except Exception:
+        except Exception as e:
             sec_temp = primary_obs.temperature_c
             sec_rain = primary_obs.rain_probability_pct
 
-        temp_diff = abs(primary_obs.temperature_c - sec_temp)
-        rain_diff = abs(primary_obs.rain_probability_pct - sec_rain)
-        sources_agree = (rain_diff <= 20.0) and (temp_diff <= 4.0)
+        # 3. Multi-source agreement evaluation using canonical ai.reasoner.agreement
+        from ai.reasoner.agreement import evaluate_source_agreement
+        from ai.models import SourceAgreementEnum, WeatherRecord as AIWeatherRecord
 
-        disagreement_notes = None
-        if not sources_agree:
-            if temp_diff > 4.0 and rain_diff > 20.0:
-                confidence_level = "CAUTIOUS"
-                disagreement_notes = f"High variance between providers: {primary_obs.source} ({primary_obs.temperature_c}°C, {primary_obs.rain_probability_pct}% rain) vs {self.secondary.name} ({sec_temp}°C, {sec_rain}% rain). Prioritizing authoritative IMD."
-            elif temp_diff > 4.0:
-                confidence_level = "MEDIUM"
-                disagreement_notes = f"Temperature divergence of {temp_diff:.1f}°C detected between {primary_obs.source} and {self.secondary.name}."
-            else:
-                confidence_level = "MEDIUM"
-                disagreement_notes = f"Precipitation probability divergence of {rain_diff:.1f}% detected between {primary_obs.source} and {self.secondary.name}."
-        else:
+        primary_ai_rec = primary_obs.to_ai_weather_record()
+        secondary_ai_rec = sec_obs.to_ai_weather_record() if sec_obs else None
+
+        agr_status, agr_text = evaluate_source_agreement(primary_ai_rec, secondary_ai_rec)
+        sources_agree = (agr_status in (SourceAgreementEnum.HIGH, SourceAgreementEnum.SINGLE_SOURCE))
+
+        if agr_status == SourceAgreementEnum.HIGH:
             confidence_level = "HIGH"
+            disagreement_notes = None
+        elif agr_status in (SourceAgreementEnum.MODERATE, SourceAgreementEnum.MEDIUM):
+            confidence_level = "MEDIUM"
+            disagreement_notes = agr_text
+        elif agr_status == SourceAgreementEnum.SINGLE_SOURCE:
+            confidence_level = "HIGH"
+            disagreement_notes = None
+        else:
+            confidence_level = "CAUTIOUS"
+            disagreement_notes = agr_text
 
-        # 3. Fetch Official Severe Alerts
+        # 4. Freshness and Completeness evaluation
+        from backend.services.weather_reliability import (
+            evaluate_weather_freshness,
+            validate_weather_completeness,
+            FreshnessClassification
+        )
+
+        fresh_class, obs_age_min, fresh_meta = evaluate_weather_freshness(
+            observed_at=primary_obs.observed_at,
+            retrieved_at=primary_obs.retrieved_at,
+            is_cached=getattr(primary_obs, "is_cached", False),
+            cache_age_seconds=getattr(primary_obs, "cache_age_seconds", None)
+        )
+
+        comp_class, val_class, val_issues = validate_weather_completeness(primary_obs.model_dump())
+
+        # Update primary_obs reliability fields
+        primary_obs.freshness_status = fresh_class.value
+        primary_obs.completeness_status = comp_class.value
+        primary_obs.validation_status = val_class.value
+        primary_obs.validation_issues = val_issues
+        primary_obs.provider_status = provider_status
+        primary_obs.provider_diagnostics = primary_diag
+
+        # 5. Fetch Official Severe Alerts (IMD is strictly authoritative)
         try:
             alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
             alert_dicts = [a.model_dump() for a in alerts]
         except Exception:
             alert_dicts = []
 
-        # 4. Optional Database Persistence with 5-minute deduplication window
+        # 6. Optional Database Persistence with 5-minute deduplication window
         if db_session is not None:
             self._persist_observation(db_session, primary_obs)
 
-        # 5. Build and return structured response contract
+        # 7. Build and return structured response contract
+        data_freshness_str = "FRESH" if fresh_class == FreshnessClassification.FRESH else ("STALE_DEGRADED" if fresh_class == FreshnessClassification.STALE else "CACHED")
+
         return CurrentWeatherResponse(
             location=LocationDataSchema(
                 name=resolved_name,
@@ -140,8 +183,15 @@ class CurrentWeatherService:
             units=WeatherUnitsSchema(),
             observed_at=primary_obs.observed_at,
             retrieved_at=primary_obs.retrieved_at,
-            data_freshness="FRESH",
-            cache_age_seconds=0
+            data_freshness=data_freshness_str,
+            freshness_status=fresh_class.value,
+            completeness_status=comp_class.value,
+            validation_status=val_class.value,
+            validation_issues=val_issues,
+            is_cached=getattr(primary_obs, "is_cached", False),
+            cache_age_seconds=getattr(primary_obs, "cache_age_seconds", None),
+            provider_status=provider_status,
+            provider_diagnostics=primary_diag
         )
 
     def _persist_observation(self, db: Session, obs: NormalizedWeatherObservation) -> None:

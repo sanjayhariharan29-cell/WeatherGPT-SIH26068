@@ -55,7 +55,14 @@ class CurrentWeatherResponse(BaseModel):
     observed_at: str
     retrieved_at: str
     data_freshness: Optional[str] = Field(default="FRESH", description="Freshness: FRESH, CACHED, STALE_DEGRADED")
+    freshness_status: Optional[str] = Field(default="FRESH", description="Classification: FRESH, AGING, STALE, UNAVAILABLE")
+    completeness_status: Optional[str] = Field(default="COMPLETE", description="Classification: COMPLETE, PARTIAL, INVALID, UNAVAILABLE")
+    validation_status: Optional[str] = Field(default="VALID", description="Validation status: VALID, WARNING, INVALID")
+    validation_issues: List[str] = Field(default_factory=list, description="Validation issues or warnings")
+    is_cached: bool = Field(default=False, description="Whether observation was retrieved from cache")
     cache_age_seconds: Optional[int] = Field(default=None, description="Age of cached observation in seconds")
+    provider_status: Optional[str] = Field(default="HEALTHY", description="Provider status: HEALTHY, DEGRADED, FAILED, UNAVAILABLE")
+    provider_diagnostics: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic telemetry from provider")
 
 
 

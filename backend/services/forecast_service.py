@@ -67,9 +67,17 @@ class ForecastService:
 
         # 1. Fetch Primary Forecast (IMD) with failover to Secondary (Open-Meteo)
         source_label = self.primary.name
+        primary_diag = None
         try:
             raw_items = await self.primary.get_forecast(latitude, longitude, resolved_name)
-        except ProviderError:
+        except ProviderError as e:
+            primary_diag = {
+                "failed_provider": self.primary.name,
+                "error_type": type(e).__name__,
+                "error_message": str(e),
+                "timestamp": getattr(e, "timestamp", datetime.now(timezone.utc).isoformat()),
+                "diagnostics": getattr(e, "diagnostics", {})
+            }
             raw_items = await self.secondary.get_forecast(latitude, longitude, resolved_name)
             source_label = f"{self.secondary.name} (Fallback)"
 

@@ -304,12 +304,66 @@ Example:
     "latitude": 11.0168,
     "longitude": 76.9558
   },
-  "observed_at": "2026-09-08T10:00:00",
-  "temperature": 29,
-  "humidity": 72,
-  "rain_probability": 65,
-  "wind_speed": 18,
+  "observed_at": "2026-09-08T10:00:00Z",
+  "temperature": 29.0,
+  "humidity": 72.0,
+  "rain_probability": 65.0,
+  "wind_speed": 18.0,
   "weather_condition": "Rain",
   "source": "IMD",
-  "retrieved_at": "2026-09-08T10:10:00"
+  "retrieved_at": "2026-09-08T10:05:00Z",
+  "freshness_status": "FRESH",
+  "completeness_status": "COMPLETE",
+  "provider_status": "HEALTHY",
+  "validation_status": "VALID"
 }
+```
+
+---
+
+# 14. Data Reliability & Freshness Model (Phase 1)
+
+Every meteorological observation distinguishes **station observation timestamp (`observed_at`)** from **backend retrieval timestamp (`retrieved_at`)**. Old cached data is never described as "real-time".
+
+### Freshness Classification:
+1. **`FRESH`**: Observation timestamp is $< 60$ minutes old.
+2. **`AGING`**: Observation timestamp is between $60$ and $180$ minutes old (acceptable operational telemetry).
+3. **`STALE`**: Observation timestamp exceeds $180$ minutes.
+4. **`UNAVAILABLE`**: Observation timestamp missing, unparseable, or payload empty.
+
+Cache awareness: responses served from the internal TTL cache carry `is_cached=True` and `cache_age_seconds`. Observations $>15$ minutes old or served from cache are explicitly marked `is_real_time=False`.
+
+---
+
+# 15. Completeness & Physical Boundary Validation
+
+Observations undergo deterministic range and physical consistency validation:
+- **Latitude**: $-90.0^\circ$ to $+90.0^\circ$
+- **Longitude**: $-180.0^\circ$ to $+180.0^\circ$
+- **Temperature**: $-90.0^\circ\text{C}$ to $+60.0^\circ\text{C}$
+- **Humidity**: $0.0\%$ to $100.0\%$
+- **Wind Speed**: $0.0$ to $400.0\text{ km/h}$
+- **Rain Probability**: $0.0\%$ to $100.0\%$
+- **Atmospheric Pressure**: $800.0$ to $1100.0\text{ hPa}$ (when present)
+
+### Completeness Classification:
+- **`COMPLETE`**: All required and core fields are present and physically valid.
+- **`PARTIAL`**: Core observations present (temperature, condition), but secondary metrics (e.g. pressure, wind direction) omitted without halting the pipeline.
+- **`INVALID`**: Values violate physical boundaries or impossible numbers.
+- **`UNAVAILABLE`**: Primary data payload missing or empty.
+
+---
+
+# 16. Multi-Source Disagreement & Averaging Policy
+
+When primary (IMD) and secondary (Open-Meteo) providers return differing values:
+1. **Zero Blind Averaging**: The system **never** averages divergent metrics (e.g. IMD $32^\circ\text{C}$ and Open-Meteo $24^\circ\text{C}$ are **never** averaged to $28^\circ\text{C}$).
+2. **Preserve Individual Values**: Both `primary_temperature` and `secondary_temperature` are preserved in `ComparisonDataSchema`.
+3. **Canonical Agreement Reasoner**: Divergence is classified via `ai/reasoner/agreement.py` (`HIGH`, `MEDIUM`, `CAUTIOUS`), reporting explicit delta diagnostics to the user.
+
+---
+
+# 17. Provider Failure & IMD Authority Invariant
+
+1. **Failure Isolation**: Provider errors (`ProviderTimeoutError`, `ProviderUnavailableError`, etc.) capture rich diagnostics (`status_code`, `timeout`, `url`, `error_type`) without corrupting valid data from secondary providers.
+2. **IMD Warning Authority**: Official severe weather alerts from IMD unconditionally govern overall hazard levels and emergency precautions. Secondary providers (Open-Meteo, Tomorrow.io, etc.) cannot override, downgrade, or clear an official IMD warning.

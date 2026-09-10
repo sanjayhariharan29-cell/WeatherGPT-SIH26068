@@ -37,6 +37,14 @@ class NormalizedWeatherObservation(BaseModel):
     authority_level: str = Field(default="primary_authoritative", description="e.g., primary_authoritative, secondary_forecast")
     observed_at: str = Field(description="Observation ISO 8601 UTC timestamp")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+    freshness_status: str = Field(default="FRESH", description="Freshness: FRESH, AGING, STALE, UNAVAILABLE")
+    completeness_status: str = Field(default="COMPLETE", description="Completeness: COMPLETE, PARTIAL, INVALID, UNAVAILABLE")
+    provider_status: str = Field(default="HEALTHY", description="Provider status: HEALTHY, DEGRADED, FAILED, UNAVAILABLE")
+    validation_status: str = Field(default="VALID", description="Validation status: VALID, WARNING, INVALID")
+    validation_issues: List[str] = Field(default_factory=list, description="Specific validation issues or warnings")
+    provider_diagnostics: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic telemetry from provider")
+    is_cached: bool = Field(default=False, description="Whether data was served from provider cache")
+    cache_age_seconds: Optional[int] = Field(default=None, description="Age of cache entry in seconds")
 
     # Backward compatibility aliases for dict indexing & attributes
     @property
@@ -118,6 +126,8 @@ class NormalizedForecastItem(BaseModel):
     source: str
     issued_at: str = Field(description="Forecast issuance ISO 8601 UTC timestamp")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+    freshness_status: str = Field(default="FRESH", description="Freshness: FRESH, AGING, STALE, UNAVAILABLE")
+    completeness_status: str = Field(default="COMPLETE", description="Completeness: COMPLETE, PARTIAL, INVALID, UNAVAILABLE")
 
     # Backward compatibility aliases
     @property

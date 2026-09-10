@@ -1,13 +1,21 @@
-"""Weather Provider Exception Hierarchy.
+from datetime import datetime, timezone
+from typing import Dict, Any, Optional
 
-Isolates external meteorological provider errors behind predictable internal exceptions.
-"""
 
 class ProviderError(Exception):
-    """Base exception for all weather provider operations."""
-    def __init__(self, message: str, provider_name: str = "Unknown"):
+    """Base exception for all weather provider operations with diagnostic context."""
+    def __init__(
+        self,
+        message: str,
+        provider_name: str = "Unknown",
+        status_code: Optional[int] = None,
+        diagnostics: Optional[Dict[str, Any]] = None
+    ):
         self.provider_name = provider_name
         self.message = message
+        self.status_code = status_code
+        self.diagnostics = diagnostics or {}
+        self.timestamp = datetime.now(timezone.utc).isoformat()
         super().__init__(f"[{provider_name}] {message}")
 
 
@@ -34,3 +42,14 @@ class ProviderInvalidResponseError(ProviderError):
 class ProviderAuthenticationError(ProviderError):
     """Raised when provider API credentials are missing or rejected."""
     pass
+
+
+class ProviderMalformedDataError(ProviderError):
+    """Raised when provider returns data violating physical atmospheric boundaries."""
+    pass
+
+
+class ProviderStaleDataError(ProviderError):
+    """Raised when provider returns expired or unacceptably stale telemetry."""
+    pass
+

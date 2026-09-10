@@ -66,56 +66,84 @@ class BaseWeatherProvider(ABC):
             try:
                 resp = await client.get(url, params=params, headers=headers)
 
+                diag = {"url": url, "attempt": attempt, "timeout": self.timeout}
                 if resp.status_code == 401 or resp.status_code == 403:
                     raise ProviderAuthenticationError(
                         f"Authentication failed with status {resp.status_code}",
-                        provider_name=self.name
+                        provider_name=self.name,
+                        status_code=resp.status_code,
+                        diagnostics=diag
                     )
                 elif resp.status_code == 429:
                     raise ProviderRateLimitedError(
                         "Rate limit exceeded",
-                        provider_name=self.name
+                        provider_name=self.name,
+                        status_code=resp.status_code,
+                        diagnostics=diag
                     )
                 elif resp.status_code >= 500:
                     raise ProviderUnavailableError(
                         f"Server error response {resp.status_code}",
-                        provider_name=self.name
+                        provider_name=self.name,
+                        status_code=resp.status_code,
+                        diagnostics=diag
                     )
                 elif resp.status_code != 200:
                     raise ProviderError(
                         f"Unexpected HTTP status {resp.status_code}",
-                        provider_name=self.name
+                        provider_name=self.name,
+                        status_code=resp.status_code,
+                        diagnostics=diag
                     )
 
                 try:
-                    return resp.json()
+                    parsed = resp.json()
+                    if not parsed and isinstance(parsed, dict):
+                        raise ProviderInvalidResponseError(
+                            "Provider returned empty JSON payload",
+                            provider_name=self.name,
+                            status_code=resp.status_code,
+                            diagnostics=diag
+                        )
+                    return parsed
                 except Exception as e:
+                    if isinstance(e, ProviderError):
+                        raise e
                     raise ProviderInvalidResponseError(
                         f"Failed to parse JSON response: {str(e)}",
-                        provider_name=self.name
+                        provider_name=self.name,
+                        status_code=resp.status_code,
+                        diagnostics=diag
                     )
 
             except (httpx.TimeoutException, TimeoutError) as e:
                 last_exception = ProviderTimeoutError(
                     f"Request timed out after {self.timeout}s: {str(e)}",
-                    provider_name=self.name
+                    provider_name=self.name,
+                    diagnostics={"url": url, "attempt": attempt, "timeout": self.timeout, "error": str(e)}
                 )
             except httpx.NetworkError as e:
                 last_exception = ProviderUnavailableError(
                     f"Network connectivity failure: {str(e)}",
-                    provider_name=self.name
+                    provider_name=self.name,
+                    diagnostics={"url": url, "attempt": attempt, "error": str(e)}
                 )
             except ProviderError as e:
                 raise e
             except Exception as e:
                 last_exception = ProviderError(
                     f"Unhandled HTTP client error: {str(e)}",
-                    provider_name=self.name
+                    provider_name=self.name,
+                    diagnostics={"url": url, "attempt": attempt, "error": str(e)}
                 )
 
         if last_exception:
             raise last_exception
-        raise ProviderUnavailableError("Provider request failed after retries", provider_name=self.name)
+        raise ProviderUnavailableError(
+            "Provider request failed after retries",
+            provider_name=self.name,
+            diagnostics={"url": url, "attempts": self.max_retries + 1}
+        )
 
     @abstractmethod
     async def get_current_weather(
