@@ -215,19 +215,49 @@ function setupEventListeners() {
   const langToggleBtn = document.getElementById("chatLangToggleBtn");
   if (langToggleBtn) {
     langToggleBtn.addEventListener("click", () => {
-      currentLanguage = (currentLanguage === "en") ? "ta" : "en";
+      const langs = ["en", "ta", "hi"];
+      let idx = langs.indexOf(currentLanguage);
+      if (idx === -1) idx = 0;
+      const nextLang = langs[(idx + 1) % langs.length];
+      
+      if (window.I18N) {
+        window.I18N.setLanguage(nextLang);
+      } else {
+        currentLanguage = nextLang;
+      }
+      
       const langText = document.getElementById("chatLangText");
-      if (langText) langText.textContent = (currentLanguage === "en") ? "English" : "தமிழ்";
-      showMobileNotice(`Switched SkyZen language to: ${(currentLanguage === "en") ? "English" : "தமிழ்"}`, "info", 2500);
+      if (langText) {
+        if (nextLang === "en") langText.textContent = "English";
+        else if (nextLang === "ta") langText.textContent = "தமிழ்";
+        else if (nextLang === "hi") langText.textContent = "हिंदी";
+      }
     });
   }
+
+  window.updateUserLanguage = async function(lang) {
+    if (isAppAuthenticated()) {
+      try {
+        await window.apiClient.updateProfile({ language: lang });
+        if (currentUser) currentUser.language = lang;
+      } catch (err) {
+        console.warn("Failed to sync language preference to backend:", err);
+      }
+    }
+  };
 
   // Settings Language selector
   const langSelect = document.getElementById("langSelect");
   if (langSelect) {
+    langSelect.value = window.I18N ? window.I18N.currentLanguage : currentLanguage;
     langSelect.addEventListener("change", () => {
-      currentLanguage = langSelect.value;
-      showMobileNotice(`Language updated: ${langSelect.value.toUpperCase()}`, "info", 2000);
+      const newLang = langSelect.value;
+      if (window.I18N) {
+        window.I18N.setLanguage(newLang);
+      } else {
+        currentLanguage = newLang;
+      }
+      showMobileNotice(`Language updated: ${newLang.toUpperCase()}`, "info", 2000);
     });
   }
 
@@ -650,6 +680,10 @@ async function restoreSessionOrShowAuth() {
       const user = await window.apiClient.getAuthMe();
       if (user && user.id) {
         currentUser = user;
+        if (user.language) {
+          currentLanguage = user.language;
+          if (window.I18N) window.I18N.setLanguage(user.language, true);
+        }
         if (user.is_verified === false) {
           pendingAuthEmail = user.email;
           showAuthPortal("verify");
@@ -780,6 +814,10 @@ function setupAuthPortalEngine() {
           // Full verified login success
           hideAuthPortal();
           updateProfileUI(res.user);
+          if (res.user.language) {
+            currentLanguage = res.user.language;
+            if (window.I18N) window.I18N.setLanguage(res.user.language, true);
+          }
           navigateToScreen("home");
           loadCurrentWeather();
           loadSavedLocationsList();
@@ -1160,12 +1198,8 @@ function renderWeatherCard(data) {
   const obsTimeStr = data.observed_at ? data.observed_at.split("T")[1]?.slice(0, 5) || "Recent" : "Recent";
   if (data.cached && data.cached_at) {
     const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
-<<<<<<< HEAD
     const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
     document.getElementById("currentObsTime").textContent = `Cached ${minutesAgo}m ago (${cachedTimeStr} UTC) • Observed: ${obsTimeStr} UTC`;
-=======
-    document.getElementById("currentObsTime").textContent = `Cached at ${cachedTimeStr} UTC (Observed: ${obsTimeStr} UTC)`;
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
   } else {
     document.getElementById("currentObsTime").textContent = `Observed at ${obsTimeStr} UTC`;
   }
@@ -1233,12 +1267,8 @@ function renderWeatherCard(data) {
     agreeElement.textContent = "High Agreement (IMD & Open-Meteo)";
     agreeElement.className = "metric-val agreement-high";
   } else {
-<<<<<<< HEAD
     const conf = data.comparison?.confidence_level || "CAUTIOUS";
-    agreeElement.textContent = `Disagreement (${conf})`;
-=======
-    agreeElement.textContent = "Single Provider Active";
->>>>>>> de4d00c4ba6efc5b123ec5c69d4581433171b437
+    agreeElement.textContent = data.comparison ? `Disagreement (${conf})` : "Single Provider Active";
     agreeElement.className = "metric-val";
   }
 }

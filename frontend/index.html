@@ -17,6 +17,7 @@
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="./styles.css">
+  <script src="./i18n.js"></script>
 </head>
 <body>
 
@@ -54,19 +55,19 @@
           <div class="auth-brand-badge" aria-hidden="true">
             <span class="material-symbols-rounded icon-xl">cloud</span>
           </div>
-          <h2 class="auth-brand-title">SkyZen<span class="accent-dot">.</span></h2>
-          <p class="auth-brand-tagline">Clearer Skies. Brighter Days.</p>
-          <p class="auth-brand-desc">AI-powered weather intelligence, severe alerts from IMD, and precision forecasts.</p>
+          <h2 class=\"auth-brand-title\" data-i18n=\"auth.welcome.title\">SkyZen<span class=\"accent-dot\">.</span></h2>
+          <p class=\"auth-brand-tagline\" data-i18n=\"auth.welcome.tagline\">Clearer Skies. Brighter Days.</p>
+          <p class=\"auth-brand-desc\" data-i18n=\"auth.welcome.desc\">AI-powered weather intelligence, severe alerts from IMD, and precision forecasts.</p>
         </div>
 
         <div class="auth-view-actions">
           <button id="welcomeLoginBtn" class="auth-primary-btn" aria-label="Sign In to SkyZen">
             <span class="material-symbols-rounded icon-sm">login</span>
-            <span>Sign In</span>
+            <span data-i18n=\"auth.welcome.signin\">Sign In</span>
           </button>
           <button id="welcomeSignupBtn" class="auth-secondary-btn" aria-label="Create New Account">
             <span class="material-symbols-rounded icon-sm">person_add</span>
-            <span>Create Account</span>
+            <span data-i18n=\"auth.welcome.signup\">Create Account</span>
           </button>
         </div>
 
@@ -484,7 +485,7 @@
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">schedule</span>
-              <span>Hourly Forecast</span>
+              <span data-i18n=\"dashboard.forecast\">Hourly Forecast</span>
             </h3>
             <span class="section-subtitle">Next 24 Hours</span>
           </div>
@@ -1157,10 +1158,11 @@
 
           <div style="display:flex; flex-direction:column; gap:16px; margin-top:10px;">
             <div class="auth-form-group">
-              <label for="langSelect">Display Language / மொழி</label>
+              <label for="langSelect" data-i18n="settings.language">Display Language / மொழி</label>
               <select id="langSelect" class="styled-select" aria-label="Language">
-                <option value="en">English</option>
-                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="en" data-i18n="settings.language.en">English</option>
+                <option value="ta" data-i18n="settings.language.ta">தமிழ் (Tamil)</option>
+                <option value="hi" data-i18n="settings.language.hi">हिंदी (Hindi)</option>
               </select>
             </div>
 
@@ -1204,15 +1206,15 @@
       </button>
       <button class="nav-item" data-screen="map" aria-label="Geospatial Weather Map Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
-        <span>Map</span>
+        <span data-i18n=\"nav.map\">Map</span>
       </button>
       <button class="nav-item" data-screen="alerts" aria-label="Alerts Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
-        <span>Alerts</span>
+        <span data-i18n=\"nav.alerts\">Alerts</span>
       </button>
       <button class="nav-item" data-screen="more" aria-label="More Options Screen" aria-selected="false">
         <span class="material-symbols-rounded nav-icon" aria-hidden="true">more_horiz</span>
-        <span>More</span>
+        <span data-i18n=\"nav.settings\">More</span>
       </button>
     </nav>
 
