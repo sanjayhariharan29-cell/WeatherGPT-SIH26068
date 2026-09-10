@@ -2679,3 +2679,217 @@ body {
   align-items: center;
   justify-content: space-between;
 }
+
+/* ==========================================================================
+   Phase 8: Live Weather UI & Source Transparency Styles
+   ========================================================================== */
+
+.live-weather-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 10px;
+  border-radius: var(--radius-pill);
+  background: rgba(22, 163, 74, 0.12);
+  color: #15803d;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  border: 1px solid rgba(22, 163, 74, 0.25);
+  box-shadow: 0 1px 2px rgba(22, 163, 74, 0.1);
+}
+
+.pulse-dot {
+  width: 7px;
+  height: 7px;
+  background-color: #16a34a;
+  border-radius: 50%;
+  display: inline-block;
+  box-shadow: 0 0 0 rgba(22, 163, 74, 0.4);
+  animation: pulseGreen 2s infinite;
+}
+
+@keyframes pulseGreen {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 6px rgba(22, 163, 74, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(22, 163, 74, 0);
+  }
+}
+
+.sources-breakdown-section {
+  margin-top: 18px;
+  border-top: 1px solid #E2E8F0;
+  padding-top: 14px;
+}
+
+.sources-section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  background: #F8FAFC;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--radius-md);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  user-select: none;
+}
+
+.sources-section-header:hover {
+  background: #F1F5F9;
+  border-color: #CBD5E1;
+}
+
+.sources-header-left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sources-header-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  color: var(--text-secondary);
+}
+
+.sources-count-badge {
+  font-size: 10px;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+  background: var(--light-blue);
+  color: var(--primary-blue);
+}
+
+.sources-header-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sources-agreement-summary {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.sources-list-container {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 10px;
+  margin-top: 10px;
+  animation: fadeIn 0.2s ease;
+}
+
+.provider-card {
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  box-shadow: 0 1px 2px rgba(0,0,0,0.02);
+}
+
+.provider-card-top {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.provider-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text-primary);
+  display: flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.provider-status-chip {
+  font-size: 10px;
+  font-weight: 600;
+  padding: 2px 6px;
+  border-radius: var(--radius-pill);
+}
+
+.provider-status-chip.fresh {
+  background: var(--success-green-bg);
+  color: #15803d;
+}
+
+.provider-status-chip.aging {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+.provider-status-chip.stale {
+  background: #FEF3C7;
+  color: #B45309;
+}
+
+.provider-status-chip.unavailable {
+  background: #FEE2E2;
+  color: #B91C1C;
+}
+
+.provider-status-chip.unconfigured {
+  background: #F1F5F9;
+  color: #64748B;
+}
+
+.provider-metrics-row {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+}
+
+.provider-temp {
+  font-size: 20px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.provider-condition {
+  font-size: 11px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.provider-meta-row {
+  font-size: 10px;
+  color: var(--text-muted);
+  display: flex;
+  justify-content: space-between;
+  border-top: 1px dashed #E2E8F0;
+  padding-top: 4px;
+}
+
+.disagreement-warning-banner {
+  margin-top: 10px;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: #FFFBEB;
+  border: 1px solid #FDE68A;
+  color: #92400E;
+  font-size: 12px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.disagreement-warning-banner span.material-symbols-rounded {
+  color: #D97706;
+}
+

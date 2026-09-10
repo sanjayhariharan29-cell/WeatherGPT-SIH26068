@@ -348,6 +348,9 @@ class CurrentWeatherService:
                 humidity=lead_obs.humidity_pct,
                 rain_probability=lead_obs.rain_probability_pct,
                 wind_speed=lead_obs.wind_speed_kmh,
+                wind_direction=getattr(lead_obs, "wind_direction_deg", None),
+                pressure=getattr(lead_obs, "pressure_hpa", None),
+                visibility=getattr(lead_obs, "visibility_km", None),
                 condition=lead_obs.condition,
                 rainfall_mm=lead_obs.rainfall_mm
             ),
@@ -371,6 +374,7 @@ class CurrentWeatherService:
             validation_status=val_class.value,
             validation_issues=val_issues,
             is_cached=getattr(lead_obs, "is_cached", False),
+            is_real_time=getattr(lead_obs, "is_real_time", not getattr(lead_obs, "is_cached", False)),
             cache_age_seconds=getattr(lead_obs, "cache_age_seconds", None),
             provider_status=provider_status,
             provider_diagnostics=primary_diag,

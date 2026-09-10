@@ -444,7 +444,7 @@
       </div>
       <h2 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h2>
       <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
-      <div class="alert-source-tag" id="alertSourceTag">Authoritative Source: India Meteorological Department (IMD)</div>
+      <div class="alert-source-tag" id="alertSourceTag">Source: IMD (India Meteorological Department)</div>
     </div>
 
     <!-- Main Mobile Content Area -->
@@ -477,29 +477,33 @@
             <div class="location-group">
               <span class="location-badge">
                 <span class="material-symbols-rounded" style="color:var(--primary-blue);">location_on</span>
-                <span id="currentLocationName">Coimbatore, Tamil Nadu</span>
+                <span id="currentLocationName">--</span>
               </span>
               <div class="badge-row">
-                <span class="source-tag" id="currentSourceTag">Source: IMD</span>
+                <span class="live-weather-badge hidden" id="liveWeatherBadge" aria-label="Live Weather Status">
+                  <span class="pulse-dot" aria-hidden="true"></span>
+                  <span>LIVE WEATHER</span>
+                </span>
+                <span class="source-tag" id="currentSourceTag">Source: Telemetry</span>
                 <span class="freshness-tag fresh" id="dataFreshnessTag">
-                  <span class="material-symbols-rounded icon-sm">check_circle</span>
-                  <span>Fresh Telemetry</span>
+                  <span class="material-symbols-rounded icon-sm">sync</span>
+                  <span>Loading Telemetry</span>
                 </span>
               </div>
             </div>
-            <span class="timestamp-tag" id="currentObsTime">Updated Just Now</span>
+            <span class="timestamp-tag" id="currentObsTime">Updating observation...</span>
           </div>
 
           <div class="weather-main-grid">
             <div class="temp-box">
               <div class="temp-row">
-                <span class="temp-val" id="tempVal">28</span><span class="temp-unit" id="tempUnit">°C</span>
+                <span class="temp-val" id="tempVal">--</span><span class="temp-unit" id="tempUnit">°C</span>
               </div>
               <div class="condition-badge">
-                <span id="conditionIcon" class="material-symbols-rounded icon-lg">partly_cloudy_day</span>
-                <span id="conditionText">Partly Cloudy</span>
+                <span id="conditionIcon" class="material-symbols-rounded icon-lg">cloud</span>
+                <span id="conditionText">Loading...</span>
               </div>
-              <p class="feels-like-text" id="feelsLikeText">Feels like 30°C • Mild breeze</p>
+              <p class="feels-like-text" id="feelsLikeText">Initializing weather telemetry...</p>
             </div>
             
             <div class="metrics-grid">
@@ -508,36 +512,58 @@
                   <span class="material-symbols-rounded icon-sm" style="color:var(--secondary-blue);">water_drop</span>
                   <span class="metric-label">Rain Chance</span>
                 </div>
-                <span class="metric-val" id="rainProbVal">65%</span>
+                <span class="metric-val" id="rainProbVal">--</span>
               </div>
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">air</span>
                   <span class="metric-label">Wind Speed</span>
                 </div>
-                <span class="metric-val" id="windVal">14 km/h</span>
+                <span class="metric-val" id="windVal">--</span>
               </div>
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">humidity_percentage</span>
                   <span class="metric-label">Humidity</span>
                 </div>
-                <span class="metric-val" id="humidityVal">72%</span>
+                <span class="metric-val" id="humidityVal">--</span>
               </div>
               <div class="metric-item">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:#D97706;">sunny</span>
                   <span class="metric-label">UV Index</span>
                 </div>
-                <span class="metric-val" id="uvIndexVal">6 (Moderate)</span>
+                <span class="metric-val" id="uvIndexVal">--</span>
               </div>
               <div class="metric-item" style="grid-column: span 2;">
                 <div class="metric-header">
                   <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">verified</span>
                   <span class="metric-label">Forecast Consensus</span>
                 </div>
-                <span class="metric-val agreement-high" id="agreementVal">High Agreement (IMD & Open-Meteo)</span>
+                <span class="metric-val agreement-high" id="agreementVal">Consensus checking...</span>
               </div>
+            </div>
+          </div>
+
+          <!-- Multi-Source Transparency Breakdown -->
+          <div id="sourcesBreakdownSection" class="sources-breakdown-section" aria-label="Multi-Source Weather Telemetry">
+            <div class="sources-section-header" id="sourcesHeaderToggle" onclick="toggleSourcesBreakdown()" role="button" tabindex="0" aria-expanded="false" aria-controls="sourcesListContainer">
+              <div class="sources-header-left">
+                <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">device_hub</span>
+                <span class="sources-header-title">WEATHER SOURCES</span>
+                <span id="activeSourcesCount" class="sources-count-badge">Checking...</span>
+              </div>
+              <div class="sources-header-right">
+                <span id="sourcesAgreementSummary" class="sources-agreement-summary">Multi-Source</span>
+                <span id="sourcesToggleIcon" class="material-symbols-rounded icon-sm">expand_more</span>
+              </div>
+            </div>
+            <div id="sourcesListContainer" class="sources-list-container hidden">
+              <!-- Dynamically populated provider observation cards -->
+            </div>
+            <div id="disagreementWarningBanner" class="disagreement-warning-banner hidden" role="alert">
+              <span class="material-symbols-rounded icon-sm">warning</span>
+              <span id="disagreementWarningText">Weather sources currently disagree on conditions.</span>
             </div>
           </div>
         </section>

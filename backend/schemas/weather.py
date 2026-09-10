@@ -22,6 +22,9 @@ class WeatherDataSchema(BaseModel):
     humidity: float = Field(description="Humidity percentage")
     rain_probability: float = Field(description="Rain probability percentage")
     wind_speed: float = Field(description="Wind speed in km/h")
+    wind_direction: Optional[float] = Field(default=None, description="Wind direction in degrees")
+    pressure: Optional[float] = Field(default=None, description="Atmospheric pressure in hPa")
+    visibility: Optional[float] = Field(default=None, description="Visibility in km")
     condition: str = Field(description="Condition description e.g. Rain, Moderate Rain")
     rainfall_mm: float = Field(default=0.0, description="Rainfall amount in mm")
 
@@ -78,6 +81,7 @@ class CurrentWeatherResponse(BaseModel):
     validation_status: Optional[str] = Field(default="VALID", description="Validation status: VALID, WARNING, INVALID")
     validation_issues: List[str] = Field(default_factory=list, description="Validation issues or warnings")
     is_cached: bool = Field(default=False, description="Whether observation was retrieved from cache")
+    is_real_time: bool = Field(default=False, description="True if fresh, live, non-cached telemetry")
     cache_age_seconds: Optional[int] = Field(default=None, description="Age of cached observation in seconds")
     provider_status: Optional[str] = Field(default="HEALTHY", description="Provider status: HEALTHY, DEGRADED, FAILED, UNAVAILABLE")
     provider_diagnostics: Optional[Dict[str, Any]] = Field(default=None, description="Diagnostic telemetry from provider")

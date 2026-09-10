@@ -546,10 +546,11 @@ function handleDeviceGeolocation() {
   );
 }
 
-// 5-minute Auto-Refresh Configuration (300000 ms)
+// 5-minute Auto-Refresh Configuration (300000 ms) with visibility awareness
 function setupAutoRefresh() {
   if (autoRefreshInterval) clearInterval(autoRefreshInterval);
   autoRefreshInterval = setInterval(() => {
+    if (document.hidden) return;
     if (navigator.onLine && !isFetchingWeather) {
       loadCurrentWeather(false);
     }
@@ -1442,9 +1443,19 @@ async function deleteSavedLoc(id) {
   }
 }
 
+let lastWeatherRefreshTime = 0;
+const WEATHER_REFRESH_COOLDOWN_MS = 2500;
+
 // 5. Live Weather Dashboard Telemetry Engine
 async function loadCurrentWeather(showLoader = false) {
   if (isFetchingWeather) return;
+
+  const now = Date.now();
+  if (showLoader && (now - lastWeatherRefreshTime < WEATHER_REFRESH_COOLDOWN_MS)) {
+    console.log("Weather refresh throttled to prevent request storm.");
+    return;
+  }
+  lastWeatherRefreshTime = now;
   isFetchingWeather = true;
 
   const location = document.getElementById("locationSelect")?.value || "Coimbatore";
@@ -1538,98 +1549,280 @@ function renderWeatherCard(data) {
     sourceTagElem.textContent = data.cached ? "Source: Cached Telemetry" : formatSourcesBadge(data.source, data.sources);
   }
 
-  // Format observation timestamp
+  // Format observation & retrieval timestamps
   const obsTimeStr = data.observed_at ? data.observed_at.split("T")[1]?.slice(0, 5) || "Recent" : "Recent";
-  if (data.cached && data.cached_at) {
-    const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
-    const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
-    document.getElementById("currentObsTime").textContent = `Cached ${minutesAgo}m ago (${cachedTimeStr} UTC) • Observed: ${obsTimeStr} UTC`;
-  } else {
-    document.getElementById("currentObsTime").textContent = `Observed at ${obsTimeStr} UTC`;
+  const obsElem = document.getElementById("currentObsTime");
+  if (obsElem) {
+    if (data.cached && data.cached_at) {
+      const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
+      const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
+      obsElem.textContent = `Cached ${minutesAgo}m ago (${cachedTimeStr} UTC) • Observed: ${obsTimeStr} UTC`;
+    } else if (data.retrieved_at && data.observed_at) {
+      try {
+        const obsMs = new Date(data.observed_at).getTime();
+        const retMs = new Date(data.retrieved_at).getTime();
+        const diffMin = Math.max(0, Math.round((retMs - obsMs) / 60000));
+        obsElem.textContent = diffMin > 0
+          ? `Observed at ${obsTimeStr} UTC (${diffMin}m ago)`
+          : `Observed at ${obsTimeStr} UTC`;
+      } catch (e) {
+        obsElem.textContent = `Observed at ${obsTimeStr} UTC`;
+      }
+    } else {
+      obsElem.textContent = `Observed at ${obsTimeStr} UTC`;
+    }
+  }
+
+  // Live Weather Badge (Only when verified real-time AND freshness is valid)
+  const liveBadge = document.getElementById("liveWeatherBadge");
+  const isFreshOrAging = data.freshness_status === "FRESH" || data.freshness_status === "AGING" || data.data_freshness === "FRESH";
+  const isRealTime = Boolean(data.is_real_time) && !data.cached && !data.is_cached;
+  if (liveBadge) {
+    if (isRealTime && isFreshOrAging && data.system_state !== "OFFLINE" && data.system_state !== "DATA_STALE" && data.system_state !== "SERVICE_UNAVAILABLE") {
+      liveBadge.classList.remove("hidden");
+    } else {
+      liveBadge.classList.add("hidden");
+    }
   }
 
   // Freshness Badge (Strict test assertions match)
   const freshnessTag = document.getElementById("dataFreshnessTag");
-  if (data.system_state === "DATA_STALE" || (data.cached && data.data_freshness === "STALE_DEGRADED")) {
-    freshnessTag.textContent = "Data Stale (Cached)";
-    freshnessTag.className = "freshness-tag partial";
-    updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
-  } else if (data.cached || data.system_state === "OFFLINE") {
-    freshnessTag.textContent = "Cached Telemetry (Offline)";
-    freshnessTag.className = "freshness-tag partial";
-    updateSystemStateBanner("OFFLINE");
-  } else if (data.system_state === "DEGRADED") {
-    freshnessTag.textContent = "Degraded Telemetry";
-    freshnessTag.className = "freshness-tag partial";
-    updateSystemStateBanner("DEGRADED");
-  } else if (data.system_state === "SERVICE_UNAVAILABLE" || data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
-    freshnessTag.textContent = "Data Unavailable";
-    freshnessTag.className = "freshness-tag unavailable";
-    updateSystemStateBanner("SERVICE_UNAVAILABLE");
-  } else if (data.data_status === "PARTIAL" || (data.source && data.source.includes("Fallback"))) {
-    freshnessTag.textContent = "Partial Telemetry";
-    freshnessTag.className = "freshness-tag partial";
-    updateSystemStateBanner("DEGRADED");
-  } else {
-    freshnessTag.textContent = "Fresh Telemetry";
-    freshnessTag.className = "freshness-tag fresh";
-    updateSystemStateBanner("ONLINE");
+  if (freshnessTag) {
+    if (data.system_state === "DATA_STALE" || (data.cached && data.data_freshness === "STALE_DEGRADED")) {
+      freshnessTag.textContent = "Data Stale (Cached)";
+      freshnessTag.className = "freshness-tag partial";
+      updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
+    } else if (data.cached || data.system_state === "OFFLINE") {
+      freshnessTag.textContent = "Cached Telemetry (Offline)";
+      freshnessTag.className = "freshness-tag partial";
+      updateSystemStateBanner("OFFLINE");
+    } else if (data.system_state === "DEGRADED") {
+      freshnessTag.textContent = "Degraded Telemetry";
+      freshnessTag.className = "freshness-tag partial";
+      updateSystemStateBanner("DEGRADED");
+    } else if (data.system_state === "SERVICE_UNAVAILABLE" || data.data_status === "DATA_UNAVAILABLE" || !data.weather) {
+      freshnessTag.textContent = "Data Unavailable";
+      freshnessTag.className = "freshness-tag unavailable";
+      updateSystemStateBanner("SERVICE_UNAVAILABLE");
+    } else if (data.freshness_status === "EXPIRED") {
+      freshnessTag.textContent = "Telemetry Expired";
+      freshnessTag.className = "freshness-tag unavailable";
+      updateSystemStateBanner("DATA_STALE", { updated: obsTimeStr });
+    } else if (data.freshness_status === "AGING") {
+      freshnessTag.textContent = "Aging Telemetry";
+      freshnessTag.className = "freshness-tag partial";
+      updateSystemStateBanner("ONLINE");
+    } else if (data.data_status === "PARTIAL" || (data.source && data.source.includes("Fallback"))) {
+      freshnessTag.textContent = "Partial Telemetry";
+      freshnessTag.className = "freshness-tag partial";
+      updateSystemStateBanner("DEGRADED");
+    } else {
+      freshnessTag.textContent = "Fresh Telemetry";
+      freshnessTag.className = "freshness-tag fresh";
+      updateSystemStateBanner("ONLINE");
+    }
   }
 
-  // Temperature rendering (No fake zeros)
+  // Temperature rendering (Strictly backend value, no fake zeros or fallbacks)
   const tempValElem = document.getElementById("tempVal");
-  if (data.weather?.temperature !== undefined && data.weather?.temperature !== null) {
-    tempValElem.textContent = Math.round(data.weather.temperature);
-  } else {
-    tempValElem.textContent = "--";
+  if (tempValElem) {
+    if (data.weather?.temperature !== undefined && data.weather?.temperature !== null) {
+      tempValElem.textContent = Math.round(data.weather.temperature);
+    } else {
+      tempValElem.textContent = "--";
+    }
   }
 
-  const condText = data.weather?.condition || "Clear";
-  document.getElementById("conditionText").textContent = condText;
+  const condText = data.weather?.condition || "--";
+  const condTextElem = document.getElementById("conditionText");
+  if (condTextElem) {
+    condTextElem.textContent = condText;
+  }
 
   const condIconElem = document.getElementById("conditionIcon");
   if (condIconElem) {
     condIconElem.textContent = getWeatherMaterialIcon(condText);
   }
 
-  // Feels Like
-  const feelsVal = data.weather?.feels_like !== undefined && data.weather?.feels_like !== null
-    ? `${Math.round(data.weather.feels_like)}°C`
-    : (data.weather?.temperature ? `${Math.round(data.weather.temperature + 1)}°C` : "--");
+  // Feels Like (No fabrication if null)
   const feelsElem = document.getElementById("feelsLikeText");
   if (feelsElem) {
-    feelsElem.textContent = `Feels like ${feelsVal} • Multi-source telemetry verified`;
+    if (data.weather?.feels_like !== undefined && data.weather?.feels_like !== null) {
+      feelsElem.textContent = `Feels like ${Math.round(data.weather.feels_like)}°C • Multi-source telemetry verified`;
+    } else {
+      feelsElem.textContent = "Multi-source telemetry verified";
+    }
   }
 
   // Metrics
   const rainElem = document.getElementById("rainProbVal");
-  rainElem.textContent = (data.weather?.rain_probability !== undefined && data.weather?.rain_probability !== null)
-    ? `${data.weather.rain_probability}%` : "--";
+  if (rainElem) {
+    rainElem.textContent = (data.weather?.rain_probability !== undefined && data.weather?.rain_probability !== null)
+      ? `${data.weather.rain_probability}%` : "--";
+  }
 
   const windElem = document.getElementById("windVal");
-  windElem.textContent = (data.weather?.wind_speed !== undefined && data.weather?.wind_speed !== null)
-    ? `${data.weather.wind_speed} km/h` : "--";
+  if (windElem) {
+    windElem.textContent = (data.weather?.wind_speed !== undefined && data.weather?.wind_speed !== null)
+      ? `${data.weather.wind_speed} km/h` : "--";
+  }
 
   const humElem = document.getElementById("humidityVal");
-  humElem.textContent = (data.weather?.humidity !== undefined && data.weather?.humidity !== null)
-    ? `${data.weather.humidity}%` : "--";
+  if (humElem) {
+    humElem.textContent = (data.weather?.humidity !== undefined && data.weather?.humidity !== null)
+      ? `${data.weather.humidity}%` : "--";
+  }
 
   // Consensus / Agreement
   const agreeElement = document.getElementById("agreementVal");
-  if (data.cached) {
-    agreeElement.textContent = "Offline Cached Record";
-    agreeElement.className = "metric-val";
-  } else if (data.comparison && data.comparison.sources_agree) {
-    const srcNames = Array.isArray(data.sources) && data.sources.length > 1
-      ? data.sources.join(" & ")
-      : "Multi-Source";
-    agreeElement.textContent = `High Agreement (${srcNames})`;
-    agreeElement.className = "metric-val agreement-high";
-  } else {
-    const conf = data.comparison?.confidence_level || "CAUTIOUS";
-    agreeElement.textContent = data.comparison ? `Disagreement (${conf})` : "Single Provider Active";
-    agreeElement.className = "metric-val";
+  if (agreeElement) {
+    if (data.cached) {
+      agreeElement.textContent = "Offline Cached Record";
+      agreeElement.className = "metric-val";
+    } else if (data.comparison && data.comparison.sources_agree) {
+      const srcNames = Array.isArray(data.sources) && data.sources.length > 1
+        ? data.sources.join(" & ")
+        : "Multi-Source";
+      agreeElement.textContent = `High Agreement (${srcNames})`;
+      agreeElement.className = "metric-val agreement-high";
+    } else {
+      const conf = data.comparison?.confidence_level || "CAUTIOUS";
+      agreeElement.textContent = data.comparison ? `Disagreement (${conf})` : "Single Provider Active";
+      agreeElement.className = "metric-val";
+    }
   }
+
+  // Multi-Source Transparency Breakdown
+  renderSourcesBreakdown(data);
+}
+
+function renderSourcesBreakdown(data) {
+  const container = document.getElementById("sourcesListContainer");
+  const countBadge = document.getElementById("activeSourcesCount");
+  const agreementSummary = document.getElementById("sourcesAgreementSummary");
+  const warningBanner = document.getElementById("disagreementWarningBanner");
+  const warningText = document.getElementById("disagreementWarningText");
+
+  if (!container) return;
+
+  const records = data.comparison?.provider_records || [];
+  const activeCount = records.filter(r => r.status === "HEALTHY" && r.temperature !== null && r.temperature !== undefined).length;
+
+  if (countBadge) {
+    countBadge.textContent = `${activeCount} Active`;
+  }
+
+  if (agreementSummary) {
+    if (data.cached) {
+      agreementSummary.textContent = "Snapshot: Offline";
+      agreementSummary.style.color = "var(--text-secondary)";
+    } else if (data.comparison?.sources_agree) {
+      agreementSummary.textContent = `Consensus: ${data.comparison.confidence_level || 'HIGH'}`;
+      agreementSummary.style.color = "#166534";
+    } else if (data.comparison) {
+      const conf = data.comparison.confidence_level || "CAUTIOUS";
+      agreementSummary.textContent = `Consensus: ${conf}`;
+      agreementSummary.style.color = "#B45309";
+    } else {
+      agreementSummary.textContent = "Single Provider";
+      agreementSummary.style.color = "var(--text-secondary)";
+    }
+  }
+
+  if (warningBanner && warningText) {
+    if (!data.cached && data.comparison && !data.comparison.sources_agree && activeCount > 1) {
+      warningBanner.classList.remove("hidden");
+      warningText.textContent = data.comparison.disagreement_notes || "Weather sources currently disagree on conditions.";
+    } else {
+      warningBanner.classList.add("hidden");
+    }
+  }
+
+  container.innerHTML = "";
+
+  const knownProviders = [
+    { key: "Open-Meteo", defaultAuth: "secondary_forecast", fallbackStatus: "LIVE VERIFIED" },
+    { key: "OpenWeather", defaultAuth: "secondary_independent", fallbackStatus: "CREDENTIALS NOT CONFIGURED" },
+    { key: "IMD", defaultAuth: "primary_authoritative", fallbackStatus: "LIVE ACCESS NOT CONFIGURED" }
+  ];
+
+  knownProviders.forEach(kp => {
+    const rec = records.find(r => (r.provider || "").toLowerCase().includes(kp.key.toLowerCase()));
+    const card = document.createElement("div");
+    card.className = "provider-card";
+
+    let tempDisplay = "--";
+    let condDisplay = "Not reporting";
+    let statusChipClass = "unconfigured";
+    let statusChipText = kp.fallbackStatus;
+    let timeText = "No observation";
+
+    if (rec) {
+      if (rec.status === "HEALTHY" && rec.temperature !== null && rec.temperature !== undefined) {
+        tempDisplay = `${Math.round(rec.temperature)}°C`;
+        condDisplay = rec.condition || "Reporting";
+        statusChipClass = (rec.freshness || "FRESH").toLowerCase();
+        statusChipText = rec.is_real_time ? `LIVE • ${rec.freshness}` : rec.freshness;
+        const oTime = rec.observed_at ? rec.observed_at.split("T")[1]?.slice(0, 5) + " UTC" : "Recent";
+        timeText = `Observed: ${oTime}`;
+      } else {
+        tempDisplay = "--";
+        condDisplay = rec.condition || "Unavailable";
+        statusChipClass = "unavailable";
+        statusChipText = rec.status || "Unavailable";
+        timeText = rec.observed_at ? `Last observed: ${rec.observed_at.split("T")[1]?.slice(0, 5)} UTC` : "No live data";
+      }
+    } else {
+      if (kp.key === "OpenWeather") {
+        statusChipText = "Credentials Not Configured";
+        condDisplay = "Configurable Provider";
+      } else if (kp.key === "IMD") {
+        statusChipText = "Live Access Not Configured";
+        condDisplay = "Deterministic Reference (Warnings Authoritative)";
+      } else {
+        statusChipText = "Unavailable";
+      }
+    }
+
+    card.innerHTML = `
+      <div class="provider-card-top">
+        <span class="provider-name">
+          <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">sensors</span>
+          ${escapeHTML(kp.key)}
+        </span>
+        <span class="provider-status-chip ${statusChipClass}">${escapeHTML(statusChipText)}</span>
+      </div>
+      <div class="provider-metrics-row">
+        <span class="provider-temp">${tempDisplay}</span>
+        <span class="provider-condition">${escapeHTML(condDisplay)}</span>
+      </div>
+      <div class="provider-meta-row">
+        <span>${escapeHTML(timeText)}</span>
+        <span>${kp.key === 'IMD' ? 'Official Warning Authority' : 'Independent Source'}</span>
+      </div>
+    `;
+
+    container.appendChild(card);
+  });
+}
+
+function toggleSourcesBreakdown() {
+  const container = document.getElementById("sourcesListContainer");
+  const icon = document.getElementById("sourcesToggleIcon");
+  const toggleBtn = document.getElementById("sourcesHeaderToggle");
+  if (!container) return;
+
+  const isHidden = container.classList.contains("hidden");
+  if (isHidden) {
+    container.classList.remove("hidden");
+    if (icon) icon.textContent = "expand_less";
+    if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "true");
+  } else {
+    container.classList.add("hidden");
+    if (icon) icon.textContent = "expand_more";
+    if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
+  }
+}
 }
 
 // 6. Forecast Engine
