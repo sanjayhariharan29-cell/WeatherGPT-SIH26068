@@ -266,16 +266,24 @@ class WeatherGPTApiClient {
   }
 
   // Weather & Locations API Methods
-  async getCurrentWeather(locationName) {
-    return await this.request(`/weather/current?location=${encodeURIComponent(locationName)}`);
+  async getCurrentWeather(locationName, lat = null, lon = null, options = {}) {
+    let endpoint = `/weather/current?location=${encodeURIComponent(locationName || 'Selected Location')}`;
+    if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+      endpoint += `&lat=${lat}&lon=${lon}`;
+    }
+    return await this.request(endpoint, options);
   }
 
   async getForecast(locationName, date = "tomorrow") {
     return await this.request(`/weather/forecast?location=${encodeURIComponent(locationName)}&date=${encodeURIComponent(date)}`);
   }
 
-  async getAlerts(locationName) {
-    return await this.request(`/weather/alerts?location=${encodeURIComponent(locationName)}`);
+  async getAlerts(locationName, lat = null, lon = null, options = {}) {
+    let endpoint = `/weather/alerts?location=${encodeURIComponent(locationName || 'Selected Location')}`;
+    if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+      endpoint += `&lat=${lat}&lon=${lon}`;
+    }
+    return await this.request(endpoint, options);
   }
 
   async getAirQuality(locationName, lat = null, lon = null) {

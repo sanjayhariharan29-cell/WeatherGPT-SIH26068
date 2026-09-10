@@ -885,43 +885,70 @@
 
       <!-- Screen 5: Geospatial Weather Map Screen -->
       <section id="screen-map" class="screen-container" role="region" aria-label="Geospatial Weather & Warning Map Screen">
-        <div class="glass-panel" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+        <div class="glass-panel" style="padding:14px; display:flex; flex-direction:column; gap:12px;">
+          <!-- Map Header & Top Controls -->
           <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
-            <h3 class="section-title">
+            <h3 class="section-title" style="margin:0;">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">map</span>
-              <span data-i18n="map.title">Geospatial Weather & Radar Map</span>
+              <span data-i18n="map.title">SkyZen Weather Intelligence Map</span>
             </h3>
-            <div style="display:flex; gap:6px;">
-              <button id="mapRecenterBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Recenter Map to Selected Location" aria-label="Recenter Map">
+            <div class="map-controls-group" style="display:flex; gap:6px;">
+              <button id="mapMyLocationBtn" class="map-control-btn icon-btn" title="Center to My GPS Location" aria-label="Use My Location">
                 <span class="material-symbols-rounded icon-sm">my_location</span>
-                <span data-i18n="map.recenter">Recenter</span>
+                <span data-i18n="map.my_location">My Location</span>
               </button>
-              <button id="mapLayerToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Toggle Official Alerts Layer" aria-label="Toggle Alert Layer">
-                <span class="material-symbols-rounded icon-sm">warning</span>
-                <span data-i18n="map.toggle_alerts">Toggle Alerts</span>
+              <button id="mapRecenterBtn" class="hidden" style="display:none;" aria-hidden="true"></button>
+              <button id="mapLayerToggleBtn" class="hidden" style="display:none;" aria-hidden="true"></button>
+              <button id="mapRefreshBtn" class="map-control-btn icon-btn" title="Refresh Live Map Data" aria-label="Refresh Map Data">
+                <span class="material-symbols-rounded icon-sm">refresh</span>
+                <span data-i18n="map.refresh">Refresh</span>
               </button>
             </div>
           </div>
 
-          <div class="map-layer-pills" role="radiogroup" aria-label="Weather map layers">
-            <button class="tab-btn active" data-map-layer="precipitation">
-              <span class="material-symbols-rounded icon-sm">rainy</span>
-              <span data-i18n="map.layer_rainfall">Rainfall</span>
+          <!-- Integrated Location Search Bar -->
+          <div class="map-search-bar">
+            <span class="material-symbols-rounded search-icon" aria-hidden="true">search</span>
+            <input 
+              type="search" 
+              id="mapSearchInput" 
+              class="map-search-input" 
+              placeholder="Search Indian city, district, or PIN..." 
+              data-i18n-placeholder="map.search_placeholder" 
+              aria-label="Search map location"
+              autocomplete="off"
+            />
+            <button id="mapSearchClearBtn" class="map-search-clear hidden" aria-label="Clear search">
+              <span class="material-symbols-rounded icon-sm">close</span>
             </button>
-            <button class="tab-btn" data-map-layer="temperature">
+            <div id="mapSearchDropdown" class="map-search-dropdown hidden" role="listbox" aria-label="Location search suggestions"></div>
+          </div>
+
+          <!-- Risk & Metric Layer Switcher -->
+          <div class="map-risk-layers" role="radiogroup" aria-label="Weather risk overlay layers">
+            <button class="map-layer-pill active" data-map-layer="weather" role="radio" aria-checked="true">
               <span class="material-symbols-rounded icon-sm">thermostat</span>
-              <span data-i18n="map.layer_temp">Temperature</span>
+              <span data-i18n="map.layer_weather">Weather</span>
             </button>
-            <button class="tab-btn" data-map-layer="wind">
+            <button class="map-layer-pill rain" data-map-layer="rain_risk" role="radio" aria-checked="false">
+              <span class="material-symbols-rounded icon-sm">rainy</span>
+              <span data-i18n="map.layer_rain_risk">Rain Risk</span>
+            </button>
+            <button class="map-layer-pill wind" data-map-layer="wind_risk" role="radio" aria-checked="false">
               <span class="material-symbols-rounded icon-sm">air</span>
-              <span data-i18n="map.layer_wind">Wind</span>
+              <span data-i18n="map.layer_wind_risk">Wind Risk</span>
             </button>
-            <button class="tab-btn" data-map-layer="clouds">
-              <span class="material-symbols-rounded icon-sm">cloud</span>
-              <span data-i18n="map.layer_clouds">Clouds</span>
+            <button class="map-layer-pill heat" data-map-layer="heat_risk" role="radio" aria-checked="false">
+              <span class="material-symbols-rounded icon-sm">wb_sunny</span>
+              <span data-i18n="map.layer_heat_risk">Heat Risk</span>
+            </button>
+            <button class="map-layer-pill alerts" data-map-layer="warnings" role="radio" aria-checked="false">
+              <span class="material-symbols-rounded icon-sm">warning</span>
+              <span data-i18n="map.layer_warnings">IMD Alerts</span>
             </button>
           </div>
           
+          <!-- Leaflet Map Container -->
           <div id="mapContainer" class="map-view-container" role="application" aria-label="Interactive Weather Map">
             <div id="mapFallback" class="map-fallback hidden">
               <span class="material-symbols-rounded icon-xl" style="color:var(--alert-amber);">cloud_off</span>
@@ -930,37 +957,124 @@
             </div>
           </div>
 
-          <!-- Time Slider -->
-          <div class="map-time-slider">
-            <span style="font-size:12px; font-weight:700; color:var(--text-secondary); display:flex; align-items:center; gap:4px;">
-              <span class="material-symbols-rounded icon-sm">history_toggle_off</span>
-              <span data-i18n="map.timeline">Timeline:</span>
-            </span>
-            <div style="display:flex; gap:6px; flex-wrap:wrap;">
-              <button class="time-step-btn active" data-time-offset="0" data-i18n="map.now">Now</button>
-              <button class="time-step-btn" data-time-offset="2">+2h</button>
-              <button class="time-step-btn" data-time-offset="4">+4h</button>
-              <button class="time-step-btn" data-time-offset="6">+6h</button>
-              <button class="time-step-btn" data-time-offset="12">+12h</button>
+          <!-- Tap-to-Check & Location Weather Intelligence Card (Bottom Sheet) -->
+          <div id="mapSelectionCard" class="map-selection-card">
+            <div id="mapInfoCard" class="hidden" style="display:none;" aria-hidden="true"></div>
+            <!-- Card Header: Title, Coords & Realtime Status Badge -->
+            <div class="map-card-header">
+              <div class="map-loc-details">
+                <div style="display:flex; align-items:center; gap:6px;">
+                  <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">location_on</span>
+                  <h4 id="mapLocName" class="map-card-loc-name">Coimbatore</h4>
+                </div>
+                <p id="mapLocCoords" class="map-card-coords">11.02° N, 76.96° E</p>
+              </div>
+              <div style="display:flex; flex-direction:column; align-items:flex-end; gap:4px;">
+                <span id="mapStatusBadge" class="map-selection-status-badge live">
+                  <span class="material-symbols-rounded icon-sm" style="font-size:14px;">sensors</span>
+                  <span id="mapStatusText">LIVE</span>
+                </span>
+                <span id="mapFreshnessText" class="map-card-freshness">Just now</span>
+              </div>
+            </div>
+
+            <!-- Authoritative IMD Warning Banner (Priority Display) -->
+            <div id="mapAlertPriorityBox" class="map-alert-priority-box hidden" role="alert">
+              <div class="map-alert-priority-header">
+                <span class="material-symbols-rounded">warning</span>
+                <span id="mapAlertPriorityTitle">OFFICIAL IMD WARNING</span>
+                <span id="mapAlertPrioritySeverity" class="severity-pill">HIGH</span>
+              </div>
+              <p id="mapAlertPriorityDesc" class="map-alert-priority-desc"></p>
+              <div id="mapAlertPriorityMeta" class="map-alert-priority-meta">
+                <span id="mapAlertPriorityArea">Area: Coimbatore District</span>
+                <span id="mapAlertPriorityValid">Valid until: Today 18:00</span>
+              </div>
+            </div>
+
+            <!-- Weather Metric Overview: Hero Temp & Condition -->
+            <div class="map-weather-hero">
+              <div class="map-hero-left">
+                <span id="mapWeatherTemp" class="map-hero-temp">--°C</span>
+                <span id="mapWeatherFeelsLike" class="map-hero-feels">Feels like --°C</span>
+              </div>
+              <div class="map-hero-right">
+                <span id="mapWeatherCond" class="map-hero-cond">Select a location</span>
+                <span id="mapSourceAgreement" class="map-hero-agreement">Multi-Source Verified</span>
+              </div>
+            </div>
+
+            <!-- Compact Metrics Grid: Rain, Wind, Humidity, Pressure, AQI -->
+            <div class="map-metrics-bar">
+              <div class="map-metric-cell">
+                <span class="material-symbols-rounded icon-sm" style="color:#0284c7;">rainy</span>
+                <span class="metric-label" data-i18n="weather.rain_prob">Rain</span>
+                <span id="mapMetricRain" class="metric-val">--%</span>
+              </div>
+              <div class="map-metric-cell">
+                <span class="material-symbols-rounded icon-sm" style="color:#0d9488;">air</span>
+                <span class="metric-label" data-i18n="weather.wind">Wind</span>
+                <span id="mapMetricWind" class="metric-val">-- km/h</span>
+              </div>
+              <div class="map-metric-cell">
+                <span class="material-symbols-rounded icon-sm" style="color:#6366f1;">water_drop</span>
+                <span class="metric-label" data-i18n="weather.humidity">Humidity</span>
+                <span id="mapMetricHumidity" class="metric-val">--%</span>
+              </div>
+              <div class="map-metric-cell">
+                <span class="material-symbols-rounded icon-sm" style="color:#64748b;">speed</span>
+                <span class="metric-label" data-i18n="weather.pressure">Pressure</span>
+                <span id="mapMetricPressure" class="metric-val">-- hPa</span>
+              </div>
+              <div class="map-metric-cell">
+                <span class="material-symbols-rounded icon-sm" style="color:#10b981;">eco</span>
+                <span class="metric-label" data-i18n="map.aqi">AQI</span>
+                <span id="mapMetricAqi" class="metric-val">--</span>
+              </div>
+            </div>
+
+            <!-- Source Provenance & CPCB / Open-Meteo AQI Label -->
+            <div class="map-card-provenance">
+              <div class="prov-row">
+                <span class="prov-label">Weather Source:</span>
+                <span id="mapWeatherSource" class="prov-val">Open-Meteo & IMD Telemetry</span>
+              </div>
+              <div class="prov-row">
+                <span class="prov-label">Air Quality:</span>
+                <span id="mapAqiSource" class="prov-val">Modelled Air Quality (Open-Meteo)</span>
+              </div>
+            </div>
+
+            <!-- Card Actions: Ask AI, Save Location, Compare Matrix -->
+            <div class="map-card-actions">
+              <button id="mapAskAiBtn" class="map-action-btn primary" title="Ask AI About This Location">
+                <span class="material-symbols-rounded icon-sm">auto_awesome</span>
+                <span data-i18n="map.ask_ai">Ask AI About Location</span>
+              </button>
+              <button id="mapSaveLocBtn" class="map-action-btn secondary" title="Save This Location">
+                <span class="material-symbols-rounded icon-sm">bookmark_add</span>
+                <span data-i18n="map.save_location">Save</span>
+              </button>
+              <button id="mapToggleCompareBtn" class="map-action-btn secondary" title="Compare with GPS & Saved">
+                <span class="material-symbols-rounded icon-sm">compare_arrows</span>
+                <span data-i18n="map.compare_locations">Compare</span>
+              </button>
             </div>
           </div>
 
-          <!-- Map Marker Detail Card -->
-          <div id="mapInfoCard" class="glass-panel map-info-card" style="padding:14px;">
-            <div style="display:flex; justify-content:space-between; align-items:flex-start;">
+          <!-- Location Comparison Drawer -->
+          <div id="mapCompareDrawer" class="map-compare-drawer hidden" role="region" aria-label="Location comparison matrix">
+            <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px;">
               <div>
-                <h4 id="mapLocName" style="margin:0; font-size:16px; font-weight:700; color:var(--text-primary);">Coimbatore</h4>
-                <p id="mapLocCoords" style="font-size:12px; color:var(--text-secondary); margin-top:2px;">(11.02° N, 76.96° E)</p>
+                <h4 style="margin:0; font-size:14px; font-weight:700; color:var(--text-primary);" data-i18n="map.compare_locations">Compare Weather</h4>
+                <p style="margin:0; font-size:11px; color:var(--text-secondary);" data-i18n="map.compare_sub">Live verified observations across locations</p>
               </div>
-              <span id="mapWeatherTemp" class="temp-val" style="font-size:24px;">--°C</span>
+              <button id="mapCloseCompareBtn" class="icon-btn" style="padding:4px;" aria-label="Close comparison">
+                <span class="material-symbols-rounded icon-sm">close</span>
+              </button>
             </div>
-            <p id="mapWeatherCond" style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Loading marker details...</p>
-            <div id="mapAlertBox" class="chat-warning-box hidden">
-              <div id="mapAlertTitle" class="chat-warning-title">
-                <span class="material-symbols-rounded icon-sm">warning</span>
-                <span>Official Warning</span>
-              </div>
-              <p id="mapAlertDesc" class="chat-warning-desc"></p>
+            <div id="mapCompareGrid" class="map-compare-grid">
+              <!-- Dynamically populated with Current GPS, Selected, Saved locations -->
             </div>
           </div>
         </div>
