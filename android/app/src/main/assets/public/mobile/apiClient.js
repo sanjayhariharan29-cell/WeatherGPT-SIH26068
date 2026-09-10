@@ -125,6 +125,49 @@ class WeatherGPTApiClient {
     return res;
   }
 
+  async verifyEmail(token) {
+    return await this.request("/auth/verify-email", {
+      method: "POST",
+      body: JSON.stringify({ token })
+    });
+  }
+
+  async resendVerification(email) {
+    return await this.request("/auth/resend-verification", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async forgotPassword(email) {
+    return await this.request("/auth/forgot-password", {
+      method: "POST",
+      body: JSON.stringify({ email })
+    });
+  }
+
+  async verifyResetToken(token) {
+    return await this.request("/auth/verify-reset-token", {
+      method: "POST",
+      body: JSON.stringify({ token })
+    });
+  }
+
+  async resetPassword(token, newPassword, confirmPassword = null) {
+    return await this.request("/auth/reset-password", {
+      method: "POST",
+      body: JSON.stringify({
+        token,
+        new_password: newPassword,
+        confirm_password: confirmPassword || newPassword
+      })
+    });
+  }
+
+  async getAuthMe() {
+    return await this.request("/auth/me");
+  }
+
   async logout() {
     try {
       if (this.isAuthenticated()) {
@@ -188,6 +231,14 @@ class WeatherGPTApiClient {
 
   async getAlerts(locationName) {
     return await this.request(`/weather/alerts?location=${encodeURIComponent(locationName)}`);
+  }
+
+  async getAirQuality(locationName, lat = null, lon = null) {
+    let endpoint = `/weather/air-quality?location=${encodeURIComponent(locationName)}`;
+    if (lat !== null && lon !== null) {
+      endpoint += `&lat=${lat}&lon=${lon}`;
+    }
+    return await this.request(endpoint);
   }
 
   async getHistory(locationName, startDate, endDate) {

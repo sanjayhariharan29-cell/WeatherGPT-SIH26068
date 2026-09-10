@@ -3,17 +3,18 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0, viewport-fit=cover, interactive-widget=resizes-content">
-  <title>WeatherGPT — Conversational Meteorological Decision Engine (IMD / MoES)</title>
-  <meta name="description" content="AI-powered mobile platform for weather forecasting, alerts, and climate intelligence. Ministry of Earth Sciences / IMD.">
-  <meta name="theme-color" content="#0f172a">
+  <title>SkyZen — Weather Intelligence | MoES & IMD Decision Engine (WeatherGPT)</title>
+  <meta name="description" content="SkyZen: Clearer Skies. Brighter Days. AI-powered weather intelligence application with hourly & 7-day forecasts, severe weather alerts, interactive maps, air quality, and grounded AI assistant. Powered by MoES / IMD WeatherGPT.">
+  <meta name="theme-color" content="#FFFFFF">
   <meta name="mobile-web-app-capable" content="yes">
-  <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
   <link rel="manifest" href="./manifest.json">
 
-  <!-- Google Fonts -->
+  <!-- Google Fonts: Inter & Material Symbols Rounded -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Outfit:wght@500;600;700;800&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700&family=Noto+Sans+Devanagari:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="./styles.css">
 </head>
@@ -21,51 +22,366 @@
 
   <!-- Offline Status Bar -->
   <div id="offlineBar" class="offline-bar hidden" role="alert" aria-live="assertive">
-    ⚠️ Network Offline. Displaying cached weather telemetry.
+    <span class="material-symbols-rounded">cloud_off</span>
+    <span>Network Offline. Displaying cached weather telemetry.</span>
   </div>
 
   <!-- Mobile Permission & Feedback Notice Banner -->
   <div id="mobileNotice" class="mobile-notice hidden" role="status" aria-live="polite"></div>
 
+  <!-- SkyZen Splash Screen (Initial Entry Flow) -->
+  <div id="splashScreen" class="splash-screen" role="region" aria-label="SkyZen Loading Splash">
+    <div class="splash-content">
+      <div class="splash-logo-badge" aria-hidden="true">
+        <span class="material-symbols-rounded icon-hero">partly_cloudy_day</span>
+      </div>
+      <h1 class="splash-brand-title">SkyZen<span class="accent-dot">.</span></h1>
+      <p class="splash-brand-tagline">Clearer Skies. Brighter Days.</p>
+      <div class="splash-loader" aria-hidden="true">
+        <div class="splash-spinner"></div>
+        <span class="splash-status-text" id="splashStatusText">Initializing Meteorological Intelligence...</span>
+      </div>
+    </div>
+  </div>
+
+  <!-- SkyZen Authentication Portal (Entry Barrier & Flow) -->
+  <div id="authPortal" class="auth-portal hidden" role="dialog" aria-modal="true" aria-label="SkyZen Authentication Portal">
+    <div class="auth-portal-card">
+
+      <!-- View 1: Welcome / Entry Choice -->
+      <div id="authViewWelcome" class="auth-view active">
+        <div class="auth-card-header">
+          <div class="auth-brand-badge" aria-hidden="true">
+            <span class="material-symbols-rounded icon-xl">cloud</span>
+          </div>
+          <h2 class="auth-brand-title">SkyZen<span class="accent-dot">.</span></h2>
+          <p class="auth-brand-tagline">Clearer Skies. Brighter Days.</p>
+          <p class="auth-brand-desc">AI-powered weather intelligence, severe alerts from IMD, and precision forecasts.</p>
+        </div>
+
+        <div class="auth-view-actions">
+          <button id="welcomeLoginBtn" class="auth-primary-btn" aria-label="Sign In to SkyZen">
+            <span class="material-symbols-rounded icon-sm">login</span>
+            <span>Sign In</span>
+          </button>
+          <button id="welcomeSignupBtn" class="auth-secondary-btn" aria-label="Create New Account">
+            <span class="material-symbols-rounded icon-sm">person_add</span>
+            <span>Create Account</span>
+          </button>
+        </div>
+
+        <div class="auth-card-footer-note">
+          <span class="material-symbols-rounded icon-sm">shield</span>
+          <span>Official MoES & IMD Decision Engine (WeatherGPT)</span>
+        </div>
+      </div>
+
+      <!-- View 2: Sign In -->
+      <div id="authViewLogin" class="auth-view hidden">
+        <div class="auth-card-top-nav">
+          <button id="loginBackBtn" class="auth-icon-back-btn" aria-label="Back to welcome screen">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <span class="auth-view-step">Authentication</span>
+        </div>
+
+        <div class="auth-card-header text-left">
+          <h2 class="auth-title">Welcome Back</h2>
+          <p class="auth-subtitle">Sign in to your SkyZen account</p>
+        </div>
+
+        <div id="loginMessage" class="auth-message-box hidden" role="alert"></div>
+
+        <form id="loginForm" class="auth-form" onsubmit="return false;" novalidate>
+          <div class="auth-field">
+            <label for="loginEmail" class="auth-label">Email Address</label>
+            <input type="email" id="loginEmail" class="auth-input" placeholder="name@example.com" autocomplete="email" required>
+          </div>
+
+          <div class="auth-field">
+            <div class="auth-field-header">
+              <label for="loginPassword" class="auth-label">Password</label>
+              <button type="button" id="loginForgotLink" class="auth-text-link">Forgot?</button>
+            </div>
+            <div class="auth-input-wrapper">
+              <input type="password" id="loginPassword" class="auth-input" placeholder="Enter your password" autocomplete="current-password" required>
+              <button type="button" id="loginPassToggle" class="password-toggle-btn" aria-label="Show password">
+                <span class="material-symbols-rounded">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" id="loginSubmitBtn" class="auth-primary-btn" aria-label="Sign In">
+            <span class="material-symbols-rounded icon-sm">login</span>
+            <span id="loginSubmitText">Sign In</span>
+          </button>
+        </form>
+
+        <div id="loginUnverifiedPrompt" class="auth-unverified-prompt hidden">
+          <p>Your email is not verified yet.</p>
+          <button id="loginGoToVerifyBtn" class="auth-link-btn">Enter verification code</button>
+        </div>
+
+        <div class="auth-switch-prompt">
+          <span>Don't have an account?</span>
+          <button id="loginToSignupBtn" class="auth-link-btn">Create one</button>
+        </div>
+      </div>
+
+      <!-- View 3: Sign Up -->
+      <div id="authViewSignup" class="auth-view hidden">
+        <div class="auth-card-top-nav">
+          <button id="signupBackBtn" class="auth-icon-back-btn" aria-label="Back to welcome screen">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <span class="auth-view-step">New Account</span>
+        </div>
+
+        <div class="auth-card-header text-left">
+          <h2 class="auth-title">Create Account</h2>
+          <p class="auth-subtitle">Join SkyZen for real-time weather intelligence</p>
+        </div>
+
+        <div id="signupMessage" class="auth-message-box hidden" role="alert"></div>
+
+        <form id="signupForm" class="auth-form" onsubmit="return false;" novalidate>
+          <div class="auth-field">
+            <label for="signupName" class="auth-label">Full Name</label>
+            <input type="text" id="signupName" class="auth-input" placeholder="e.g. Ramesh Kumar" autocomplete="name" required>
+          </div>
+
+          <div class="auth-field">
+            <label for="signupEmail" class="auth-label">Email Address</label>
+            <input type="email" id="signupEmail" class="auth-input" placeholder="name@example.com" autocomplete="email" required>
+          </div>
+
+          <div class="auth-field">
+            <label for="signupPassword" class="auth-label">Password</label>
+            <div class="auth-input-wrapper">
+              <input type="password" id="signupPassword" class="auth-input" placeholder="At least 6 characters" autocomplete="new-password" required>
+              <button type="button" id="signupPassToggle" class="password-toggle-btn" aria-label="Show password">
+                <span class="material-symbols-rounded">visibility</span>
+              </button>
+            </div>
+            <!-- Dynamic Password Strength Indicator -->
+            <div class="strength-meter" id="strengthMeter" aria-hidden="true">
+              <div class="strength-bar" id="strengthBar1"></div>
+              <div class="strength-bar" id="strengthBar2"></div>
+              <div class="strength-bar" id="strengthBar3"></div>
+            </div>
+            <div class="strength-text" id="strengthText">Minimum 6 characters</div>
+          </div>
+
+          <div class="auth-field">
+            <label for="signupConfirmPassword" class="auth-label">Confirm Password</label>
+            <div class="auth-input-wrapper">
+              <input type="password" id="signupConfirmPassword" class="auth-input" placeholder="Re-enter your password" autocomplete="new-password" required>
+              <button type="button" id="signupConfirmPassToggle" class="password-toggle-btn" aria-label="Show confirm password">
+                <span class="material-symbols-rounded">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" id="signupSubmitBtn" class="auth-primary-btn" aria-label="Create Account">
+            <span class="material-symbols-rounded icon-sm">person_add</span>
+            <span id="signupSubmitText">Create Account</span>
+          </button>
+        </form>
+
+        <div class="auth-switch-prompt">
+          <span>Already have an account?</span>
+          <button id="signupToLoginBtn" class="auth-link-btn">Sign In</button>
+        </div>
+      </div>
+
+      <!-- View 4: Real Email Verification -->
+      <div id="authViewVerify" class="auth-view hidden">
+        <div class="auth-card-top-nav">
+          <button id="verifyBackBtn" class="auth-icon-back-btn" aria-label="Back to sign in">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <span class="auth-view-step">Email Verification</span>
+        </div>
+
+        <div class="auth-card-header text-left">
+          <div class="auth-status-icon-badge" aria-hidden="true">
+            <span class="material-symbols-rounded icon-lg" style="color:var(--primary-blue);">mark_email_read</span>
+          </div>
+          <h2 class="auth-title">Verify Your Email</h2>
+          <p class="auth-subtitle">Enter the 6-digit code issued to your email:</p>
+          <div id="verifyEmailBadge" class="auth-email-badge">user@example.com</div>
+        </div>
+
+        <div id="verifyMessage" class="auth-message-box hidden" role="alert"></div>
+
+        <form id="verifyForm" class="auth-form" onsubmit="return false;" novalidate>
+          <div class="auth-field">
+            <label for="verifyToken" class="auth-label">6-Digit Verification Code</label>
+            <input type="text" id="verifyToken" class="auth-input auth-code-input" placeholder="123456" maxlength="6" inputmode="numeric" autocomplete="one-time-code" required>
+          </div>
+
+          <button type="submit" id="verifySubmitBtn" class="auth-primary-btn" aria-label="Verify Email Code">
+            <span class="material-symbols-rounded icon-sm">verified</span>
+            <span id="verifySubmitText">Verify Email</span>
+          </button>
+        </form>
+
+        <div class="auth-resend-row">
+          <span>Didn't receive the code?</span>
+          <button type="button" id="verifyResendBtn" class="auth-link-btn">Resend Code</button>
+        </div>
+
+        <div class="auth-switch-prompt">
+          <button id="verifyToLoginBtn" class="auth-link-btn">Return to Sign In</button>
+        </div>
+      </div>
+
+      <!-- View 5: Forgot Password Request -->
+      <div id="authViewForgot" class="auth-view hidden">
+        <div class="auth-card-top-nav">
+          <button id="forgotBackBtn" class="auth-icon-back-btn" aria-label="Back to sign in">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <span class="auth-view-step">Password Recovery</span>
+        </div>
+
+        <div class="auth-card-header text-left">
+          <h2 class="auth-title">Reset Password</h2>
+          <p class="auth-subtitle">Enter your registered email address and we'll send you a password reset code.</p>
+        </div>
+
+        <div id="forgotMessage" class="auth-message-box hidden" role="alert"></div>
+
+        <form id="forgotForm" class="auth-form" onsubmit="return false;" novalidate>
+          <div class="auth-field">
+            <label for="forgotEmail" class="auth-label">Registered Email Address</label>
+            <input type="email" id="forgotEmail" class="auth-input" placeholder="name@example.com" autocomplete="email" required>
+          </div>
+
+          <button type="submit" id="forgotSubmitBtn" class="auth-primary-btn" aria-label="Send Reset Code">
+            <span class="material-symbols-rounded icon-sm">send</span>
+            <span id="forgotSubmitText">Generate Reset Code</span>
+          </button>
+        </form>
+
+        <div class="auth-switch-prompt">
+          <button id="forgotToLoginBtn" class="auth-link-btn">Remember your password? Sign In</button>
+        </div>
+      </div>
+
+      <!-- View 6: Real Password Reset (New Password) -->
+      <div id="authViewReset" class="auth-view hidden">
+        <div class="auth-card-top-nav">
+          <button id="resetBackBtn" class="auth-icon-back-btn" aria-label="Back to sign in">
+            <span class="material-symbols-rounded">arrow_back</span>
+          </button>
+          <span class="auth-view-step">New Password</span>
+        </div>
+
+        <div class="auth-card-header text-left">
+          <h2 class="auth-title">Set New Password</h2>
+          <p class="auth-subtitle">Enter your reset code and set a strong new password.</p>
+        </div>
+
+        <div id="resetMessage" class="auth-message-box hidden" role="alert"></div>
+
+        <form id="resetForm" class="auth-form" onsubmit="return false;" novalidate>
+          <div class="auth-field">
+            <label for="resetTokenInput" class="auth-label">Reset Token / Code</label>
+            <input type="text" id="resetTokenInput" class="auth-input" placeholder="Paste reset token here" required>
+          </div>
+
+          <div class="auth-field">
+            <label for="resetNewPassword" class="auth-label">New Password</label>
+            <div class="auth-input-wrapper">
+              <input type="password" id="resetNewPassword" class="auth-input" placeholder="At least 6 characters" autocomplete="new-password" required>
+              <button type="button" id="resetPassToggle" class="password-toggle-btn" aria-label="Show new password">
+                <span class="material-symbols-rounded">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="resetConfirmPassword" class="auth-label">Confirm New Password</label>
+            <div class="auth-input-wrapper">
+              <input type="password" id="resetConfirmPassword" class="auth-input" placeholder="Confirm new password" autocomplete="new-password" required>
+              <button type="button" id="resetConfirmPassToggle" class="password-toggle-btn" aria-label="Show confirm new password">
+                <span class="material-symbols-rounded">visibility</span>
+              </button>
+            </div>
+          </div>
+
+          <button type="submit" id="resetSubmitBtn" class="auth-primary-btn" aria-label="Update Password">
+            <span class="material-symbols-rounded icon-sm">lock_reset</span>
+            <span id="resetSubmitText">Update Password</span>
+          </button>
+        </form>
+
+        <div class="auth-switch-prompt">
+          <button id="resetToLoginBtn" class="auth-link-btn">Return to Sign In</button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
   <div class="app-container">
-    <!-- Top Header -->
+    <!-- Top Header Navigation -->
     <header class="header-glass" role="banner">
       <div class="brand">
-        <div class="logo-icon" aria-hidden="true">🌤️</div>
+        <div class="logo-badge" aria-hidden="true">
+          <span class="material-symbols-rounded icon-lg">partly_cloudy_day</span>
+        </div>
         <div>
-          <h1 class="brand-title">WeatherGPT</h1>
-          <p class="brand-subtitle">MoES / IMD Meteorological Decision Engine</p>
+          <h1 class="brand-title">SkyZen<span class="accent-dot">.</span></h1>
+          <p class="brand-tagline">Clearer Skies. Brighter Days.</p>
+          <p class="brand-subtitle" style="display:none;">WeatherGPT MoES IMD Decision Engine</p>
         </div>
       </div>
       <div class="controls-group">
         <select id="locationSelect" class="styled-select" aria-label="Select Location">
-          <option value="Coimbatore">📍 Coimbatore</option>
-          <option value="Nagapattinam">📍 Nagapattinam (Hero Alert)</option>
-          <option value="Chennai">📍 Chennai</option>
-          <option value="Madurai">📍 Madurai</option>
-          <option value="Tiruchirappalli">📍 Trichy</option>
+          <option value="Coimbatore">Coimbatore, Tamil Nadu</option>
+          <option value="Nagapattinam">Nagapattinam (Coastal Warning Zone)</option>
+          <option value="Chennai">Chennai, Tamil Nadu</option>
+          <option value="Madurai">Madurai, Tamil Nadu</option>
+          <option value="Tiruchirappalli">Trichy, Tamil Nadu</option>
+          <option value="Bengaluru">Bengaluru, Karnataka</option>
+          <option value="Delhi">Delhi NCR</option>
         </select>
         <select id="personaSelect" class="styled-select" aria-label="Select Persona">
-          <option value="student">🎓 Student</option>
-          <option value="fisherman">🎣 Fisherman</option>
-          <option value="farmer">🌾 Farmer</option>
-          <option value="traveller">🧳 Traveller</option>
-          <option value="disaster_response">🚨 Disaster Response</option>
+          <option value="student">Student</option>
+          <option value="commuter">Commuter</option>
+          <option value="farmer">Farmer</option>
+          <option value="fisherman">Fisherman</option>
+          <option value="traveller">Traveller</option>
+          <option value="disaster_response">Disaster Response</option>
         </select>
-        <button id="geoBtn" class="icon-btn" title="Use Device Geolocation (GPS)" aria-label="Use Device Geolocation">📍 GPS</button>
-        <button id="refreshBtn" class="icon-btn" title="Refresh Weather Telemetry" aria-label="Refresh Weather Telemetry">🔄</button>
+        <button id="geoBtn" class="icon-btn" title="Use Device Geolocation (GPS)" aria-label="Use Device Geolocation">
+          <span class="material-symbols-rounded">my_location</span>
+          <span>GPS</span>
+        </button>
+        <button id="refreshBtn" class="icon-btn" title="Refresh Weather Telemetry" aria-label="Refresh Weather Telemetry">
+          <span class="material-symbols-rounded">refresh</span>
+        </button>
+        <button id="headerAlertBtn" class="icon-btn" title="Weather Alerts" aria-label="Weather Alerts" onclick="navigateToScreen('alerts')">
+          <span class="material-symbols-rounded">notifications</span>
+          <span id="headerAlertBadge" class="header-badge hidden">!</span>
+        </button>
       </div>
     </header>
 
-    <!-- Official Warning Banner (Top Priority Visual Component) -->
+    <!-- Official Warning Priority Banner (Top Priority Visual Component) -->
     <div id="alertBanner" class="alert-banner hidden" role="region" aria-label="Official Warning Banner" aria-live="assertive">
       <div class="alert-header">
-        <span id="alertSeverityBadge" class="alert-badge">⚠️ OFFICIAL IMD WARNING</span>
+        <span id="alertSeverityBadge" class="alert-badge">
+          <span class="material-symbols-rounded icon-sm">warning</span>
+          <span id="alertSeverityText">OFFICIAL IMD WARNING</span>
+        </span>
         <span id="alertTime" class="alert-time">Valid until 08:00 PM</span>
       </div>
       <h2 id="alertTitle" class="alert-title">Heavy Rain & Squally Wind Warning</h2>
       <p id="alertDesc" class="alert-desc">Coastal warning issued. Fishermen advised not to venture into deep sea.</p>
-      <div style="margin-top:6px; font-size:11px; color:#cbd5e1;" id="alertSourceTag">Source: India Meteorological Department (IMD)</div>
+      <div class="alert-source-tag" id="alertSourceTag">Authoritative Source: India Meteorological Department (IMD)</div>
     </div>
 
     <!-- Main Mobile Content Area -->
@@ -77,116 +393,353 @@
         <!-- Dashboard Loading Skeleton -->
         <div id="dashboardSkeleton" class="glass-panel hidden" aria-label="Loading Telemetry">
           <div class="spinner"></div>
-          <p style="text-align:center; font-size:12px; color:var(--text-muted); margin-top:8px;">Fetching Live Meteorological Telemetry...</p>
+          <p style="text-align:center; font-size:13px; color:var(--text-secondary); margin-top:8px;">Fetching Live Meteorological Telemetry...</p>
         </div>
 
         <!-- Dashboard Error Card -->
         <div id="dashboardErrorCard" class="error-card hidden" role="alert">
-          <p id="dashboardErrorText">Failed to retrieve weather data.</p>
-          <button id="dashboardRetryBtn" class="retry-btn">🔄 Retry Connection</button>
+          <div style="display:flex; align-items:center; gap:8px;">
+            <span class="material-symbols-rounded" style="color:var(--alert-red);">error</span>
+            <p id="dashboardErrorText">Failed to retrieve weather data.</p>
+          </div>
+          <button id="dashboardRetryBtn" class="retry-btn">
+            <span class="material-symbols-rounded icon-sm">refresh</span>
+            <span>Retry Connection</span>
+          </button>
         </div>
 
-        <!-- Current Weather Live Overview Card -->
-        <section id="weatherCardContainer" class="weather-card glass-panel" aria-label="Current Weather Overview" aria-live="polite">
+        <!-- Current Weather Hero Card -->
+        <section id="weatherCardContainer" class="hero-weather-card" aria-label="Current Weather Overview" aria-live="polite">
           <div class="card-header">
-            <div>
-              <span class="location-badge" id="currentLocationName">Coimbatore, TN</span>
-              <span class="source-tag" id="currentSourceTag">Source: IMD</span>
-              <span class="freshness-tag fresh" id="dataFreshnessTag">Fresh Telemetry</span>
+            <div class="location-group">
+              <span class="location-badge">
+                <span class="material-symbols-rounded" style="color:var(--primary-blue);">location_on</span>
+                <span id="currentLocationName">Coimbatore, Tamil Nadu</span>
+              </span>
+              <div class="badge-row">
+                <span class="source-tag" id="currentSourceTag">Source: IMD</span>
+                <span class="freshness-tag fresh" id="dataFreshnessTag">
+                  <span class="material-symbols-rounded icon-sm">check_circle</span>
+                  <span>Fresh Telemetry</span>
+                </span>
+              </div>
             </div>
-            <span class="timestamp-tag" id="currentObsTime">Updated 10:10 AM</span>
+            <span class="timestamp-tag" id="currentObsTime">Updated Just Now</span>
           </div>
 
           <div class="weather-main-grid">
             <div class="temp-box">
-              <div>
-                <span class="temp-val" id="tempVal">29</span><span class="temp-unit" id="tempUnit">°C</span>
+              <div class="temp-row">
+                <span class="temp-val" id="tempVal">28</span><span class="temp-unit" id="tempUnit">°C</span>
               </div>
-              <div class="condition-badge" id="conditionText">🌧️ Moderate Rain</div>
+              <div class="condition-badge">
+                <span id="conditionIcon" class="material-symbols-rounded icon-lg">partly_cloudy_day</span>
+                <span id="conditionText">Partly Cloudy</span>
+              </div>
+              <p class="feels-like-text" id="feelsLikeText">Feels like 30°C • Mild breeze</p>
             </div>
+            
             <div class="metrics-grid">
               <div class="metric-item">
-                <span class="metric-label">Precipitation</span>
+                <div class="metric-header">
+                  <span class="material-symbols-rounded icon-sm" style="color:var(--secondary-blue);">water_drop</span>
+                  <span class="metric-label">Rain Chance</span>
+                </div>
                 <span class="metric-val" id="rainProbVal">65%</span>
               </div>
               <div class="metric-item">
-                <span class="metric-label">Wind Speed</span>
-                <span class="metric-val" id="windVal">18 km/h</span>
+                <div class="metric-header">
+                  <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">air</span>
+                  <span class="metric-label">Wind Speed</span>
+                </div>
+                <span class="metric-val" id="windVal">14 km/h</span>
               </div>
               <div class="metric-item">
-                <span class="metric-label">Humidity</span>
+                <div class="metric-header">
+                  <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">humidity_percentage</span>
+                  <span class="metric-label">Humidity</span>
+                </div>
                 <span class="metric-val" id="humidityVal">72%</span>
               </div>
               <div class="metric-item">
-                <span class="metric-label">Multi-Source Agreement</span>
-                <span class="metric-val agreement-high" id="agreementVal">High Agreement</span>
+                <div class="metric-header">
+                  <span class="material-symbols-rounded icon-sm" style="color:#D97706;">sunny</span>
+                  <span class="metric-label">UV Index</span>
+                </div>
+                <span class="metric-val" id="uvIndexVal">6 (Moderate)</span>
+              </div>
+              <div class="metric-item" style="grid-column: span 2;">
+                <div class="metric-header">
+                  <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">verified</span>
+                  <span class="metric-label">Forecast Consensus</span>
+                </div>
+                <span class="metric-val agreement-high" id="agreementVal">High Agreement (IMD & Open-Meteo)</span>
               </div>
             </div>
           </div>
         </section>
 
-        <!-- Quick AI Access Card -->
-        <section class="glass-panel">
-          <h3>💬 Quick Weather Assistant</h3>
-          <div class="chips-scroll" style="margin-top:8px;">
-            <button class="chip-btn" onclick="sendQuickQuery('Naalaiku morning college pogalama?')">🎓 College tomorrow?</button>
-            <button class="chip-btn" onclick="sendQuickQuery('Naalaiku kadaluku pogalama?')">🎣 Sea fishing status?</button>
-            <button class="chip-btn" onclick="sendQuickQuery('Farmer advisory for heavy rain')">🌾 Farmer crop guide</button>
+        <!-- Hourly Forecast Carousel -->
+        <section class="glass-panel hourly-section-wrapper" aria-label="Hourly Forecast Timeline">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">schedule</span>
+              <span>Hourly Forecast</span>
+            </h3>
+            <span class="section-subtitle">Next 24 Hours</span>
+          </div>
+          <div id="forecastGridToday" class="horizontal-scroll-row" role="list">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- 7-Day Daily Forecast Section -->
+        <section class="glass-panel home-grid-col-left" aria-label="7-Day Daily Forecast">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">calendar_today</span>
+              <span>7-Day Forecast</span>
+            </h3>
+            <span class="section-subtitle">IMD Numerical Model</span>
+          </div>
+          <div id="dailyForecastList" class="daily-forecast-list" role="list">
+            <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Prominent Ask SkyZen CTA Card -->
+        <section class="ask-skyzen-card home-grid-col-right" aria-label="Ask SkyZen AI Assistant">
+          <div class="ask-skyzen-header">
+            <div>
+              <h3 class="ask-skyzen-title">
+                <span class="material-symbols-rounded icon-lg">psychology</span>
+                <span>Ask SkyZen</span>
+              </h3>
+              <p class="ask-skyzen-sub">Get weather-aware answers for your daily plans</p>
+            </div>
+          </div>
+
+          <div class="chips-scroll" role="group" aria-label="Quick suggested queries">
+            <button class="chip-btn" onclick="sendQuickQuery('Will it rain when I go to college today?')">
+              <span class="material-symbols-rounded icon-sm">school</span>
+              <span>College rain risk?</span>
+            </button>
+            <button class="chip-btn" onclick="sendQuickQuery('Naalaiku kadaluku pogalama?')">
+              <span class="material-symbols-rounded icon-sm">phishing</span>
+              <span>Sea fishing safety?</span>
+            </button>
+            <button class="chip-btn" onclick="sendQuickQuery('Is it safe for outdoor sports this evening?')">
+              <span class="material-symbols-rounded icon-sm">sports_soccer</span>
+              <span>Outdoor sports?</span>
+            </button>
+            <button class="chip-btn" onclick="sendQuickQuery('Farmer advisory for heavy rain')">
+              <span class="material-symbols-rounded icon-sm">agriculture</span>
+              <span>Crop spray advisory</span>
+            </button>
+          </div>
+
+          <button class="cta-button" onclick="navigateToScreen('chat')" aria-label="Open AI Assistant Chat">
+            <span>Start Conversation</span>
+            <span class="material-symbols-rounded icon-sm">arrow_forward</span>
+          </button>
+        </section>
+
+        <!-- Quick Weather Tools Hub Tiles -->
+        <section class="glass-panel" aria-label="Weather Intelligence Tools">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">grid_view</span>
+              <span>Weather Intelligence Tools</span>
+            </h3>
+            <span class="section-subtitle">Real-time Telemetry</span>
+          </div>
+          <div class="tools-grid">
+            <div class="tool-tile" onclick="navigateToScreen('air-quality')">
+              <div class="tool-icon-box" style="background:#DCFCE7; color:#166534;">
+                <span class="material-symbols-rounded icon-md">air</span>
+              </div>
+              <span class="tool-title">Air Quality</span>
+            </div>
+            <div class="tool-tile" onclick="navigateToScreen('map')">
+              <div class="tool-icon-box" style="background:#E3F2FD; color:#1976D2;">
+                <span class="material-symbols-rounded icon-md">map</span>
+              </div>
+              <span class="tool-title">Weather Map</span>
+            </div>
+            <div class="tool-tile" onclick="navigateToScreen('alerts')">
+              <div class="tool-icon-box" style="background:#FEE2E2; color:#DC2626;">
+                <span class="material-symbols-rounded icon-md">warning</span>
+              </div>
+              <span class="tool-title">Alerts & Radar</span>
+            </div>
+            <div class="tool-tile" onclick="navigateToScreen('locations')">
+              <div class="tool-icon-box" style="background:#FEF3C7; color:#B45309;">
+                <span class="material-symbols-rounded icon-md">bookmark</span>
+              </div>
+              <span class="tool-title">Saved Cities</span>
+            </div>
           </div>
         </section>
       </section>
 
-      <!-- Screen 2: Chat -->
+      <!-- Screen 2: AI Assistant Screen -->
       <section id="screen-chat" class="screen-container" role="region" aria-label="Conversational AI Screen">
-        <div class="glass-panel" style="padding:12px;">
-          <h3>💬 WeatherGPT Decision Assistant</h3>
-          <div id="chatHistory" class="chat-window" style="margin-top:10px;">
+        <div class="glass-panel chat-left-col" style="padding:16px;">
+          <div class="section-header">
+            <div>
+              <h3 class="section-title">
+                <span class="material-symbols-rounded" style="color:var(--primary-blue);">smart_toy</span>
+                <span>SkyZen AI Assistant</span>
+              </h3>
+              <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
+                WeatherGPT Decision Assistant • Grounded on Official IMD Telemetry
+              </p>
+            </div>
+            <div style="display:flex; gap:6px;">
+              <button id="chatLangToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Switch Language" aria-label="Switch Language">
+                <span class="material-symbols-rounded icon-sm">language</span>
+                <span id="chatLangText">English / தமிழ்</span>
+              </button>
+            </div>
+          </div>
+
+          <div id="chatHistory" class="chat-window" role="log" aria-live="polite">
             <div class="msg-bubble bot-msg">
               <div class="msg-author">
-                <span>🌤️ WeatherGPT Decision Engine</span>
+                <span style="display:flex; align-items:center; gap:6px;">
+                  <span class="material-symbols-rounded icon-sm">verified_user</span>
+                  <span>SkyZen Decision Engine</span>
+                </span>
                 <span class="msg-tag">IMD Grounded</span>
               </div>
-              <p>Vanakkam! I am WeatherGPT, your meteorological decision assistant. Ask me anything in <strong>Tamil, Tanglish, or English</strong>!</p>
+              <p>Vanakkam! I am <strong>SkyZen</strong>, your AI weather decision assistant. Ask me questions about your travel, college, outdoor plans, or farming in <strong>English, Tamil (தமிழ்), or Tanglish</strong>!</p>
+              <div class="ai-reasoning-box">
+                <div class="confidence-row">
+                  <span class="confidence-badge">Confidence: High</span>
+                  <span class="confidence-desc">Verified real-time multi-source weather telemetry</span>
+                </div>
+                <div class="source-attribution-row">
+                  <span>Sources: IMD (Primary) · Open-Meteo (Secondary)</span>
+                  <span class="verified-tag">LIVE VERIFIED</span>
+                </div>
+              </div>
             </div>
           </div>
 
-          <div class="chat-input-bar glass-panel" style="margin-top:10px;">
-            <input type="text" id="chatInput" placeholder="Ask WeatherGPT... (e.g., Naalaiku college pogalama?)" autocomplete="off" aria-label="Chat input query">
-            <button id="voiceBtn" class="icon-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice input">🎙️</button>
-            <button id="sendBtn" class="send-btn" aria-label="Send message">Send ➔</button>
+          <div class="chips-scroll" style="margin-top:6px;">
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Will it rain when I go to college today?')">
+              <span class="material-symbols-rounded icon-sm">school</span>
+              <span>College rain timing?</span>
+            </button>
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Is it safe to travel to Ooty this weekend?')">
+              <span class="material-symbols-rounded icon-sm">travel_explore</span>
+              <span>Weekend travel advisory?</span>
+            </button>
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Should I carry an umbrella today?')">
+              <span class="material-symbols-rounded icon-sm">umbrella</span>
+              <span>Umbrella needed?</span>
+            </button>
+          </div>
+
+          <div class="chat-input-bar" style="margin-top:10px;">
+            <input type="text" id="chatInput" placeholder="Ask SkyZen about your plans... (e.g. Will it rain at 5 PM?)" autocomplete="off" aria-label="Chat input query">
+            <button id="voiceBtn" class="icon-btn" title="Voice Input (Speech-to-Text)" aria-label="Voice input">
+              <span class="material-symbols-rounded">mic</span>
+            </button>
+            <button id="sendBtn" class="send-btn" aria-label="Send message">
+              <span class="material-symbols-rounded">send</span>
+              <span>Send</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="glass-panel chat-right-col" style="padding:16px;">
+          <h4 style="font-size:14px; font-weight:700; color:var(--text-primary); display:flex; align-items:center; gap:6px;">
+            <span class="material-symbols-rounded" style="color:var(--primary-blue);">info</span>
+            <span>Reasoning Architecture</span>
+          </h4>
+          <p style="font-size:12px; color:var(--text-secondary); line-height:1.5;">
+            SkyZen strictly adheres to safety-first meteorological validation:
+          </p>
+          <div style="display:flex; flex-direction:column; gap:8px; margin-top:8px; font-size:12px;">
+            <div style="display:flex; align-items:center; gap:8px; color:var(--alert-red); font-weight:600;">
+              <span class="material-symbols-rounded icon-sm">priority_high</span>
+              <span>1. Official Live Disaster Warnings (Top Priority)</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; color:var(--primary-blue); font-weight:600;">
+              <span class="material-symbols-rounded icon-sm">sensors</span>
+              <span>2. Verified IMD & Multi-Source Agreement</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; color:var(--text-primary); font-weight:500;">
+              <span class="material-symbols-rounded icon-sm">rule</span>
+              <span>3. Deterministic Hazard Decision Rules</span>
+            </div>
+            <div style="display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-weight:500;">
+              <span class="material-symbols-rounded icon-sm">lock_clock</span>
+              <span>4. Anti-Hallucination Guardrails</span>
+            </div>
           </div>
         </div>
       </section>
 
-      <!-- Screen 3: Weather (Timeline Forecast & Climate Trends) -->
+      <!-- Screen 3: Weather (Extended Forecast & Climate Trends) -->
       <section id="screen-weather" class="screen-container" role="region" aria-label="Forecast Screen">
-        
-        <!-- Categorized Forecast Timelines -->
+        <div class="screen-top-bar" style="grid-column: span 12;">
+          <button class="sub-screen-back-btn" onclick="navigateToScreen('home')">
+            <span class="material-symbols-rounded icon-sm">arrow_back</span>
+            <span>Back to Home</span>
+          </button>
+        </div>
+
         <div class="glass-panel forecast-section">
-          <h3>🕒 Today's Hourly Forecast</h3>
-          <div id="forecastGridToday" class="forecast-grid">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">schedule</span>
+              <span>Today's Hourly Forecast</span>
+            </h3>
+            <span class="section-subtitle">24-Hour Horizon</span>
+          </div>
+          <div id="forecastGridTodayFull" class="forecast-grid" role="list">
             <!-- Dynamically populated -->
           </div>
         </div>
 
         <div class="glass-panel forecast-section">
-          <h3>🌅 Tomorrow's Forecast</h3>
-          <div id="forecastGridTomorrow" class="forecast-grid">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">wb_twilight</span>
+              <span>Tomorrow's Hourly Forecast</span>
+            </h3>
+          </div>
+          <div id="forecastGridTomorrow" class="forecast-grid" role="list">
             <!-- Dynamically populated -->
           </div>
         </div>
 
         <div class="glass-panel forecast-section">
-          <h3>📅 Extended Future Forecast</h3>
-          <div id="forecastGridFuture" class="forecast-grid">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">date_range</span>
+              <span>Extended Future Forecast</span>
+            </h3>
+          </div>
+          <div id="forecastGridFuture" class="forecast-grid" role="list">
             <!-- Dynamically populated -->
           </div>
         </div>
 
         <div class="glass-panel trends-section">
-          <h3>📊 Climate Trend Archive (NASA POWER / IMD)</h3>
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">insights</span>
+              <span>Climate Trend Archive (NASA POWER / IMD)</span>
+            </h3>
+          </div>
           <div id="trendBox" class="trend-box">
-            <p class="trend-headline">📈 10-Year Temperature Trend (2015 - 2025)</p>
+            <p class="trend-headline">
+              <span class="material-symbols-rounded icon-sm">trending_up</span>
+              <span>10-Year Temperature Trend (2015 – 2025)</span>
+            </p>
             <p class="trend-text">Average annual temperature has increased by <strong>+0.85°C</strong> over the decade with an increase in high-intensity monsoonal precipitation events.</p>
             <div class="trend-stat-row">
               <div class="stat-pill">Avg Rain: <strong>950.4 mm</strong></div>
@@ -197,93 +750,428 @@
         </div>
       </section>
 
-      <!-- Screen 4: Alerts -->
+      <!-- Screen 4: Dedicated Weather Alerts Screen -->
       <section id="screen-alerts" class="screen-container" role="region" aria-label="Alerts Screen">
-        <div class="glass-panel risk-section">
-          <h3>🚨 Official IMD Warnings & Risk Register</h3>
-          <div id="disasterList" class="disaster-list">
+        <div class="glass-panel">
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--alert-red);">warning</span>
+              <span>Official IMD Warnings & Risk Register</span>
+            </h3>
+            <span class="section-subtitle">Real-time Emergency Feeds</span>
+          </div>
+
+          <div class="filter-tabs" role="tablist">
+            <button class="tab-btn active" data-alert-filter="all" role="tab" aria-selected="true">
+              <span class="material-symbols-rounded icon-sm">layers</span>
+              <span>All Alerts</span>
+            </button>
+            <button class="tab-btn" data-alert-filter="severe" role="tab" aria-selected="false">
+              <span class="material-symbols-rounded icon-sm">emergency</span>
+              <span>Severe</span>
+            </button>
+            <button class="tab-btn" data-alert-filter="rain" role="tab" aria-selected="false">
+              <span class="material-symbols-rounded icon-sm">rainy</span>
+              <span>Heavy Rain</span>
+            </button>
+            <button class="tab-btn" data-alert-filter="heat" role="tab" aria-selected="false">
+              <span class="material-symbols-rounded icon-sm">thermostat</span>
+              <span>Heatwave</span>
+            </button>
+            <button class="tab-btn" data-alert-filter="wind" role="tab" aria-selected="false">
+              <span class="material-symbols-rounded icon-sm">air</span>
+              <span>Squall & Wind</span>
+            </button>
+          </div>
+
+          <div id="disasterList" class="disaster-list" role="list">
             <!-- Dynamically populated -->
           </div>
         </div>
       </section>
 
-      <!-- Screen 5: Geospatial Weather Map -->
+      <!-- Screen 5: Geospatial Weather Map Screen -->
       <section id="screen-map" class="screen-container" role="region" aria-label="Geospatial Weather & Warning Map Screen">
-        <div class="glass-panel" style="padding:12px; display:flex; flex-direction:column; gap:10px;">
-          <div style="display:flex; justify-content:space-between; align-items:center;">
-            <h3 style="margin:0;">🗺️ Geospatial Weather & Alert Map</h3>
+        <div class="glass-panel" style="padding:16px; display:flex; flex-direction:column; gap:12px;">
+          <div style="display:flex; justify-content:space-between; align-items:center; flex-wrap:wrap; gap:8px;">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">map</span>
+              <span>Geospatial Weather & Radar Map</span>
+            </h3>
             <div style="display:flex; gap:6px;">
-              <button id="mapRecenterBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Recenter Map to Selected Location" aria-label="Recenter Map">🎯 Recenter</button>
-              <button id="mapLayerToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Toggle Official Alerts Layer" aria-label="Toggle Alert Layer">🚨 Toggle Alerts</button>
-            </div>
-          </div>
-          
-          <div id="mapContainer" class="map-view-container" style="width:100%; height:360px; border-radius:12px; position:relative; overflow:hidden; background:#0f172a;" role="application" aria-label="Interactive Weather Map">
-            <div id="mapFallback" class="map-fallback hidden">
-              <p style="font-weight:600; color:var(--alert-warning);">⚠️ Interactive Map Tiles Offline / Unavailable</p>
-              <p style="font-size:12px; color:var(--text-muted); margin-top:4px;">Displaying coordinate weather telemetry below.</p>
+              <button id="mapRecenterBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Recenter Map to Selected Location" aria-label="Recenter Map">
+                <span class="material-symbols-rounded icon-sm">my_location</span>
+                <span>Recenter</span>
+              </button>
+              <button id="mapLayerToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Toggle Official Alerts Layer" aria-label="Toggle Alert Layer">
+                <span class="material-symbols-rounded icon-sm">warning</span>
+                <span>Toggle Alerts</span>
+              </button>
             </div>
           </div>
 
-          <!-- Mobile Map Bottom Sheet / Marker Detail Card -->
-          <div id="mapInfoCard" class="map-info-card glass-panel" style="margin-top:4px; display:flex; flex-direction:column; gap:6px;">
+          <div class="map-layer-pills" role="radiogroup" aria-label="Weather map layers">
+            <button class="tab-btn active" data-map-layer="precipitation">
+              <span class="material-symbols-rounded icon-sm">rainy</span>
+              <span>Rainfall</span>
+            </button>
+            <button class="tab-btn" data-map-layer="temperature">
+              <span class="material-symbols-rounded icon-sm">thermostat</span>
+              <span>Temperature</span>
+            </button>
+            <button class="tab-btn" data-map-layer="wind">
+              <span class="material-symbols-rounded icon-sm">air</span>
+              <span>Wind</span>
+            </button>
+            <button class="tab-btn" data-map-layer="clouds">
+              <span class="material-symbols-rounded icon-sm">cloud</span>
+              <span>Clouds</span>
+            </button>
+          </div>
+          
+          <div id="mapContainer" class="map-view-container" role="application" aria-label="Interactive Weather Map">
+            <div id="mapFallback" class="map-fallback hidden">
+              <span class="material-symbols-rounded icon-xl" style="color:var(--alert-amber);">cloud_off</span>
+              <p style="font-weight:600; color:var(--alert-warning);">Interactive Map Tiles Offline / Unavailable</p>
+              <p style="font-size:12px; color:var(--text-muted);">Displaying coordinate weather telemetry below.</p>
+            </div>
+          </div>
+
+          <!-- Time Slider -->
+          <div class="map-time-slider">
+            <span style="font-size:12px; font-weight:700; color:var(--text-secondary); display:flex; align-items:center; gap:4px;">
+              <span class="material-symbols-rounded icon-sm">history_toggle_off</span>
+              <span>Timeline:</span>
+            </span>
+            <div style="display:flex; gap:6px; flex-wrap:wrap;">
+              <button class="time-step-btn active" data-time-offset="0">Now</button>
+              <button class="time-step-btn" data-time-offset="2">+2h</button>
+              <button class="time-step-btn" data-time-offset="4">+4h</button>
+              <button class="time-step-btn" data-time-offset="6">+6h</button>
+              <button class="time-step-btn" data-time-offset="12">+12h</button>
+            </div>
+          </div>
+
+          <!-- Map Marker Detail Card -->
+          <div id="mapInfoCard" class="glass-panel map-info-card" style="padding:14px;">
             <div style="display:flex; justify-content:space-between; align-items:flex-start;">
               <div>
-                <h4 id="mapLocName" style="margin:0; font-size:15px; color:var(--text-primary);">Coimbatore</h4>
-                <p id="mapLocCoords" style="font-size:11px; color:var(--text-muted); margin-top:2px;">(11.02° N, 76.96° E)</p>
+                <h4 id="mapLocName" style="margin:0; font-size:16px; font-weight:700; color:var(--text-primary);">Coimbatore</h4>
+                <p id="mapLocCoords" style="font-size:12px; color:var(--text-secondary); margin-top:2px;">(11.02° N, 76.96° E)</p>
               </div>
-              <span id="mapWeatherTemp" class="temp-val" style="font-size:22px;">--°C</span>
+              <span id="mapWeatherTemp" class="temp-val" style="font-size:24px;">--°C</span>
             </div>
-            <p id="mapWeatherCond" style="font-size:13px; color:var(--text-secondary);">Loading marker details...</p>
-            <div id="mapAlertBox" class="chat-warning-box hidden" style="margin-top:4px;">
-              <div id="mapAlertTitle" class="chat-warning-title">⚠️ Official Warning</div>
+            <p id="mapWeatherCond" style="font-size:13px; color:var(--text-secondary); margin-top:4px;">Loading marker details...</p>
+            <div id="mapAlertBox" class="chat-warning-box hidden">
+              <div id="mapAlertTitle" class="chat-warning-title">
+                <span class="material-symbols-rounded icon-sm">warning</span>
+                <span>Official Warning</span>
+              </div>
               <p id="mapAlertDesc" class="chat-warning-desc"></p>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Screen 6: Profile & Auth -->
-      <section id="screen-profile" class="screen-container" role="region" aria-label="User Profile Screen">
+      <!-- Screen 6: Air Quality Screen -->
+      <section id="screen-air-quality" class="screen-container" role="region" aria-label="Air Quality Screen">
         <div class="glass-panel">
-          <h3>👤 User Profile & Account</h3>
-          <div id="authStatusBox" class="auth-card" style="margin-top:10px;">
-            <div id="userInfoView">
-              <p>Status: <strong id="userStatusText">Guest Mode</strong></p>
-              <p style="font-size:13px; color:var(--text-muted); margin-top:4px;" id="userEmailText">Sign in to save preferred locations and conversation history.</p>
-            </div>
-            <div id="authForm" style="display:flex; flex-direction:column; gap:10px; margin-top:10px;">
-              <input type="email" id="authEmail" class="auth-input" placeholder="Email address" aria-label="Email address">
-              <input type="password" id="authPassword" class="auth-input" placeholder="Password" aria-label="Password">
-              <div style="display:flex; gap:8px;">
-                <button id="loginSubmitBtn" class="auth-btn" style="flex:1;">Sign In</button>
-                <button id="registerSubmitBtn" class="auth-btn" style="flex:1; background:rgba(255,255,255,0.1);">Register</button>
-              </div>
-            </div>
-            <button id="logoutBtn" class="auth-btn hidden" style="background:#e11d48; margin-top:10px;">Sign Out</button>
+          <div class="screen-top-bar">
+            <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
+              <span class="material-symbols-rounded icon-sm">arrow_back</span>
+              <span>Back to Hub</span>
+            </button>
+          </div>
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--success-green);">air</span>
+              <span>Air Quality Index (AQI)</span>
+            </h3>
+            <span class="section-subtitle">Real-time Ambient Air Monitoring</span>
           </div>
 
-          <div class="glass-panel" style="margin-top:12px;">
-            <h4>📍 Saved Locations</h4>
-            <div id="savedLocationsList" style="display:flex; flex-direction:column; gap:8px; margin-top:8px;">
-              <p style="font-size:12px; color:var(--text-muted);">Sign in to manage saved locations.</p>
+          <div class="aqi-gauge-card">
+            <div class="aqi-dial" id="aqiDial">
+              <span class="aqi-number" id="aqiVal">52</span>
+              <span class="aqi-label">AQI</span>
+            </div>
+            <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
+              <span class="badge" id="aqiCategory" style="background:var(--success-green-bg); color:#166534; font-size:14px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill); width:fit-content;">Moderate</span>
+              <p style="font-size:13px; color:var(--text-secondary);" id="aqiSummaryText">Air quality is acceptable for most outdoor activities. Sensitive individuals should consider reducing prolonged heavy exertion.</p>
+              <div style="font-size:11px; color:var(--text-muted); margin-top:4px;">Authoritative Source: Central Pollution Control Board (CPCB) / Open-Meteo</div>
+            </div>
+          </div>
+
+          <h4 style="font-size:14px; font-weight:700; margin-top:6px;">Key Pollutants Breakdown</h4>
+          <div class="pollutants-grid" id="pollutantsGrid">
+            <div class="pollutant-card">
+              <span class="pollutant-name">PM2.5 (Fine Particles)</span>
+              <span class="pollutant-val" id="valPm25">18.4 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+            </div>
+            <div class="pollutant-card">
+              <span class="pollutant-name">PM10 (Respirable)</span>
+              <span class="pollutant-val" id="valPm10">38.2 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+            </div>
+            <div class="pollutant-card">
+              <span class="pollutant-name">NO₂ (Nitrogen Dioxide)</span>
+              <span class="pollutant-val" id="valNo2">14.6 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+            </div>
+            <div class="pollutant-card">
+              <span class="pollutant-name">SO₂ (Sulfur Dioxide)</span>
+              <span class="pollutant-val" id="valSo2">6.8 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+            </div>
+            <div class="pollutant-card">
+              <span class="pollutant-name">O₃ (Ozone)</span>
+              <span class="pollutant-val" id="valO3">28.5 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+            </div>
+            <div class="pollutant-card">
+              <span class="pollutant-name">CO (Carbon Monoxide)</span>
+              <span class="pollutant-val" id="valCo">410 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+            </div>
+          </div>
+
+          <h4 style="font-size:14px; font-weight:700; margin-top:6px;">Health & Activity Recommendations</h4>
+          <div id="aqiRecommendations" style="display:flex; flex-direction:column; gap:8px;">
+            <div class="impact-item">
+              <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">check_circle</span>
+              <span style="font-size:13px;">Safe for jogging and regular outdoor fitness.</span>
+            </div>
+            <div class="impact-item">
+              <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">window</span>
+              <span style="font-size:13px;">Normal home and office ventilation recommended.</span>
             </div>
           </div>
         </div>
       </section>
 
-      <!-- Screen 7: Settings -->
+      <!-- Screen 7: Saved Locations Screen -->
+      <section id="screen-locations" class="screen-container" role="region" aria-label="Saved Locations Screen">
+        <div class="glass-panel">
+          <div class="screen-top-bar">
+            <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
+              <span class="material-symbols-rounded icon-sm">arrow_back</span>
+              <span>Back to Hub</span>
+            </button>
+          </div>
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">bookmark</span>
+              <span>Saved Locations</span>
+            </h3>
+            <button id="addLocModalBtn" class="icon-btn primary" style="font-size:12px; padding:6px 12px;">
+              <span class="material-symbols-rounded icon-sm">add_location</span>
+              <span>Add City</span>
+            </button>
+          </div>
+
+          <div class="saved-locations-grid" id="savedLocationsGrid">
+            <!-- Dynamically populated -->
+          </div>
+        </div>
+
+        <!-- Add City Modal Dialog -->
+        <div id="addCityModal" class="modal-overlay hidden" role="dialog" aria-modal="true" aria-labelledby="addCityTitle">
+          <div class="modal-card">
+            <div class="modal-header">
+              <h3 id="addCityTitle" style="font-size:16px; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
+                <span class="material-symbols-rounded" style="color:var(--primary-blue);">add_location</span>
+                <span>Add Weather Location</span>
+              </h3>
+              <button id="closeAddCityModalBtn" class="icon-btn" aria-label="Close modal">
+                <span class="material-symbols-rounded">close</span>
+              </button>
+            </div>
+            <p style="font-size:13px; color:var(--text-secondary); margin:10px 0 12px;">Select popular metropolitan or coastal cities, or enter a custom location name:</p>
+            <div class="quick-chips" style="margin-bottom:14px;" id="modalCityChips">
+              <button class="chip-btn" data-city="Mumbai" data-state="Maharashtra" data-lat="19.0760" data-lon="72.8777">Mumbai</button>
+              <button class="chip-btn" data-city="Kolkata" data-state="West Bengal" data-lat="22.5726" data-lon="88.3639">Kolkata</button>
+              <button class="chip-btn" data-city="Hyderabad" data-state="Telangana" data-lat="17.3850" data-lon="78.4867">Hyderabad</button>
+              <button class="chip-btn" data-city="Kochi" data-state="Kerala" data-lat="9.9312" data-lon="76.2673">Kochi</button>
+              <button class="chip-btn" data-city="Pune" data-state="Maharashtra" data-lat="18.5204" data-lon="73.8567">Pune</button>
+              <button class="chip-btn" data-city="Jaipur" data-state="Rajasthan" data-lat="26.9124" data-lon="75.7873">Jaipur</button>
+            </div>
+            <div style="display:flex; gap:8px;">
+              <input type="text" id="customCityInput" class="auth-input" placeholder="Type city name (e.g. Ooty)..." style="flex:1;" aria-label="Custom city name">
+              <button id="saveCustomCityBtn" class="action-btn" style="padding:0 18px;">Add</button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 8: More Hub Screen -->
+      <section id="screen-more" class="screen-container" role="region" aria-label="More Hub Screen">
+        <div class="glass-panel hub-section">
+          <span class="hub-title">Weather Intelligence Tools</span>
+          <div class="hub-list">
+            <div class="hub-item" onclick="navigateToScreen('air-quality')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#16A34A;">air</span>
+                <span>Air Quality Index & Pollutants</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+            <div class="hub-item" onclick="navigateToScreen('map')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#1976D2;">map</span>
+                <span>Geospatial Radar & Alert Map</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+            <div class="hub-item" onclick="navigateToScreen('weather')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#0284C7;">calendar_month</span>
+                <span>Detailed Forecast & Climate Trends</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+            <div class="hub-item" onclick="navigateToScreen('locations')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#D97706;">bookmark</span>
+                <span>Manage Saved Cities</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+          </div>
+
+          <span class="hub-title" style="margin-top:10px;">AI Advisory Engines</span>
+          <div class="hub-list">
+            <div class="hub-item" onclick="navigateToScreen('chat')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#42A5F5;">psychology</span>
+                <span>Ask SkyZen Conversational Assistant</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+            <div class="hub-item" onclick="sendQuickQuery('What is the travel weather advisory for Tamil Nadu today?')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#6366F1;">travel_explore</span>
+                <span>Inter-District Travel Advisory</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+            <div class="hub-item" onclick="sendQuickQuery('Farmer agricultural advisory for monsoon')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#16A34A;">agriculture</span>
+                <span>Agricultural & Crop Protection</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+          </div>
+
+          <span class="hub-title" style="margin-top:10px;">Preferences & Account</span>
+          <div class="hub-list">
+            <div class="hub-item" onclick="navigateToScreen('profile')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#0F172A;">person</span>
+                <span>User Profile & Authentication</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+            <div class="hub-item" onclick="navigateToScreen('settings')">
+              <div class="hub-item-left">
+                <span class="material-symbols-rounded" style="color:#64748B;">settings</span>
+                <span>Application Settings & Language</span>
+              </div>
+              <span class="material-symbols-rounded">chevron_right</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 9: User Profile Screen -->
+      <section id="screen-profile" class="screen-container" role="region" aria-label="User Profile Screen">
+        <div class="glass-panel">
+          <div class="screen-top-bar">
+            <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
+              <span class="material-symbols-rounded icon-sm">arrow_back</span>
+              <span>Back to Hub</span>
+            </button>
+          </div>
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">person</span>
+              <span>User Profile & Account</span>
+            </h3>
+          </div>
+          
+          <div id="authStatusBox" class="auth-card" style="margin-top:8px;">
+            <div id="userInfoView">
+              <div style="display:flex; justify-content:space-between; align-items:flex-start; margin-bottom:12px;">
+                <div>
+                  <h4 id="profileUserName" style="font-size:16px; font-weight:700; color:var(--text-primary);">SkyZen User</h4>
+                  <p id="profileUserEmail" style="font-size:13px; color:var(--text-secondary); margin-top:2px;">user@example.com</p>
+                </div>
+                <span id="profileVerifiedBadge" class="auth-badge-verified">
+                  <span class="material-symbols-rounded icon-sm">verified</span>
+                  <span>Verified</span>
+                </span>
+              </div>
+              <div style="display:flex; gap:8px; font-size:12px; color:var(--text-secondary); margin-bottom:14px;">
+                <span>Account Role: <strong id="profileUserRole">User</strong></span>
+                <span>•</span>
+                <span>Status: <strong id="userStatusText" style="color:var(--success-green);">Active</strong></span>
+              </div>
+              <button id="profileSignOutBtn" class="auth-btn" style="background:#EF4444; color:#FFFFFF; width:100%; border:none; display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px; border-radius:var(--radius-md); font-weight:600; cursor:pointer;">
+                <span class="material-symbols-rounded icon-sm">logout</span>
+                <span>Sign Out of SkyZen</span>
+              </button>
+            </div>
+            <div id="guestPromptView" class="hidden" style="text-align:center; padding:12px 0;">
+              <p style="font-size:13px; color:var(--text-secondary); margin-bottom:10px;">Sign in to sync your saved locations, telemetry, and meteorological preferences.</p>
+              <button id="profileOpenAuthBtn" class="auth-primary-btn" style="width:100%;">
+                <span class="material-symbols-rounded icon-sm">login</span>
+                <span>Sign In / Create Account</span>
+              </button>
+              <div id="legacyAuthBridge" style="display:none;" aria-hidden="true">
+                <input type="email" id="authEmail" aria-label="Email address">
+                <input type="password" id="authPassword" aria-label="Password">
+                <button id="registerSubmitBtn">Register</button>
+              </div>
+            </div>
+          </div>
+
+          <div style="margin-top:14px;">
+            <h4 style="font-size:14px; font-weight:700; margin-bottom:8px;">Saved Cities Summary</h4>
+            <div id="savedLocationsList" style="display:flex; flex-direction:column; gap:6px;">
+              <p style="font-size:13px; color:var(--text-secondary);">Sign in to synchronize saved locations.</p>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- Screen 10: Settings Screen -->
       <section id="screen-settings" class="screen-container" role="region" aria-label="Settings Screen">
         <div class="glass-panel">
-          <h3>⚙️ Application Settings</h3>
-          <div style="display:flex; flex-direction:column; gap:14px; margin-top:12px;">
+          <div class="screen-top-bar">
+            <button class="sub-screen-back-btn" onclick="navigateToScreen('more')">
+              <span class="material-symbols-rounded icon-sm">arrow_back</span>
+              <span>Back to Hub</span>
+            </button>
+          </div>
+          <div class="section-header">
+            <h3 class="section-title">
+              <span class="material-symbols-rounded" style="color:var(--primary-blue);">settings</span>
+              <span>Application Settings</span>
+            </h3>
+          </div>
+
+          <div style="display:flex; flex-direction:column; gap:16px; margin-top:10px;">
             <div class="auth-form-group">
-              <label for="unitsSelect">Preferred Units</label>
-              <select id="unitsSelect" class="styled-select">
-                <option value="metric">Metric (°C, km/h, mm)</option>
-                <option value="imperial">Imperial (°F, mph, in)</option>
+              <label for="langSelect">Display Language / மொழி</label>
+              <select id="langSelect" class="styled-select" aria-label="Language">
+                <option value="en">English</option>
+                <option value="ta">தமிழ் (Tamil)</option>
               </select>
             </div>
+
+            <div class="auth-form-group">
+              <label for="unitsSelect">Preferred Measurement Units</label>
+              <select id="unitsSelect" class="styled-select" aria-label="Preferred Units">
+                <option value="metric">Metric (°C, km/h, mm, hPa)</option>
+                <option value="imperial">Imperial (°F, mph, in, inHg)</option>
+              </select>
+            </div>
+
             <div class="auth-form-group">
               <label for="envSelect">API Environment Server</label>
               <select id="envSelect" class="styled-select" aria-label="API Environment Server">
@@ -292,48 +1180,45 @@
                 <option value="http://10.0.2.2:8000/api/v1">Android Emulator (10.0.2.2:8000)</option>
               </select>
             </div>
-            <p style="font-size:12px; color:var(--text-muted);">WeatherGPT Mobile Client v1.0.0 | SIH26068</p>
+
+            <div style="padding:12px; background:var(--blue-subtle); border-radius:var(--radius-md); font-size:12px; color:var(--text-secondary);">
+              <strong>About SkyZen v1.0.0</strong><br/>
+              Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD)<br/>
+              SIH26068 WeatherGPT Intelligence Core
+            </div>
           </div>
         </div>
       </section>
 
     </main>
 
-    <!-- Mobile Bottom Navigation Bar (WCAG Touch Targets) -->
+    <!-- Mobile Bottom Navigation Bar (5-Item WCAG Standard) -->
     <nav class="mobile-bottom-nav" role="navigation" aria-label="Mobile Navigation">
-      <button class="nav-item active" data-screen="home" aria-label="Home Screen">
-        <span class="nav-icon" aria-hidden="true">🏠</span>
+      <button class="nav-item active" data-screen="home" aria-label="Home Screen" aria-selected="true">
+        <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
         <span>Home</span>
       </button>
-      <button class="nav-item" data-screen="chat" aria-label="Chat Screen">
-        <span class="nav-icon" aria-hidden="true">💬</span>
-        <span>Chat</span>
+      <button class="nav-item" data-screen="chat" aria-label="Chat Screen" aria-selected="false">
+        <span class="material-symbols-rounded nav-icon" aria-hidden="true">chat</span>
+        <span>AI</span>
       </button>
-      <button class="nav-item" data-screen="weather" aria-label="Weather Forecast Screen">
-        <span class="nav-icon" aria-hidden="true">🌤️</span>
-        <span>Weather</span>
-      </button>
-      <button class="nav-item" data-screen="alerts" aria-label="Alerts Screen">
-        <span class="nav-icon" aria-hidden="true">🚨</span>
-        <span>Alerts</span>
-      </button>
-      <button class="nav-item" data-screen="map" aria-label="Geospatial Weather Map Screen">
-        <span class="nav-icon" aria-hidden="true">🗺️</span>
+      <button class="nav-item" data-screen="map" aria-label="Geospatial Weather Map Screen" aria-selected="false">
+        <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
         <span>Map</span>
       </button>
-      <button class="nav-item" data-screen="profile" aria-label="Profile Screen">
-        <span class="nav-icon" aria-hidden="true">👤</span>
-        <span>Profile</span>
+      <button class="nav-item" data-screen="alerts" aria-label="Alerts Screen" aria-selected="false">
+        <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
+        <span>Alerts</span>
       </button>
-      <button class="nav-item" data-screen="settings" aria-label="Settings Screen">
-        <span class="nav-icon" aria-hidden="true">⚙️</span>
-        <span>Settings</span>
+      <button class="nav-item" data-screen="more" aria-label="More Options Screen" aria-selected="false">
+        <span class="material-symbols-rounded nav-icon" aria-hidden="true">more_horiz</span>
+        <span>More</span>
       </button>
     </nav>
 
     <!-- Footer -->
     <footer class="footer">
-      <p>WeatherGPT — Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD) | SIH26068</p>
+      <p>SkyZen — Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD) | WeatherGPT SIH26068</p>
     </footer>
   </div>
 
