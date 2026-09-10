@@ -146,7 +146,7 @@ def build_grounded_context(
         "consistency_factors": consistency_factors,
         "score_semantics": (
             "Application-level data reliability & consistency indicator (0-100). "
-            "This is NOT a certified meteorological probability. Do not claim scientific validation."
+            "This is NOT a precipitation probability or certified meteorological probability. Do not claim scientific validation."
         ),
         "contradictions": reasoning.contradictions,
         "sources_used": reasoning.sources_used,

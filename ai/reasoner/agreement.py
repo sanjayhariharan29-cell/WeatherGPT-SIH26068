@@ -173,7 +173,7 @@ def build_consistency_factors(
     contradictions = contradictions or []
 
     # Rainfall agreement
-    if secondary is not None:
+    if secondary is not None and primary.rain_probability is not None and secondary.rain_probability is not None:
         rain_diff = abs(primary.rain_probability - secondary.rain_probability)
         if rain_diff <= 20.0:
             rain_status = f"High agreement ({primary.source} {primary.rain_probability:.0f}% vs {secondary.source} {secondary.rain_probability:.0f}%, Δ {rain_diff:.0f}%)"
@@ -181,28 +181,34 @@ def build_consistency_factors(
             rain_status = f"Moderate variance ({primary.source} {primary.rain_probability:.0f}% vs {secondary.source} {secondary.rain_probability:.0f}%, Δ {rain_diff:.0f}%)"
         else:
             rain_status = f"Significant disagreement ({primary.source} {primary.rain_probability:.0f}% vs {secondary.source} {secondary.rain_probability:.0f}%, Δ {rain_diff:.0f}%)"
-    else:
+    elif primary.rain_probability is not None:
         rain_status = f"Single source ({primary.source}): {primary.rain_probability:.0f}% precipitation probability."
+    else:
+        rain_status = f"Precipitation probability not reported by {primary.source}."
 
     # Temperature agreement
-    if secondary is not None:
+    if secondary is not None and primary.temperature is not None and secondary.temperature is not None:
         temp_diff = abs(primary.temperature - secondary.temperature)
         if temp_diff <= 3.0:
             temp_status = f"Broad agreement ({primary.source} {primary.temperature:.1f}°C vs {secondary.source} {secondary.temperature:.1f}°C, Δ {temp_diff:.1f}°C)"
         else:
             temp_status = f"Variance observed ({primary.source} {primary.temperature:.1f}°C vs {secondary.source} {secondary.temperature:.1f}°C, Δ {temp_diff:.1f}°C)"
-    else:
+    elif primary.temperature is not None:
         temp_status = f"Single source ({primary.source}): {primary.temperature:.1f}°C."
+    else:
+        temp_status = f"Temperature not reported by {primary.source}."
 
     # Wind agreement
-    if secondary is not None:
+    if secondary is not None and primary.wind_speed is not None and secondary.wind_speed is not None:
         wind_diff = abs(primary.wind_speed - secondary.wind_speed)
         if wind_diff <= 15.0:
             wind_status = f"Broad agreement ({primary.source} {primary.wind_speed:.1f} km/h vs {secondary.source} {secondary.wind_speed:.1f} km/h)"
         else:
             wind_status = f"Divergence detected ({primary.source} {primary.wind_speed:.1f} km/h vs {secondary.source} {secondary.wind_speed:.1f} km/h)"
-    else:
+    elif primary.wind_speed is not None:
         wind_status = f"Single source ({primary.source}): {primary.wind_speed:.1f} km/h."
+    else:
+        wind_status = f"Wind speed not reported by {primary.source}."
 
     # Timing agreement
     if primary_forecast and secondary_forecast:

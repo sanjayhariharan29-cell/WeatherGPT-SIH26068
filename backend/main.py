@@ -49,7 +49,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Include API Routers under /api/v1
+# Include API Routers under /api/v1 and root health probes
+app.include_router(health.router) # Root health probes (/health, /health/liveness, /health/readiness)
 app.include_router(health.router, prefix=settings.API_V1_PREFIX)
 app.include_router(auth.router, prefix=settings.API_V1_PREFIX)
 app.include_router(weather.router, prefix=settings.API_V1_PREFIX)

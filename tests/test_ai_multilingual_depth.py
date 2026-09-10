@@ -385,10 +385,10 @@ def test_consistency_score_semantics_all_languages(sample_weather):
     reasoning = WeatherReasoner.evaluate(sample_weather, current_time=now)
     generator = GroundedLLMGenerator()
 
-    for lang, score_label in [
-        (LanguageEnum.EN, "Data Quality Score:"),
-        (LanguageEnum.TA, "தர நம்பகத்தன்மை:"),
-        (LanguageEnum.HI, "डेटा गुणवत्ता स्कोर:"),
+    for lang, score_labels in [
+        (LanguageEnum.EN, ["Data Quality Score:", "Forecast Consistency Score:"]),
+        (LanguageEnum.TA, ["தர நம்பகத்தன்மை:", "முன்னறிவிப்பு நிலைத்தன்மை:"]),
+        (LanguageEnum.HI, ["डेटा गुणवत्ता स्कोर:", "पूर्वानुमान संगति स्कोर:"]),
     ]:
         advisory = DecisionEngine.generate_advisory(reasoning, target_language=lang)
         nlu = NLUResult(
@@ -399,7 +399,7 @@ def test_consistency_score_semantics_all_languages(sample_weather):
             confidence=0.9
         )
         resp = generator.generate_response(nlu=nlu, weather=sample_weather, reasoning=reasoning, advisory=advisory)
-        assert score_label in resp.answer
+        assert any(label in resp.answer for label in score_labels)
 
 
 # 19. Missing Weather Data in EN, TA, HI

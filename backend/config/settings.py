@@ -27,7 +27,7 @@ class Settings(BaseModel):
             origin.strip()
             for origin in os.getenv(
                 "ALLOWED_ORIGINS",
-                "http://localhost,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://localhost:5173,capacitor://localhost"
+                "http://localhost,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://localhost:5173,capacitor://localhost,https://localhost,https://weathergpt.moes.gov.in,https://app.weathergpt.org"
             ).split(",")
             if origin.strip() and origin.strip() != "*"
         ]
