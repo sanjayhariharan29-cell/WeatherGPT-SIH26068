@@ -179,3 +179,28 @@ class ClimateTrendResponse(BaseModel):
     source: str = Field(default="NASA POWER Climate Archive", description="Provider source name")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
 
+
+class AirQualityPollutantsSchema(BaseModel):
+    """Breakdown of critical ambient air pollutants."""
+    pm2_5: float = Field(default=0.0, description="Particulate Matter PM2.5 in µg/m³")
+    pm10: float = Field(default=0.0, description="Particulate Matter PM10 in µg/m³")
+    no2: float = Field(default=0.0, description="Nitrogen Dioxide in µg/m³")
+    so2: float = Field(default=0.0, description="Sulfur Dioxide in µg/m³")
+    o3: float = Field(default=0.0, description="Ozone in µg/m³")
+    co: float = Field(default=0.0, description="Carbon Monoxide in µg/m³")
+
+
+class AirQualityResponse(BaseModel):
+    """Normalized Air Quality Index API Response Contract."""
+    location: str = Field(description="Location name")
+    latitude: float
+    longitude: float
+    aqi: int = Field(description="Normalized Air Quality Index (0-500)")
+    category: str = Field(description="AQI Category: Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, Hazardous")
+    primary_pollutant: str = Field(default="PM2.5", description="Dominant ambient pollutant")
+    pollutants: AirQualityPollutantsSchema
+    recommendations: List[str] = Field(default_factory=list, description="Health & outdoor activity recommendations")
+    source: str = Field(default="CPCB / Open-Meteo Air Quality", description="Source provider attribution")
+    retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
+
+

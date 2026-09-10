@@ -20,7 +20,8 @@ from backend.schemas.weather import (
     ForecastResponse,
     AlertResponse,
     HistoricalWeatherResponse,
-    ClimateTrendResponse
+    ClimateTrendResponse,
+    AirQualityResponse
 )
 from backend.db.session import get_db
 
@@ -151,3 +152,20 @@ async def get_climate_trends(
         raise HTTPException(status_code=502, detail=f"Climate provider error: {e.message}")
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Climate trends retrieval error: {str(e)}")
+
+
+@router.get("/air-quality", response_model=AirQualityResponse)
+async def get_air_quality(
+    lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
+    lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
+    location: str = Query("Coimbatore", min_length=1, max_length=100, description="Location name")
+):
+    """Returns real-time Air Quality Index (AQI), key pollutants (PM2.5, PM10, etc.), and health recommendations."""
+    validate_coordinates(lat, lon)
+    try:
+        return await manager.get_air_quality(lat, lon, location.strip())
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Air quality retrieval error: {str(e)}")
+

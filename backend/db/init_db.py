@@ -17,6 +17,8 @@ def init_db():
                     conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"))
                 if "is_verified" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0"))
+                if "onboarding_completed" not in columns:
+                    conn.execute(text("ALTER TABLE users ADD COLUMN onboarding_completed BOOLEAN DEFAULT 0"))
                 if "verification_token" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN verification_token VARCHAR(255)"))
                 if "verification_token_expires" not in columns:
@@ -25,7 +27,13 @@ def init_db():
                     conn.execute(text("ALTER TABLE users ADD COLUMN reset_token VARCHAR(255)"))
                 if "reset_token_expires" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN reset_token_expires DATETIME"))
-                conn.commit()
+
+            if "user_preferences" in inspector.get_table_names():
+                pref_columns = [c["name"] for c in inspector.get_columns("user_preferences")]
+                if "notification_enabled" not in pref_columns:
+                    conn.execute(text("ALTER TABLE user_preferences ADD COLUMN notification_enabled BOOLEAN DEFAULT 1"))
+
+            conn.commit()
     except Exception:
         pass
 

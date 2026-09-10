@@ -5,7 +5,7 @@ let autoRefreshInterval = null;
 let isFetchingWeather = false;
 // Volatile in-memory GPS state for map & privacy protection
 let userGpsLocation = null;
-let currentLanguage = "en"; // "en" or "ta"
+let currentLanguage = localStorage.getItem("skyzen_lang") || "en";
 
 const MAP_PRESET_LOCATIONS = [
   { name: "Coimbatore", lat: 11.0168, lon: 76.9558, state: "Tamil Nadu" },
@@ -524,7 +524,8 @@ function showAuthView(viewName) {
     signup: document.getElementById("authViewSignup"),
     verify: document.getElementById("authViewVerify"),
     forgot: document.getElementById("authViewForgot"),
-    reset: document.getElementById("authViewReset")
+    reset: document.getElementById("authViewReset"),
+    onboarding: document.getElementById("authViewOnboarding")
   };
 
   Object.values(views).forEach(v => {
@@ -546,11 +547,23 @@ function showAuthView(viewName) {
   clearAuthMessage("verifyMessage");
   clearAuthMessage("forgotMessage");
   clearAuthMessage("resetMessage");
+  clearAuthMessage("onboardingMessage");
 
   if (viewName === "verify") {
     const badge = document.getElementById("verifyEmailBadge");
     if (badge && pendingAuthEmail) {
       badge.textContent = pendingAuthEmail;
+    }
+  } else if (viewName === "onboarding") {
+    if (currentUser) {
+      const nameInp = document.getElementById("onboardingFullName");
+      const roleInp = document.getElementById("onboardingRole");
+      const langInp = document.getElementById("onboardingLanguage");
+      const notifInp = document.getElementById("onboardingNotifications");
+      if (nameInp && currentUser.name) nameInp.value = currentUser.name;
+      if (roleInp && currentUser.persona) roleInp.value = currentUser.persona;
+      if (langInp && currentUser.language) langInp.value = currentUser.language;
+      if (notifInp && currentUser.notification_enabled !== undefined) notifInp.checked = Boolean(currentUser.notification_enabled);
     }
   }
 }
@@ -643,6 +656,14 @@ function updateProfileUI(user) {
   const userInfoView = document.getElementById("userInfoView");
   const guestView = document.getElementById("guestPromptView");
 
+  const editName = document.getElementById("profileEditName");
+  const editRole = document.getElementById("profileEditRole");
+  const editLang = document.getElementById("profileEditLanguage");
+  const editNotif = document.getElementById("profileEditNotifications");
+  const summaryName = document.getElementById("settingsProfileSummaryName");
+  const summaryRole = document.getElementById("settingsProfileSummaryRole");
+  const langSelect = document.getElementById("langSelect");
+
   if (user) {
     if (nameElem) nameElem.textContent = user.name || "SkyZen User";
     if (emailElem) emailElem.textContent = user.email || "";
@@ -654,6 +675,9 @@ function updateProfileUI(user) {
     if (badgeElem) {
       if (user.is_verified) {
         badgeElem.className = "auth-badge-verified";
+        badgeElem.style.background = "#EFF6FF";
+        badgeElem.style.color = "#1D4ED8";
+        badgeElem.style.borderColor = "#BFDBFE";
         badgeElem.innerHTML = `<span class="material-symbols-rounded icon-sm">verified</span><span>Verified</span>`;
       } else {
         badgeElem.className = "auth-badge-verified";
@@ -663,11 +687,28 @@ function updateProfileUI(user) {
         badgeElem.innerHTML = `<span class="material-symbols-rounded icon-sm">warning</span><span>Unverified</span>`;
       }
     }
+
+    if (editName) editName.value = user.name || "";
+    if (editRole) editRole.value = user.persona || "student";
+    const userLang = user.language || user.preferred_language || currentLanguage || "en";
+    if (editLang) editLang.value = userLang;
+    if (langSelect) langSelect.value = userLang;
+    if (editNotif) editNotif.checked = user.notification_enabled !== undefined ? Boolean(user.notification_enabled) : true;
+
+    if (summaryName) summaryName.textContent = user.name || "SkyZen User";
+    if (summaryRole) {
+      const pName = (user.persona || "student").charAt(0).toUpperCase() + (user.persona || "student").slice(1);
+      const lName = userLang === "ta" ? "தமிழ்" : (userLang === "hi" ? "हिन्दी" : "English");
+      summaryRole.textContent = `${pName} • ${lName}`;
+    }
+
     if (userInfoView) userInfoView.classList.remove("hidden");
     if (guestView) guestView.classList.add("hidden");
   } else {
     if (userInfoView) userInfoView.classList.add("hidden");
     if (guestView) guestView.classList.remove("hidden");
+    if (summaryName) summaryName.textContent = "User Profile";
+    if (summaryRole) summaryRole.textContent = "Sign in to personalize role & preferences";
   }
 }
 
@@ -691,7 +732,15 @@ async function restoreSessionOrShowAuth() {
           hideSplashScreen();
           return;
         }
-        // Valid active session
+
+        // First launch profile onboarding check
+        if (user.onboarding_completed === false) {
+          showAuthPortal("onboarding");
+          hideSplashScreen();
+          return;
+        }
+
+        // Valid active session - Returning user skips onboarding
         hideAuthPortal();
         updateProfileUI(user);
         hideSplashScreen();
@@ -808,6 +857,12 @@ function setupAuthPortalEngine() {
             if (unverifiedPrompt) unverifiedPrompt.classList.remove("hidden");
             setAuthMessage("loginMessage", "Your email is unverified. Please enter your verification code.", "info");
             showAuthView("verify");
+            return;
+          }
+
+          // First-launch profile onboarding check
+          if (res.user.onboarding_completed === false) {
+            showAuthView("onboarding");
             return;
           }
 
@@ -937,6 +992,11 @@ function setupAuthPortalEngine() {
 
         if (currentUser) {
           currentUser.is_verified = true;
+          if (currentUser.onboarding_completed === false) {
+            showAuthView("onboarding");
+            showMobileNotice("Email verified! Let's set up your profile.", "info");
+            return;
+          }
           hideAuthPortal();
           updateProfileUI(currentUser);
           navigateToScreen("home");
@@ -1057,6 +1117,173 @@ function setupAuthPortalEngine() {
         if (submitBtn) submitBtn.disabled = false;
         if (submitText) submitText.textContent = "Update Password";
       }
+    });
+  }
+
+  // 6. First-Launch Profile Onboarding Handler
+  const onboardingForm = document.getElementById("onboardingForm");
+  if (onboardingForm) {
+    onboardingForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const fullName = document.getElementById("onboardingFullName")?.value.trim();
+      const role = document.getElementById("onboardingRole")?.value || "student";
+      const language = document.getElementById("onboardingLanguage")?.value || "en";
+      const notifElem = document.getElementById("onboardingNotifications");
+      const notifications = notifElem ? notifElem.checked : true;
+      const submitBtn = document.getElementById("onboardingSubmitBtn");
+      const submitText = document.getElementById("onboardingSubmitText");
+
+      clearAuthMessage("onboardingMessage");
+
+      if (!fullName || fullName.length < 2) {
+        setAuthMessage("onboardingMessage", "Please enter your full name (at least 2 characters).", "error");
+        return;
+      }
+
+      try {
+        if (submitBtn) submitBtn.disabled = true;
+        if (submitText) submitText.textContent = "Saving Profile...";
+
+        const updatedProfile = await window.apiClient.updateProfile({
+          name: fullName,
+          full_name: fullName,
+          persona: role,
+          role: role,
+          language: language,
+          preferred_language: language,
+          notification_enabled: notifications,
+          onboarding_completed: true
+        });
+
+        if (updatedProfile) {
+          currentUser = updatedProfile;
+        } else if (currentUser) {
+          currentUser.name = fullName;
+          currentUser.persona = role;
+          currentUser.language = language;
+          currentUser.notification_enabled = notifications;
+          currentUser.onboarding_completed = true;
+        }
+
+        if (language) {
+          currentLanguage = language;
+          localStorage.setItem("skyzen_lang", language);
+        }
+
+        hideAuthPortal();
+        updateProfileUI(currentUser);
+        navigateToScreen("home");
+        loadCurrentWeather();
+        loadSavedLocationsList();
+        showMobileNotice(`Welcome to SkyZen, ${fullName}! Profile setup complete.`, "success");
+      } catch (err) {
+        setAuthMessage("onboardingMessage", err.message || "Failed to save profile. Please try again.", "error");
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitText) submitText.textContent = "Complete Setup & Enter SkyZen";
+      }
+    });
+  }
+
+  // 7. Settings Profile & Persona Update Handler
+  const profileEditForm = document.getElementById("profileEditForm");
+  if (profileEditForm) {
+    profileEditForm.addEventListener("submit", async (e) => {
+      e.preventDefault();
+      const name = document.getElementById("profileEditName")?.value.trim();
+      const role = document.getElementById("profileEditRole")?.value;
+      const language = document.getElementById("profileEditLanguage")?.value;
+      const notifElem = document.getElementById("profileEditNotifications");
+      const notifications = notifElem ? notifElem.checked : true;
+      const submitBtn = document.getElementById("profileSaveBtn");
+      const submitText = document.getElementById("profileSaveBtnText");
+      const msgBox = document.getElementById("profileEditMessage");
+
+      if (msgBox) {
+        msgBox.classList.add("hidden");
+        msgBox.innerHTML = "";
+      }
+
+      if (!name || name.length < 2) {
+        if (msgBox) {
+          msgBox.className = "auth-message-box error";
+          msgBox.innerHTML = `<span class="material-symbols-rounded icon-sm">error</span><span>Name must be at least 2 characters.</span>`;
+          msgBox.classList.remove("hidden");
+        }
+        return;
+      }
+
+      try {
+        if (submitBtn) submitBtn.disabled = true;
+        if (submitText) submitText.textContent = "Saving...";
+
+        const updated = await window.apiClient.updateProfile({
+          name: name,
+          full_name: name,
+          persona: role,
+          role: role,
+          language: language,
+          preferred_language: language,
+          notification_enabled: notifications
+        });
+
+        if (updated) {
+          currentUser = updated;
+        } else if (currentUser) {
+          currentUser.name = name;
+          currentUser.persona = role;
+          currentUser.language = language;
+          currentUser.notification_enabled = notifications;
+        }
+
+        if (language) {
+          currentLanguage = language;
+          localStorage.setItem("skyzen_lang", language);
+        }
+
+        updateProfileUI(currentUser);
+
+        if (msgBox) {
+          msgBox.className = "auth-message-box success";
+          msgBox.innerHTML = `<span class="material-symbols-rounded icon-sm">check_circle</span><span>Profile preferences updated successfully!</span>`;
+          msgBox.classList.remove("hidden");
+          setTimeout(() => { if (msgBox) msgBox.classList.add("hidden"); }, 4000);
+        }
+        showMobileNotice("Profile saved successfully.", "success");
+      } catch (err) {
+        if (msgBox) {
+          msgBox.className = "auth-message-box error";
+          msgBox.innerHTML = `<span class="material-symbols-rounded icon-sm">error</span><span>${escapeHTML(err.message || "Failed to update profile.")}</span>`;
+          msgBox.classList.remove("hidden");
+        }
+      } finally {
+        if (submitBtn) submitBtn.disabled = false;
+        if (submitText) submitText.textContent = "Save Profile Changes";
+      }
+    });
+  }
+
+  // 8. Settings Language Selection Handler
+  const langSelect = document.getElementById("langSelect");
+  if (langSelect) {
+    langSelect.addEventListener("change", async (e) => {
+      const newLang = e.target.value;
+      currentLanguage = newLang;
+      localStorage.setItem("skyzen_lang", newLang);
+      const profileEditLang = document.getElementById("profileEditLanguage");
+      if (profileEditLang) profileEditLang.value = newLang;
+
+      if (window.apiClient.isAuthenticated() && currentUser) {
+        try {
+          await window.apiClient.updateProfile({ language: newLang, preferred_language: newLang });
+          currentUser.language = newLang;
+          currentUser.preferred_language = newLang;
+          updateProfileUI(currentUser);
+        } catch (err) {
+          console.warn("Failed to persist language preference to account:", err.message);
+        }
+      }
+      showMobileNotice(`Language updated to ${newLang === "ta" ? "தமிழ்" : (newLang === "hi" ? "हिन्दी" : "English")}.`, "info");
     });
   }
 }

@@ -15,7 +15,9 @@ from backend.schemas.auth import (
     VerifyResetTokenRequest,
     ResetPasswordRequest,
     TokenResponse,
-    UserResponse
+    UserResponse,
+    ProfileResponse,
+    ProfileUpdateRequest
 )
 from backend.core.security import (
     hash_password,
@@ -66,6 +68,7 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
         language=req.language,
         role=req.role,
         is_verified=False,
+        onboarding_completed=False,
         verification_token=verification_token,
         verification_token_expires=verification_expires
     )
@@ -76,7 +79,8 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     pref = UserPreference(
         user_id=user.id,
         persona=req.persona,
-        preferred_units="metric"
+        preferred_units="metric",
+        notification_enabled=True
     )
     db.add(pref)
     db.commit()
@@ -84,9 +88,11 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     return {
         "user_id": user.id,
         "name": user.name,
+        "full_name": user.name,
         "email": user.email,
         "role": user.role,
         "is_verified": False,
+        "onboarding_completed": False,
         "verification_token": verification_token,
         "message": "Registration successful"
     }
@@ -116,11 +122,14 @@ async def login_user(req: LoginRequest, db: Session = Depends(get_db)):
         "user": {
             "id": user.id,
             "name": user.name,
+            "full_name": user.name,
             "email": user.email,
             "language": user.language,
+            "preferred_language": user.language,
             "persona": user.persona,
             "role": user.role,
-            "is_verified": bool(user.is_verified)
+            "is_verified": bool(user.is_verified),
+            "onboarding_completed": bool(user.onboarding_completed)
         }
     }
 
@@ -252,17 +261,97 @@ async def logout_user(
     return {"message": "Logout successful"}
 
 
-@router.get("/me")
-async def get_auth_profile(current_user: User = Depends(get_current_user)):
+@router.get("/me", response_model=ProfileResponse)
+async def get_auth_profile(
+    user_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
     """Returns profile for currently authenticated user."""
+    if user_id and user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Cannot view another user's profile"
+        )
+    notif_enabled = current_user.preferences.notification_enabled if current_user.preferences else True
     return {
         "id": current_user.id,
         "name": current_user.name,
+        "full_name": current_user.name,
         "email": current_user.email,
         "language": current_user.language,
+        "preferred_language": current_user.language,
         "persona": current_user.persona,
         "role": current_user.role,
-        "is_verified": bool(current_user.is_verified)
+        "is_verified": bool(current_user.is_verified),
+        "onboarding_completed": bool(current_user.onboarding_completed),
+        "notification_enabled": bool(notif_enabled)
+    }
+
+
+@router.get("/profile", response_model=ProfileResponse)
+async def get_user_profile(
+    user_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user)
+):
+    """Returns complete profile for currently authenticated user."""
+    return await get_auth_profile(user_id=user_id, current_user=current_user)
+
+
+@router.put("/profile", response_model=ProfileResponse)
+@router.patch("/profile", response_model=ProfileResponse)
+async def update_user_profile(
+    req: ProfileUpdateRequest,
+    user_id: Optional[str] = None,
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Updates profile, persona, language, notifications, and onboarding status for current user only."""
+    if user_id and user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Cannot modify another user's profile"
+        )
+    if req.name is not None:
+        current_user.name = req.name
+
+    if req.persona is not None:
+        current_user.persona = req.persona
+        if current_user.preferences:
+            current_user.preferences.persona = req.persona
+
+    if req.language is not None:
+        current_user.language = req.language
+
+    if req.onboarding_completed is not None:
+        current_user.onboarding_completed = req.onboarding_completed
+
+    if req.notification_enabled is not None:
+        if not current_user.preferences:
+            pref = UserPreference(
+                user_id=current_user.id,
+                persona=current_user.persona,
+                notification_enabled=req.notification_enabled
+            )
+            db.add(pref)
+        else:
+            current_user.preferences.notification_enabled = req.notification_enabled
+
+    db.commit()
+    db.refresh(current_user)
+
+    notif_enabled = current_user.preferences.notification_enabled if current_user.preferences else True
+    return {
+        "id": current_user.id,
+        "name": current_user.name,
+        "full_name": current_user.name,
+        "email": current_user.email,
+        "language": current_user.language,
+        "preferred_language": current_user.language,
+        "persona": current_user.persona,
+        "role": current_user.role,
+        "is_verified": bool(current_user.is_verified),
+        "onboarding_completed": bool(current_user.onboarding_completed),
+        "notification_enabled": bool(notif_enabled)
     }
 
 

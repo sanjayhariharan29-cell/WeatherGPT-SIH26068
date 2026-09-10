@@ -168,6 +168,17 @@ class WeatherGPTApiClient {
     return await this.request("/auth/me");
   }
 
+  async getProfile() {
+    return await this.request("/auth/profile");
+  }
+
+  async updateProfile(profileData) {
+    return await this.request("/auth/profile", {
+      method: "PUT",
+      body: JSON.stringify(profileData)
+    });
+  }
+
   async logout() {
     try {
       if (this.isAuthenticated()) {
@@ -180,11 +191,11 @@ class WeatherGPTApiClient {
     }
   }
 
-  async getProfile() {
+  async getUserMe() {
     return await this.request("/users/me");
   }
 
-  async updateProfile(payload) {
+  async updateUserMe(payload) {
     return await this.request("/users/me", {
       method: "PUT",
       body: JSON.stringify(payload)

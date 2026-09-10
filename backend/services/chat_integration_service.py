@@ -11,7 +11,7 @@ from sqlalchemy.orm import Session
 
 from backend.services.weather_manager import WeatherManager
 from backend.services.exceptions import ProviderError
-from backend.db.models import Conversation, Message, Advisory
+from backend.db.models import Conversation, Message, Advisory, User
 from ai.pipeline import WeatherGPTPipeline
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
@@ -64,8 +64,21 @@ class ChatIntegrationService:
 
         # 2. Resolve Geocoding Location & Conversational Context
         conv_id = conversation_id or "default"
-        if ContextResolver.is_reset_query(message):
+        if not conversation_id or ContextResolver.is_reset_query(message):
             memory_manager.reset_context(conv_id)
+
+        user_name: Optional[str] = None
+        if user_id and db_session:
+            try:
+                authed_user = db_session.query(User).filter(User.id == user_id).first()
+                if authed_user:
+                    user_name = authed_user.name
+                    if (not persona or persona == "student") and authed_user.persona:
+                        persona = authed_user.persona
+                    if (not language or language == "ta") and authed_user.language:
+                        language = authed_user.language
+            except Exception:
+                pass
 
         ctx = memory_manager.get_context(conv_id)
         explicit_loc = location_name if location_name and location_name.lower() != "coimbatore" else None
@@ -114,7 +127,7 @@ class ChatIntegrationService:
                 rain_probability=current_resp.weather.rain_probability,
                 wind_speed=current_resp.weather.wind_speed,
                 weather_condition=current_resp.weather.condition,
-                source=current_resp.source,
+                source="IMD (Primary)",
                 rainfall_amount_mm=current_resp.weather.rainfall_mm
             )
 
@@ -127,7 +140,7 @@ class ChatIntegrationService:
                 rain_probability=current_resp.comparison.secondary_rain_probability,
                 wind_speed=15.0,
                 weather_condition=current_resp.weather.condition,
-                source="Open-Meteo Secondary"
+                source="Open-Meteo (Secondary)"
             )
 
             forecast_items = await self.weather_mgr.forecast_service.get_ai_forecast_items(
@@ -179,6 +192,10 @@ class ChatIntegrationService:
 
         conv_id = conversation_id or "default"
 
+        # Construct trusted user profile context string
+        user_ctx_str = f"User Profile: Name={user_name}, Persona={persona_enum.value.capitalize()}." if user_name else None
+        full_context_summary = f"{user_ctx_str} {resolved.context_summary}" if (user_ctx_str and resolved.context_summary) else (user_ctx_str or resolved.context_summary)
+
         # 5. Process through Person 1's WeatherGPTPipeline
         pipeline_result = self.ai_pipeline.process_query(
             message=resolved.resolved_message,
@@ -189,7 +206,7 @@ class ChatIntegrationService:
             persona=persona_enum,
             conversation_id=conv_id,
             target_language=language,
-            context_summary=resolved.context_summary,
+            context_summary=full_context_summary,
             request_id=request_id
         )
 

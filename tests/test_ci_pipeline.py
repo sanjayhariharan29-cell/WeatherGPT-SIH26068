@@ -146,4 +146,12 @@ def test_07_frontend_local_command_execution():
 
 def test_08_no_committed_env_file():
     """Verify that no .env file is tracked in git repository."""
+    import subprocess
+    try:
+        res = subprocess.run(["git", "ls-files", ".env"], capture_output=True, text=True)
+        if res.returncode == 0:
+            assert not res.stdout.strip(), ".env file must not be committed to repository!"
+            return
+    except Exception:
+        pass
     assert not os.path.exists(".env"), ".env file must not be committed to repository!"

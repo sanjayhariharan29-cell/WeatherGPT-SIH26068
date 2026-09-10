@@ -323,6 +323,68 @@
         </div>
       </div>
 
+      <!-- View 6: First-Launch Profile Onboarding -->
+      <div id="authViewOnboarding" class="auth-view hidden">
+        <div class="auth-view-header">
+          <div class="auth-badge-icon" style="background:#EFF6FF; color:#1D4ED8; border-color:#BFDBFE;">
+            <span class="material-symbols-rounded">badge</span>
+          </div>
+          <h2 class="auth-title">Welcome to SkyZen</h2>
+          <p class="auth-subtitle">Set up your profile to personalize meteorological intelligence and advisories.</p>
+        </div>
+
+        <div id="onboardingMessage" class="auth-message-box hidden" role="alert"></div>
+
+        <form id="onboardingForm" class="auth-form" novalidate>
+          <div class="auth-field">
+            <label for="onboardingFullName" class="auth-label">Full Name</label>
+            <div class="auth-input-wrapper">
+              <span class="material-symbols-rounded auth-input-icon">person</span>
+              <input type="text" id="onboardingFullName" class="auth-input with-icon" placeholder="Enter your full name" required autocomplete="name">
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="onboardingRole" class="auth-label">Primary Role / Persona</label>
+            <div class="auth-input-wrapper">
+              <span class="material-symbols-rounded auth-input-icon">work</span>
+              <select id="onboardingRole" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
+                <option value="student">Student — Daily commute & campus weather</option>
+                <option value="commuter">Commuter — Public transit, road & rain alerts</option>
+                <option value="farmer">Farmer — Agricultural rainfall & harvest planning</option>
+                <option value="fisherman">Fisherman — Marine wind & coastal safety</option>
+                <option value="disaster_response">Disaster / Emergency — Early warning & cyclone relief</option>
+                <option value="general">General User — Everyday weather overview</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="auth-field">
+            <label for="onboardingLanguage" class="auth-label">Preferred Language / மொழி</label>
+            <div class="auth-input-wrapper">
+              <span class="material-symbols-rounded auth-input-icon">language</span>
+              <select id="onboardingLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
+                <option value="en">English</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+              </select>
+            </div>
+          </div>
+
+          <div class="auth-field" style="margin-top:4px;">
+            <label class="auth-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+              <input type="checkbox" id="onboardingNotifications" checked style="width:18px; height:18px; accent-color:#1D4ED8; cursor:pointer;">
+              <span style="font-size:13px; font-weight:500; color:var(--text-primary);">Enable severe meteorological alerts & advisories</span>
+            </label>
+          </div>
+
+          <button type="submit" id="onboardingSubmitBtn" class="auth-primary-btn" style="margin-top:8px;" aria-label="Complete Profile and Enter SkyZen">
+            <span class="material-symbols-rounded icon-sm">check_circle</span>
+            <span id="onboardingSubmitText">Complete Setup & Enter SkyZen</span>
+          </button>
+        </form>
+      </div>
+
     </div>
   </div>
 
@@ -1112,6 +1174,66 @@
                 <span>•</span>
                 <span>Status: <strong id="userStatusText" style="color:var(--success-green);">Active</strong></span>
               </div>
+
+              <!-- Editable Profile & Persona Form -->
+              <div class="profile-settings-card" style="margin: 16px 0; padding: 16px; background: #FFFFFF; border: 1px solid var(--border-color); border-radius: var(--radius-md);">
+                <div style="display:flex; align-items:center; gap:6px; margin-bottom:12px;">
+                  <span class="material-symbols-rounded" style="color:var(--primary-blue);">tune</span>
+                  <h5 style="font-size:14px; font-weight:700; color:var(--text-primary); margin:0;">Personalize Profile & Persona</h5>
+                </div>
+
+                <div id="profileEditMessage" class="auth-message-box hidden" style="margin-bottom:12px;" role="alert"></div>
+
+                <form id="profileEditForm" class="auth-form" novalidate>
+                  <div class="auth-field">
+                    <label for="profileEditName" class="auth-label">Full Name</label>
+                    <div class="auth-input-wrapper">
+                      <span class="material-symbols-rounded auth-input-icon">person</span>
+                      <input type="text" id="profileEditName" class="auth-input with-icon" placeholder="Full name" required>
+                    </div>
+                  </div>
+
+                  <div class="auth-field">
+                    <label for="profileEditRole" class="auth-label">Role / Meteorological Persona</label>
+                    <div class="auth-input-wrapper">
+                      <span class="material-symbols-rounded auth-input-icon">work</span>
+                      <select id="profileEditRole" class="auth-input with-icon styled-select" style="padding-left:38px;">
+                        <option value="student">Student</option>
+                        <option value="commuter">Commuter</option>
+                        <option value="farmer">Farmer</option>
+                        <option value="fisherman">Fisherman</option>
+                        <option value="disaster_response">Disaster / Emergency</option>
+                        <option value="general">General User</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="auth-field">
+                    <label for="profileEditLanguage" class="auth-label">Preferred Language / மொழி</label>
+                    <div class="auth-input-wrapper">
+                      <span class="material-symbols-rounded auth-input-icon">language</span>
+                      <select id="profileEditLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;">
+                        <option value="en">English</option>
+                        <option value="ta">தமிழ் (Tamil)</option>
+                        <option value="hi">हिन्दी (Hindi)</option>
+                      </select>
+                    </div>
+                  </div>
+
+                  <div class="auth-field">
+                    <label class="auth-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
+                      <input type="checkbox" id="profileEditNotifications" checked style="width:18px; height:18px; accent-color:var(--primary-blue); cursor:pointer;">
+                      <span style="font-size:13px; font-weight:500; color:var(--text-primary);">Severe meteorological alert notifications</span>
+                    </label>
+                  </div>
+
+                  <button type="submit" id="profileSaveBtn" class="auth-primary-btn" style="margin-top:4px;">
+                    <span class="material-symbols-rounded icon-sm">save</span>
+                    <span id="profileSaveBtnText">Save Profile Changes</span>
+                  </button>
+                </form>
+              </div>
+
               <button id="profileSignOutBtn" class="auth-btn" style="background:#EF4444; color:#FFFFFF; width:100%; border:none; display:flex; align-items:center; justify-content:center; gap:6px; min-height:44px; border-radius:var(--radius-md); font-weight:600; cursor:pointer;">
                 <span class="material-symbols-rounded icon-sm">logout</span>
                 <span>Sign Out of SkyZen</span>
@@ -1158,11 +1280,40 @@
 
           <div style="display:flex; flex-direction:column; gap:16px; margin-top:10px;">
             <div class="auth-form-group">
+<<<<<<< ours
               <label for="langSelect" data-i18n="settings.language">Display Language / மொழி</label>
+||||||| base
+              <label for="langSelect">Display Language / மொழி</label>
+=======
+              <label>Profile & Role Persona</label>
+              <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#FFFFFF; border:1px solid var(--border-color); border-radius:var(--radius-md); cursor:pointer;" onclick="navigateToScreen('profile')">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="material-symbols-rounded" style="color:var(--primary-blue);">person</span>
+                  <div>
+                    <div style="font-size:14px; font-weight:600;" id="settingsProfileSummaryName">User Profile</div>
+                    <div style="font-size:12px; color:var(--text-secondary);" id="settingsProfileSummaryRole">Manage name, role persona & language</div>
+                  </div>
+                </div>
+                <span class="material-symbols-rounded" style="color:var(--text-secondary);">chevron_right</span>
+              </div>
+            </div>
+
+            <div class="auth-form-group">
+              <label for="langSelect">Display Language / மொழி</label>
+>>>>>>> theirs
               <select id="langSelect" class="styled-select" aria-label="Language">
+<<<<<<< ours
                 <option value="en" data-i18n="settings.language.en">English</option>
                 <option value="ta" data-i18n="settings.language.ta">தமிழ் (Tamil)</option>
                 <option value="hi" data-i18n="settings.language.hi">हिंदी (Hindi)</option>
+||||||| base
+                <option value="en">English</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+=======
+                <option value="en">English</option>
+                <option value="ta">தமிழ் (Tamil)</option>
+                <option value="hi">हिन्दी (Hindi)</option>
+>>>>>>> theirs
               </select>
             </div>
 

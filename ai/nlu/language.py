@@ -17,8 +17,8 @@ TANGLISH_MARKERS = {
     "kaathu", "katru", "irukkuma", "panlama"
 }
 
-# Suffix markers common in Tamil Romanization: e.g. "Coimbatore-la", "morning-la", "Chennai-la"
-LOCATIVE_SUFFIX_PATTERN = re.compile(r"\b\w+(?:-la|la|le)\b", re.IGNORECASE)
+# Suffix markers common in Tamil Romanization: e.g. "Coimbatore-la", "morning-la", "Chennai-la", or standalone "la" / "le"
+LOCATIVE_SUFFIX_PATTERN = re.compile(r"\b\w+-(?:la|le)\b|\b(?:la|le)\b", re.IGNORECASE)
 
 # Hinglish lexicon markers
 HINGLISH_MARKERS = {

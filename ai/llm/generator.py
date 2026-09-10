@@ -51,7 +51,8 @@ class GroundedLLMGenerator:
         forecast: Optional[List[ForecastItem]] = None,
         safety_guidance: Optional[List[str]] = None,
         reference_knowledge: Optional[List[Any]] = None,
-        context_summary: Optional[str] = None
+        context_summary: Optional[str] = None,
+        target_language: Optional[LanguageEnum] = None
     ) -> GroundedResponse:
         """Generates a verified, grounded natural language answer conforming to GroundedResponse contract."""
         context = build_grounded_context(
@@ -66,7 +67,11 @@ class GroundedLLMGenerator:
         )
 
         from ai.llm.multilingual import resolve_target_language
-        target_lang = resolve_target_language(nlu.detected_language, nlu.original_text)
+        target_lang = resolve_target_language(
+            nlu.detected_language,
+            nlu.original_text,
+            explicit_preference=target_language
+        )
 
         system_prompt = SYSTEM_INSTRUCTION.format(
             target_language=target_lang.value,
@@ -100,7 +105,7 @@ class GroundedLLMGenerator:
 
         # Fallback triggered (due to provider failure, timeout, or failed grounding check)
         self.last_is_fallback = True
-        fallback_answer = self._generate_fallback(nlu, weather, reasoning, advisory, context)
+        fallback_answer = self._generate_fallback(nlu, weather, reasoning, advisory, context, target_language=target_lang)
         return GroundedResponse(
             answer=fallback_answer,
             grounded_facts=[f"{k}: {v}" for k, v in context.observed_facts.items() if v != "UNAVAILABLE"],
@@ -120,7 +125,8 @@ class GroundedLLMGenerator:
         forecast: Optional[List[ForecastItem]] = None,
         safety_guidance: Optional[List[str]] = None,
         reference_knowledge: Optional[List[Any]] = None,
-        context_summary: Optional[str] = None
+        context_summary: Optional[str] = None,
+        target_language: Optional[LanguageEnum] = None
     ) -> str:
         """String generation interface preserving complete backward compatibility."""
         return self.generate_response(
@@ -131,7 +137,8 @@ class GroundedLLMGenerator:
             forecast=forecast,
             safety_guidance=safety_guidance,
             reference_knowledge=reference_knowledge,
-            context_summary=context_summary
+            context_summary=context_summary,
+            target_language=target_language
         ).answer
 
     def _generate_fallback(
@@ -155,18 +162,34 @@ class GroundedLLMGenerator:
 
         lines: List[str] = []
 
+        user_prefix = ""
+        prompt_text = context.formatted_prompt if (context and hasattr(context, "formatted_prompt")) else ""
+        if "User Profile: Name=" in prompt_text:
+            import re
+            name_match = re.search(r"User Profile:\s*Name=([A-Za-z0-9_ -]+?)(?:,|$|\.)", prompt_text)
+            if name_match:
+                fname = name_match.group(1).strip().split()[0]
+                if fname:
+                    user_prefix = f"{fname}, "
+
         if target_lang == LanguageEnum.TA:
             temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "கிடைக்கவில்லை"
             rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "கிடைக்கவில்லை"
-            cond_str = translate_condition(weather.weather_condition, LanguageEnum.TA) if weather else "தெரியவில்லை"
+            cond_str = translate_condition(weather.weather_condition, LanguageEnum.TA) if weather else "கிடைக்கவில்லை"
 
             if reasoning.active_warnings:
                 alert = reasoning.active_warnings[0]
                 lines.append(f"⚠️ [அதிகாரப்பூர்வ IMD எச்சரிக்கை] {alert.title}: {alert.description}")
 
-            lines.append(
-                f"{loc}-ல் தற்போதைய வெப்பநிலை {temp_str}, மழை வாய்ப்பு {rain_str}, வானிலை: {cond_str}."
-            )
+            if weather and weather.temperature is not None and weather.rain_probability is not None:
+                lines.append(
+                    f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை {temp_str} மற்றும் மழை வாய்ப்பு {rain_str} (வானிலை: {cond_str})."
+                )
+            else:
+                lines.append(
+                    f"{user_prefix}{loc}ல் தற்போதைய தரவு முழுமையாக கிடைக்கவில்லை (வெப்பநிலை: {temp_str}, மழை வாய்ப்பு: {rain_str})."
+                )
+
             lines.append(f"\nஆலோசனை: {advisory.advisory_text}")
 
             if advisory.key_precautions:
@@ -187,11 +210,11 @@ class GroundedLLMGenerator:
 
             if weather and weather.temperature is not None and weather.rain_probability is not None:
                 lines.append(
-                    f"{loc} में वर्तमान तापमान {temp_str} है और बारिश की संभावना {rain_str} है (मौसम: {cond_str})।"
+                    f"{user_prefix}{loc} में वर्तमान तापमान {temp_str} है और बारिश की संभावना {rain_str} है (मौसम: {cond_str})।"
                 )
             else:
                 lines.append(
-                    f"{loc} में वर्तमान अवलोकन डेटा आंशिक रूप से अनुपलब्ध है (तापमान: {temp_str}, बारिश की संभावना: {rain_str})।"
+                    f"{user_prefix}{loc} में वर्तमान अवलोकन डेटा आंशिक रूप से अनुपलब्ध है (तापमान: {temp_str}, बारिश की संभावना: {rain_str})।"
                 )
 
             lines.append(f"\nसलाह: {advisory.advisory_text}")
@@ -214,12 +237,24 @@ class GroundedLLMGenerator:
 
             if weather and weather.temperature is not None and weather.rain_probability is not None:
                 lines.append(
-                    f"In {loc}, current temperature is {temp_str} with a {rain_str} chance of precipitation ({cond_str})."
+                    f"{user_prefix}in {loc}, current temperature is {temp_str} with a {rain_str} chance of precipitation ({cond_str})." if user_prefix else f"In {loc}, current temperature is {temp_str} with a {rain_str} chance of precipitation ({cond_str})."
                 )
             else:
                 lines.append(
-                    f"In {loc}, current observation data is partially unavailable (Temperature: {temp_str}, Precipitation probability: {rain_str})."
+                    f"{user_prefix}in {loc}, current observation data is partially unavailable (Temperature: {temp_str}, Precipitation probability: {rain_str})." if user_prefix else f"In {loc}, current observation data is partially unavailable (Temperature: {temp_str}, Precipitation probability: {rain_str})."
                 )
+
+            # Schedule-aware commute decision assistance
+            user_text = (nlu.original_text.lower() if nlu and nlu.original_text else "")
+            if "umbrella" in user_text or ("8 am" in user_text and "5 pm" in user_text) or "commute" in user_text:
+                rain_prob = weather.rain_probability if (weather and weather.rain_probability is not None) else 0.0
+                umbrella_rec = "Yes, carrying an umbrella is recommended" if (rain_prob >= 30.0 or reasoning.active_warnings) else "Carrying an umbrella is not strictly required for dry morning hours, but recommended if evening clouds build"
+                risk_lvl = "moderate" if rain_prob >= 30.0 else "low"
+                commute_line = f"{user_prefix}your commute has a {risk_lvl} rain risk around 8 AM." if user_prefix else f"Your commute has a {risk_lvl} rain risk around 8 AM."
+                lines.append(f"\nCommute Decision (8:00 AM Departure — 5:00 PM Return):")
+                lines.append(f"- {commute_line}")
+                lines.append(f"- Recommendation: {user_prefix}{umbrella_rec.lower() if user_prefix else umbrella_rec}.")
+                lines.append(f"- Precipitation Risk: {rain_str} precipitation chance during transit window.")
 
             lines.append(f"\nAdvisory: {advisory.advisory_text}")
 

@@ -23,63 +23,107 @@ async def get_user_profile(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Cannot view another user's profile"
             )
+        notif = current_user.preferences.notification_enabled if current_user.preferences else True
         return {
             "id": current_user.id,
             "name": current_user.name,
+            "full_name": current_user.name,
             "email": current_user.email,
             "language": current_user.language,
+            "preferred_language": current_user.language,
             "persona": current_user.persona,
-            "role": current_user.role
+            "role": current_user.role,
+            "is_verified": bool(current_user.is_verified),
+            "onboarding_completed": bool(current_user.onboarding_completed),
+            "notification_enabled": bool(notif)
         }
 
     # Fallback for unauthenticated guest requests
     if user_id:
         target = db.query(User).filter(User.id == user_id).first()
         if target:
+            notif = target.preferences.notification_enabled if target.preferences else True
             return {
                 "id": target.id,
                 "name": target.name,
+                "full_name": target.name,
                 "email": target.email,
                 "language": target.language,
+                "preferred_language": target.language,
                 "persona": target.persona,
-                "role": target.role
+                "role": target.role,
+                "is_verified": bool(target.is_verified),
+                "onboarding_completed": bool(target.onboarding_completed),
+                "notification_enabled": bool(notif)
             }
             
     return {
         "id": "guest_user",
         "name": "Guest User",
+        "full_name": "Guest User",
         "email": "guest@weathergpt.moes.gov.in",
         "language": "ta",
+        "preferred_language": "ta",
         "persona": "student",
-        "role": "guest"
+        "role": "guest",
+        "is_verified": False,
+        "onboarding_completed": True,
+        "notification_enabled": True
     }
 
 @router.put("/me")
 async def update_user_profile(
     req: UserUpdateRequest,
+    user_id: Optional[str] = None,
     current_user: User = Depends(get_current_user),
     db: Session = Depends(get_db)
 ):
-    """Updates the authenticated user's profile information."""
+    """Updates the authenticated user's profile information (User Ownership Enforced)."""
+    if user_id and user_id != current_user.id and current_user.role != "admin":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Access denied: Cannot modify another user's profile"
+        )
+
     if req.name is not None:
         current_user.name = req.name.strip()
     if req.language is not None:
         current_user.language = req.language
     if req.persona is not None:
         current_user.persona = req.persona
+        if current_user.preferences:
+            current_user.preferences.persona = req.persona
+    if req.onboarding_completed is not None:
+        current_user.onboarding_completed = req.onboarding_completed
+    if req.notification_enabled is not None:
+        if not current_user.preferences:
+            pref = UserPreference(
+                user_id=current_user.id,
+                persona=current_user.persona,
+                notification_enabled=req.notification_enabled
+            )
+            db.add(pref)
+        else:
+            current_user.preferences.notification_enabled = req.notification_enabled
     
     db.commit()
     db.refresh(current_user)
 
+    notif = current_user.preferences.notification_enabled if current_user.preferences else True
     return {
         "message": "Profile updated successfully",
         "user": {
             "id": current_user.id,
             "name": current_user.name,
+            "full_name": current_user.name,
             "email": current_user.email,
             "language": current_user.language,
+            "preferred_language": current_user.language,
             "persona": current_user.persona,
-            "role": current_user.role
+            "role": current_user.role,
+            "is_verified": bool(current_user.is_verified),
+            "onboarding_completed": bool(current_user.onboarding_completed),
+            "notification_enabled": bool(notif)
         }
     }
 

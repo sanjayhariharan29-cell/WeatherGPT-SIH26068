@@ -2,6 +2,12 @@ import os
 from typing import List
 from pydantic import BaseModel, Field
 
+try:
+    from dotenv import load_dotenv
+    load_dotenv()
+except ImportError:
+    pass
+
 class Settings(BaseModel):
     """Centralized Backend Configuration for WeatherGPT."""
 

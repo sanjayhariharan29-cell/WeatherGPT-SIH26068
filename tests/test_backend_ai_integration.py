@@ -333,6 +333,8 @@ async def test_14_llm_failure_resilience():
 @pytest.mark.asyncio
 async def test_15_validator_rejection_triggers_fallback():
     service = AIService()
+    if hasattr(service.pipeline, "llm_circuit_breaker"):
+        service.pipeline.llm_circuit_breaker.reset()
     now_dt = datetime.now(timezone.utc)
     obs = AIWeatherRecord(
         location=AILocationInfo(name="Coimbatore", latitude=11.0168, longitude=76.9558),

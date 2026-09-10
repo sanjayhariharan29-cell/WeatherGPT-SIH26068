@@ -207,7 +207,8 @@ class WeatherGPTPipeline:
                         forecast=forecast,
                         safety_guidance=safety_notes,
                         reference_knowledge=ref_chunks,
-                        context_summary=resolved_context_summary
+                        context_summary=resolved_context_summary,
+                        target_language=target_lang
                     )
 
                 raw_answer = llm_breaker.execute(

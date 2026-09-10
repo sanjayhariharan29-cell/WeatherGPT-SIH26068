@@ -32,11 +32,28 @@ class User(Base):
     persona = Column(String(50), default="student")
     role = Column(String(20), default="user", nullable=False)
     is_verified = Column(Boolean, default=False, nullable=False)
+    onboarding_completed = Column(Boolean, default=False, nullable=False)
     verification_token = Column(String(255), nullable=True)
     verification_token_expires = Column(DateTime(timezone=True), nullable=True)
     reset_token = Column(String(255), nullable=True)
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    @property
+    def full_name(self) -> str:
+        return self.name
+
+    @full_name.setter
+    def full_name(self, value: str) -> None:
+        self.name = value
+
+    @property
+    def preferred_language(self) -> str:
+        return self.language
+
+    @preferred_language.setter
+    def preferred_language(self, value: str) -> None:
+        self.language = value
 
     preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")

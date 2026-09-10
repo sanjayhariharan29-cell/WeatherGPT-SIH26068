@@ -99,11 +99,14 @@ class UserResponse(BaseModel):
     """User profile response object."""
     id: str
     name: str
+    full_name: Optional[str] = None
     email: str
     language: str = "ta"
+    preferred_language: Optional[str] = None
     persona: str = "student"
     role: str = "user"
     is_verified: bool = False
+    onboarding_completed: bool = False
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -116,11 +119,122 @@ class TokenResponse(BaseModel):
     user: UserResponse
 
 
+class ProfileResponse(BaseModel):
+    """Full authenticated profile response model."""
+    id: str
+    name: str
+    full_name: str
+    email: str
+    role: str = "user"
+    persona: str = "student"
+    language: str = "ta"
+    preferred_language: str = "ta"
+    is_verified: bool = False
+    onboarding_completed: bool = False
+    notification_enabled: bool = True
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class ProfileUpdateRequest(BaseModel):
+    """Payload for updating user profile and completing onboarding."""
+    name: Optional[str] = Field(None, min_length=1, max_length=100, description="User full name")
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100, description="User full name alias")
+    persona: Optional[str] = Field(None, max_length=50, description="User persona/role")
+    role: Optional[str] = Field(None, max_length=50, description="User persona/role alias")
+    language: Optional[str] = Field(None, max_length=20, description="Preferred language code")
+    preferred_language: Optional[str] = Field(None, max_length=20, description="Preferred language alias")
+    notification_enabled: Optional[bool] = Field(None, description="Basic notification alert preference")
+    onboarding_completed: Optional[bool] = Field(None, description="Onboarding completion flag")
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            # Map full_name to name
+            if not data.get("name") and data.get("full_name"):
+                data["name"] = data["full_name"]
+            # Map role to persona if role is a recognized persona string
+            if not data.get("persona") and data.get("role"):
+                data["persona"] = data["role"]
+            # Map preferred_language to language
+            if not data.get("language") and data.get("preferred_language"):
+                data["language"] = data["preferred_language"]
+        return data
+
+    @field_validator("name")
+    def validate_name_not_blank(cls, v: Optional[str]) -> Optional[str]:
+        if v is not None:
+            s = v.strip()
+            if not s:
+                raise ValueError("Name cannot be blank")
+            return s
+        return v
+
+    @field_validator("persona")
+    def normalize_persona(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        cleaned = v.strip().lower()
+        persona_map = {
+            "student": "student",
+            "commuter": "commuter",
+            "farmer": "farmer",
+            "fisherman": "fisherman",
+            "disaster": "disaster_response",
+            "emergency": "disaster_response",
+            "disaster / emergency": "disaster_response",
+            "disaster_response": "disaster_response",
+            "disaster response": "disaster_response",
+            "general": "general",
+            "general user": "general",
+            "traveller": "traveller",
+            "traveler": "traveller"
+        }
+        if cleaned not in persona_map:
+            raise ValueError(f"Unsupported persona/role '{v}'. Supported: Student, Commuter, Farmer, Fisherman, Disaster / Emergency, General")
+        return persona_map[cleaned]
+
+    @field_validator("language")
+    def normalize_language(cls, v: Optional[str]) -> Optional[str]:
+        if v is None:
+            return v
+        cleaned = v.strip().lower()
+        lang_map = {
+            "en": "en",
+            "english": "en",
+            "ta": "ta",
+            "tamil": "ta",
+            "hi": "hi",
+            "hindi": "hi"
+        }
+        if cleaned not in lang_map:
+            raise ValueError(f"Unsupported language '{v}'. Supported: English (en), Tamil (ta), Hindi (hi)")
+        return lang_map[cleaned]
+
+
 class UserUpdateRequest(BaseModel):
     """Payload for updating user profile."""
     name: Optional[str] = Field(None, min_length=1, max_length=100)
-    language: Optional[str] = Field(None, max_length=10)
+    full_name: Optional[str] = Field(None, min_length=1, max_length=100)
+    language: Optional[str] = Field(None, max_length=20)
+    preferred_language: Optional[str] = Field(None, max_length=20)
     persona: Optional[str] = Field(None, max_length=50)
+    role: Optional[str] = Field(None, max_length=50)
+    onboarding_completed: Optional[bool] = None
+    notification_enabled: Optional[bool] = None
+
+    @model_validator(mode="before")
+    @classmethod
+    def handle_aliases(cls, data: Any) -> Any:
+        if isinstance(data, dict):
+            if not data.get("name") and data.get("full_name"):
+                data["name"] = data["full_name"]
+            if not data.get("persona") and data.get("role"):
+                data["persona"] = data["role"]
+            if not data.get("language") and data.get("preferred_language"):
+                data["language"] = data["preferred_language"]
+        return data
 
 
 class UserPreferenceSchema(BaseModel):
