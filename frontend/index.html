@@ -1278,13 +1278,7 @@
             </h3>
           </div>
 
-          <div style="display:flex; flex-direction:column; gap:16px; margin-top:10px;">
             <div class="auth-form-group">
-<<<<<<< ours
-              <label for="langSelect" data-i18n="settings.language">Display Language / மொழி</label>
-||||||| base
-              <label for="langSelect">Display Language / மொழி</label>
-=======
               <label>Profile & Role Persona</label>
               <div style="display:flex; justify-content:space-between; align-items:center; padding:12px; background:#FFFFFF; border:1px solid var(--border-color); border-radius:var(--radius-md); cursor:pointer;" onclick="navigateToScreen('profile')">
                 <div style="display:flex; align-items:center; gap:8px;">
@@ -1299,22 +1293,29 @@
             </div>
 
             <div class="auth-form-group">
-              <label for="langSelect">Display Language / மொழி</label>
->>>>>>> theirs
+              <label for="langSelect" data-i18n="settings.language">Display Language / மொழி</label>
               <select id="langSelect" class="styled-select" aria-label="Language">
-<<<<<<< ours
                 <option value="en" data-i18n="settings.language.en">English</option>
                 <option value="ta" data-i18n="settings.language.ta">தமிழ் (Tamil)</option>
                 <option value="hi" data-i18n="settings.language.hi">हिंदी (Hindi)</option>
-||||||| base
-                <option value="en">English</option>
-                <option value="ta">தமிழ் (Tamil)</option>
-=======
-                <option value="en">English</option>
-                <option value="ta">தமிழ் (Tamil)</option>
-                <option value="hi">हिन्दी (Hindi)</option>
->>>>>>> theirs
               </select>
+            </div>
+
+            <div class="auth-form-group">
+              <label>Emergency Warnings & FCM Notifications</label>
+              <div style="padding:14px; background:#FFFFFF; border:1px solid var(--border-color); border-radius:var(--radius-md); display:flex; flex-direction:column; gap:10px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="material-symbols-rounded" style="color:var(--primary-blue);">notifications_active</span>
+                    <span style="font-size:13px; font-weight:600;">Push Alerts Channel</span>
+                  </div>
+                  <span id="pushStatusBadge" style="font-size:11px; padding:2px 8px; border-radius:12px; background:#DCFCE7; color:#166534; font-weight:600;">Active (FCM)</span>
+                </div>
+                <button type="button" id="sendTestNotificationBtn" class="auth-secondary-btn" style="min-height:38px; font-size:13px; padding:6px 12px; display:flex; align-items:center; justify-content:center; gap:6px;">
+                  <span class="material-symbols-rounded icon-sm">notifications</span>
+                  <span>Send Controlled Test Alert</span>
+                </button>
+              </div>
             </div>
 
             <div class="auth-form-group">
@@ -1378,6 +1379,7 @@
   <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" crossorigin=""></script>
   <script src="./config.js"></script>
   <script src="./mobile/apiClient.js"></script>
+  <script src="./mobile/notificationManager.js"></script>
   <script src="./app.js"></script>
 
   <!-- Service Worker Registration -->

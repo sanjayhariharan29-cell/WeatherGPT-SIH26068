@@ -746,6 +746,9 @@ async function restoreSessionOrShowAuth() {
         hideSplashScreen();
         loadCurrentWeather();
         loadSavedLocationsList();
+        if (window.notificationManager) {
+          window.notificationManager.init();
+        }
         return;
       }
     } catch (err) {
@@ -801,6 +804,9 @@ function setupAuthPortalEngine() {
 
   if (profileSignOutBtn) {
     profileSignOutBtn.addEventListener("click", async () => {
+      if (window.notificationManager) {
+        await window.notificationManager.unregisterOnSignOut();
+      }
       await window.apiClient.logout();
       currentUser = null;
       updateProfileUI(null);
@@ -876,6 +882,9 @@ function setupAuthPortalEngine() {
           navigateToScreen("home");
           loadCurrentWeather();
           loadSavedLocationsList();
+          if (window.notificationManager) {
+            window.notificationManager.init();
+          }
           showMobileNotice(`Welcome back to SkyZen, ${res.user.name || "User"}!`, "info");
         }
       } catch (err) {
@@ -1284,6 +1293,34 @@ function setupAuthPortalEngine() {
         }
       }
       showMobileNotice(`Language updated to ${newLang === "ta" ? "தமிழ்" : (newLang === "hi" ? "हिन्दी" : "English")}.`, "info");
+    });
+  }
+
+  // 9. Controlled Test Push Notification Handler
+  const sendTestNotificationBtn = document.getElementById("sendTestNotificationBtn");
+  if (sendTestNotificationBtn) {
+    sendTestNotificationBtn.addEventListener("click", async () => {
+      try {
+        sendTestNotificationBtn.disabled = true;
+        sendTestNotificationBtn.innerHTML = `<span class="material-symbols-rounded icon-sm">sync</span><span>Dispatching...</span>`;
+
+        if (!isAppAuthenticated()) {
+          showMobileNotice("Please sign in first to send a controlled test alert.", "error");
+          showAuthPortal("welcome");
+          return;
+        }
+
+        const res = await (window.notificationManager
+          ? window.notificationManager.sendTestNotification()
+          : window.apiClient.sendTestNotification());
+
+        showMobileNotice(`Test alert dispatched (${res.mode}): ${res.message}`, "success", 4000);
+      } catch (err) {
+        showMobileNotice(`Test alert error: ${err.message}`, "error", 4000);
+      } finally {
+        sendTestNotificationBtn.disabled = false;
+        sendTestNotificationBtn.innerHTML = `<span class="material-symbols-rounded icon-sm">notifications</span><span>Send Controlled Test Alert</span>`;
+      }
     });
   }
 }

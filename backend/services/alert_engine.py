@@ -21,7 +21,8 @@ from backend.db.models import (
     AlertDeliveryLog,
     User,
     UserPreference,
-    SavedLocation
+    SavedLocation,
+    DeviceToken
 )
 from backend.services.imd_adapter import IMDAdapter
 from backend.services.schemas import NormalizedAlertItem
@@ -318,8 +319,15 @@ class AlertEngine:
                 language=user.language or "ta"
             )
 
+            # Query user's registered active device tokens
+            active_device_tokens = db.query(DeviceToken.token).filter(
+                DeviceToken.user_id == user.id,
+                DeviceToken.is_active == True
+            ).all()
+            token_to_send = active_device_tokens[0][0] if active_device_tokens else None
+
             dispatch_res = await self.notifications.send_push_notification(
-                token=None,  # Live FCM token or simulated test device
+                token=token_to_send,
                 title=msg["title"],
                 body=msg["body"],
                 data={
@@ -328,6 +336,13 @@ class AlertEngine:
                     "area": alert.location_name
                 }
             )
+
+            # Deactivate token if reported as unregistered by FCM
+            if dispatch_res.get("should_deactivate") and token_to_send:
+                deact_dev = db.query(DeviceToken).filter(DeviceToken.token == token_to_send).first()
+                if deact_dev:
+                    deact_dev.is_active = False
+                    db.commit()
 
             now_utc = datetime.now(timezone.utc)
             delivery_status = "SENT" if dispatch_res.get("success") else "FAILED"

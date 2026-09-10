@@ -12,7 +12,7 @@ from backend.middleware import (
     RateLimiterMiddleware
 )
 from backend.db.init_db import init_db
-from backend.api import health, auth, weather, locations, users, chat, voice
+from backend.api import health, auth, weather, locations, users, chat, voice, notifications
 
 # Initialize Database on Module Import
 init_db()
@@ -57,6 +57,7 @@ app.include_router(locations.router, prefix=settings.API_V1_PREFIX)
 app.include_router(users.router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
 app.include_router(voice.router, prefix=settings.API_V1_PREFIX)
+app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 
 # Mount Static Frontend Directory if present
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")

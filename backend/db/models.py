@@ -58,6 +58,7 @@ class User(Base):
     preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     saved_locations = relationship("SavedLocation", back_populates="user", cascade="all, delete-orphan")
+    device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
 
 
 class RevokedToken(Base):
@@ -262,3 +263,22 @@ class AlertDeliveryLog(Base):
     payload_preview = Column(String(255), nullable=True)
     delivered_at = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
+
+
+class DeviceToken(Base):
+    __tablename__ = "device_tokens"
+    __table_args__ = (
+        Index("idx_device_token_user", "user_id", "is_active"),
+        Index("idx_device_token_val", "token", unique=True),
+    )
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    token = Column(String(512), nullable=False, unique=True, index=True)
+    platform = Column(String(20), default="android", nullable=False)
+    device_name = Column(String(100), nullable=True)
+    is_active = Column(Boolean, default=True, nullable=False)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+    updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+
+    user = relationship("User", back_populates="device_tokens")

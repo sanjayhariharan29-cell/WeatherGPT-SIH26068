@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "545955930031",
+    "project_id": "skyzen-9a22d",
+    "storage_bucket": "skyzen-9a22d.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:545955930031:android:2cf020481e61094b32995a",
+        "android_client_info": {
+          "package_name": "in.gov.moes.weathergpt"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyB-9YYpvA4xrt3mCWTBnf_NkRgN7RHym1k"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

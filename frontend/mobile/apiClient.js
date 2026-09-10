@@ -304,6 +304,33 @@ class WeatherGPTApiClient {
       method: "DELETE"
     });
   }
+
+  // Push Notification Device Token APIs
+  async registerDeviceToken(token, platform = "android", deviceName = null) {
+    return await this.request("/notifications/devices", {
+      method: "POST",
+      body: JSON.stringify({ token, platform, device_name: deviceName })
+    });
+  }
+
+  async unregisterDeviceToken(token) {
+    return await this.request(`/notifications/devices/${encodeURIComponent(token)}`, {
+      method: "DELETE"
+    });
+  }
+
+  async listDeviceTokens() {
+    return await this.request("/notifications/devices", {
+      method: "GET"
+    });
+  }
+
+  async sendTestNotification(title = null, body = null, deviceToken = null) {
+    return await this.request("/notifications/test", {
+      method: "POST",
+      body: JSON.stringify({ title, body, device_token: deviceToken })
+    });
+  }
 }
 
 // Export singleton instance
