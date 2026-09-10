@@ -169,13 +169,19 @@ class ForecastItem(BaseModel):
 class OfficialAlert(BaseModel):
     """Official severe weather warning (docs/08_Api_Contracts.md)."""
     data_type: WeatherDataType = WeatherDataType.OFFICIAL_WARNING
+    id: Optional[str] = Field(default=None, description="Authoritative warning identifier / CAP identifier")
     type: str = Field(description="e.g. heavy_rain, cyclone, thunderstorm, heatwave")
     severity: RiskLevelEnum = Field(description="low, medium, high, extreme")
     title: str
     description: str
+    instructions: Optional[str] = Field(default=None, description="Civil defense emergency instructions")
     source: str = Field(default="IMD")
+    source_url: Optional[str] = Field(default=None, description="Official meteorological bulletin reference URL")
     issued_at: datetime
     expires_at: datetime
+    valid_from: Optional[datetime] = None
+    status: str = Field(default="ACTIVE", description="ACTIVE, SCHEDULED, EXPIRED, CANCELLED")
+    version: int = Field(default=1, description="Update sequence version number")
     affected_locations: List[str] = Field(default_factory=list)
 
 

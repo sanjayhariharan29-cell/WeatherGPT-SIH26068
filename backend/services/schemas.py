@@ -171,7 +171,8 @@ class NormalizedForecastItem(BaseModel):
 
 
 class NormalizedAlertItem(BaseModel):
-    """Normalized severe weather alert schema."""
+    """Normalized severe weather alert schema with authoritative provenance and lifecycle state."""
+    alert_id: Optional[str] = Field(default=None, description="Authoritative warning identifier")
     alert_type: str = Field(description="Category e.g., heavy_rain, cyclone, thunderstorm")
     severity: str = Field(description="low, medium, high, extreme")
     title: str
@@ -179,10 +180,15 @@ class NormalizedAlertItem(BaseModel):
     instructions: Optional[str] = None
     area: Optional[str] = None
     source: str = Field(default="IMD")
+    source_url: Optional[str] = Field(default=None, description="Official bulletin URL or CAP reference")
     issued_at: str
     expires_at: str
+    valid_from: Optional[str] = Field(default=None, description="Valid from ISO 8601 UTC timestamp")
     updated_at: Optional[str] = None
     retrieved_at: str
+    status: str = Field(default="ACTIVE", description="ACTIVE, SCHEDULED, EXPIRED, INVALID, CANCELLED")
+    version: int = Field(default=1, description="Update sequence version number")
+    validation_issues: List[str] = Field(default_factory=list, description="Validation issues if any")
 
     def __getitem__(self, item: str) -> Any:
         if hasattr(self, item):
@@ -203,10 +209,14 @@ class NormalizedAlertItem(BaseModel):
     def to_ai_official_alert(self) -> AIOfficialAlert:
         """Converts to Person 1's OfficialAlert model for hazard reasoning."""
         sev_map = {
+            "yellow": RiskLevelEnum.LOW,
             "low": RiskLevelEnum.LOW,
+            "orange": RiskLevelEnum.MEDIUM,
             "medium": RiskLevelEnum.MEDIUM,
+            "red": RiskLevelEnum.HIGH,
             "high": RiskLevelEnum.HIGH,
-            "extreme": RiskLevelEnum.EXTREME
+            "extreme": RiskLevelEnum.EXTREME,
+            "critical": RiskLevelEnum.EXTREME
         }
         severity_enum = sev_map.get(self.severity.lower(), RiskLevelEnum.MEDIUM)
 
@@ -220,14 +230,27 @@ class NormalizedAlertItem(BaseModel):
         except Exception:
             exp_dt = datetime.now(timezone.utc)
 
+        vf_dt = None
+        if self.valid_from:
+            try:
+                vf_dt = datetime.fromisoformat(self.valid_from)
+            except Exception:
+                vf_dt = None
+
         return AIOfficialAlert(
+            id=self.alert_id,
             type=self.alert_type,
             severity=severity_enum,
             title=self.title,
             description=self.description,
+            instructions=self.instructions,
             source=self.source,
+            source_url=self.source_url,
             issued_at=iss_dt,
             expires_at=exp_dt,
+            valid_from=vf_dt,
+            status=self.status,
+            version=self.version,
             affected_locations=[self.area] if self.area else []
         )
 

@@ -383,7 +383,7 @@ class GroundedLLMGenerator:
                 sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
                 affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
                 precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "Follow official civil defense precautions immediately.")
-                lines.append(f"⚠️ [OFFICIAL IMD {sev} WARNING] Status: ACTIVE — {alert.title}")
+                lines.append(f"⚠️ [OFFICIAL IMD WARNING] ({sev}) Status: ACTIVE — {alert.title}")
                 lines.append(f"📍 Affected Area: {affected}")
                 lines.append(f"🛡️ Critical Safety Instruction: {precaution}")
                 lines.append(f"ℹ️ Explanation: {alert.description}")

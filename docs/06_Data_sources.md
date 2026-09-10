@@ -366,4 +366,43 @@ When primary (IMD) and secondary (Open-Meteo) providers return differing values:
 # 17. Provider Failure & IMD Authority Invariant
 
 1. **Failure Isolation**: Provider errors (`ProviderTimeoutError`, `ProviderUnavailableError`, etc.) capture rich diagnostics (`status_code`, `timeout`, `url`, `error_type`) without corrupting valid data from secondary providers.
-2. **IMD Warning Authority**: Official severe weather alerts from IMD unconditionally govern overall hazard levels and emergency precautions. Secondary providers (Open-Meteo, Tomorrow.io, etc.) cannot override, downgrade, or clear an official IMD warning.
+2. **IMD Warning Authority**: Official severe weather alerts from IMD unconditionally govern overall hazard levels and emergency precautions. Secondary providers (Open-Meteo, Tomorrow.io, etc.) cannot override, downgrade, or clear an official IMD warning.
+
+---
+
+# 18. Official IMD Alert Engine Lifecycle (Phase 2)
+
+IMD (India Meteorological Department) is the sole authoritative source for official meteorological warnings in SkyZen.
+
+### Alert Lifecycle States:
+- **`ACTIVE`**: The current UTC time falls strictly between `valid_from` (or `issued_at`) and `expires_at`.
+- **`SCHEDULED`**: The current UTC time is before `valid_from` (advance warning issued for a future time window).
+- **`EXPIRED`**: The current UTC time is after `expires_at`. An expired warning is **never** presented as active.
+- **`INVALID`**: Alert payload failed deterministic structural validation.
+
+### Deterministic Normalization & Validation:
+1. **Source Authority Verification**: Must originate strictly from `IMD`. Payloads from unauthorized sources claiming official status are rejected.
+2. **Required Safety-Critical Fields**: `title`, `alert_type`, `severity`, `area`, `issued_at`, and `expires_at` are mandatory. Alerts missing any safety-critical field are rejected with a structured error reason without guessing.
+3. **Temporal Sanity**: Enforces strict ISO 8601 UTC timestamp parsing and validates that `expires_at > issued_at` (rejects impossible timestamps or inverted durations).
+4. **Deduplication**: Authoritative alert fingerprints are generated via deterministic SHA-256 hashes (`source:alert_type:area:issued_at`) preventing duplicate active records during repeated polling.
+5. **Update Detection & Precedence**: If an updated bulletin is received for an existing alert, the engine compares `issued_at` timestamps. Stale/older packets arriving out-of-order cannot overwrite a newer valid bulletin. When severity, description, or instructions are updated, the database record is refreshed and versioned.
+
+---
+
+# 19. Non-Negotiable Alert Safety Invariants & DecisionTrace
+
+The following safety rules are deterministically enforced across the backend and AI safety gate:
+1. **Zero Secondary Downgrade**: Secondary weather providers (Open-Meteo, OpenWeather, etc.) reporting clear skies or low rain cannot downgrade or cancel an active IMD warning.
+2. **Anti-Hallucination Gate**: The LLM cannot invent phantom official alerts when none exist in ground truth (`FABRICATED_DATA` violation).
+3. **Severity Invariance**: The LLM cannot modify or downgrade IMD severity (e.g. claiming a red alert is minor or safe).
+4. **Instruction Integrity**: Response guidance must not contradict official IMD emergency instructions (e.g. advising outdoor gatherings or marine ventures during a cyclone warning).
+5. **Response Priority Order (Phase 10)**: Official warnings must be presented in strict order: 1. Status -> 2. Area -> 3. Action -> 4. Explanation.
+6. **Explainable DecisionTrace**: DecisionTrace captures structured warning facts (`exists`, `source`, `id`, `severity`, `affected_area`, `issued_at`, `valid_from`, `expires_at`, `status`, `validation_state`, `affected_final_recommendation`) without exposing internal chain-of-thought.
+
+---
+
+# 20. Real IMD Data Source Status (Step 14 Audit)
+
+- **Current Implementation**: `backend/services/imd_adapter.py` currently serves deterministic district bulletins (e.g. Nagapattinam coastal storm bulletin, Coimbatore thunderstorm bulletin, and simulated expired notices for automated regression testing) with dynamic UTC validity windows and deterministic SHA-256 fingerprints.
+- **Live Feed Prerequisite**: IMD's official Common Alerting Protocol (CAP) and RSS/XML bulletin endpoints require government agency API whitelisting and production credentials.
+- **Strict Policy**: In compliance with Step 14, SkyZen **does not** claim live real-time connection to IMD CAP servers until official production credentials and IP whitelisting are provisioned. Under no circumstances are mock endpoints or invented URLs masqueraded as live feeds. All warnings carry explicit provenance and verification status.

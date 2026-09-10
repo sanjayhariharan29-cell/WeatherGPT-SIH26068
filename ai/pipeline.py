@@ -523,14 +523,35 @@ class WeatherGPTPipeline:
             )
 
         primary_warning = reasoning.active_warnings[0] if reasoning.active_warnings else None
-        warning_details = None
         if primary_warning:
             pw_type = getattr(primary_warning, "type", getattr(primary_warning, "warning_type", "alert"))
+            pw_issued = getattr(primary_warning, "issued_at", None)
+            pw_valid_from = getattr(primary_warning, "valid_from", None)
+            pw_expires = getattr(primary_warning, "expires_at", None)
             warning_details = {
+                "exists": True,
+                "source": getattr(primary_warning, "source", "IMD"),
+                "id": getattr(primary_warning, "id", None),
                 "warning_type": pw_type.value if hasattr(pw_type, "value") else str(pw_type),
                 "severity": primary_warning.severity.value if hasattr(primary_warning.severity, "value") else str(primary_warning.severity),
-                "source": getattr(primary_warning, "source", "IMD"),
-                "headline": getattr(primary_warning, "title", getattr(primary_warning, "headline", "")),
+                "title": getattr(primary_warning, "title", getattr(primary_warning, "headline", "")),
+                "affected_area": (getattr(primary_warning, "affected_locations", []) or [effective_location])[0],
+                "affected_locations": getattr(primary_warning, "affected_locations", [effective_location]),
+                "issued_at": pw_issued.isoformat() if hasattr(pw_issued, "isoformat") else str(pw_issued or ""),
+                "valid_from": pw_valid_from.isoformat() if hasattr(pw_valid_from, "isoformat") else (str(pw_valid_from) if pw_valid_from else None),
+                "expires_at": pw_expires.isoformat() if hasattr(pw_expires, "isoformat") else str(pw_expires or ""),
+                "status": getattr(primary_warning, "status", "ACTIVE"),
+                "validation_state": "VALID",
+                "instructions": getattr(primary_warning, "instructions", None),
+                "affected_final_recommendation": True,
+            }
+        else:
+            warning_details = {
+                "exists": False,
+                "source": "IMD",
+                "status": "NONE",
+                "validation_state": "NO_ACTIVE_WARNING",
+                "affected_final_recommendation": False,
             }
 
         # Phase 6: Formulate Structured Weather Signals & Signals Dict
@@ -564,12 +585,24 @@ class WeatherGPTPipeline:
             al_type = getattr(alert, "type", getattr(alert, "warning_type", "alert"))
             al_type_str = al_type.value if hasattr(al_type, "value") else str(al_type)
             al_sev = alert.severity.value if hasattr(alert.severity, "value") else str(alert.severity)
+            al_iss = getattr(alert, "issued_at", None)
+            al_vf = getattr(alert, "valid_from", None)
+            al_exp = getattr(alert, "expires_at", None)
             official_warnings_list.append({
+                "id": getattr(alert, "id", None),
                 "type": al_type_str,
                 "severity": al_sev,
                 "title": getattr(alert, "title", getattr(alert, "headline", "Weather Warning")),
                 "description": getattr(alert, "description", ""),
+                "instructions": getattr(alert, "instructions", None),
                 "source": getattr(alert, "source", "IMD"),
+                "source_url": getattr(alert, "source_url", None),
+                "issued_at": al_iss.isoformat() if hasattr(al_iss, "isoformat") else str(al_iss or ""),
+                "valid_from": al_vf.isoformat() if hasattr(al_vf, "isoformat") else (str(al_vf) if al_vf else None),
+                "expires_at": al_exp.isoformat() if hasattr(al_exp, "isoformat") else str(al_exp or ""),
+                "affected_locations": getattr(alert, "affected_locations", []),
+                "status": getattr(alert, "status", "ACTIVE"),
+                "version": getattr(alert, "version", 1),
             })
 
         c_score = reasoning.consistency_score if reasoning.consistency_score is not None else 0

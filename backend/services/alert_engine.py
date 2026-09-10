@@ -11,7 +11,9 @@ Only official IMD bulletins are ingested and processed.
 """
 
 import math
+import hashlib
 import logging
+from enum import Enum
 from datetime import datetime, timezone, timedelta
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
@@ -32,8 +34,216 @@ from backend.services.exceptions import ProviderError
 logger = logging.getLogger("weathergpt.alert_engine")
 
 
+class AlertStatusEnum(str, Enum):
+    """Deterministic lifecycle state of an official meteorological warning."""
+    ACTIVE = "ACTIVE"
+    SCHEDULED = "SCHEDULED"
+    EXPIRED = "EXPIRED"
+    INVALID = "INVALID"
+    CANCELLED = "CANCELLED"
+
+
+def normalize_and_validate_imd_alert(
+    raw: Dict[str, Any],
+    now_utc: Optional[datetime] = None
+) -> Tuple[Optional[NormalizedAlertItem], str]:
+    """Deterministically normalizes and validates an IMD alert payload.
+
+    Validates:
+    - Authoritative source (must be IMD)
+    - Non-empty title, alert_type, and affected area
+    - Valid severity (low, medium, high, extreme, critical, or yellow, orange, red)
+    - Valid ISO 8601 UTC timestamps
+    - Validity period constraint: expires_at strictly after issued_at
+    - Derives deterministic AlertStatusEnum (ACTIVE, SCHEDULED, EXPIRED)
+    - Generates authoritative fingerprint/ID if omitted
+
+    Returns:
+        (NormalizedAlertItem, "") if valid.
+        (None, rejection_reason) if invalid. Never manufactures missing values.
+    """
+    now = now_utc or datetime.now(timezone.utc)
+
+    if not isinstance(raw, dict) or not raw:
+        return None, "Empty or corrupted alert payload."
+
+    # 1. Source Authority Validation
+    src = str(raw.get("source") or "").strip()
+    if not src or "imd" not in src.lower():
+        return None, f"Unauthorized alert source '{src}'. Only official IMD warnings are permitted."
+
+    # 2. Title & Alert Type
+    raw_title = raw.get("title")
+    if not isinstance(raw_title, str) or not raw_title.strip():
+        return None, "Missing or malformed alert title (must be a non-empty string)."
+    title = raw_title.strip()
+
+    raw_type = raw.get("alert_type") or raw.get("type")
+    if not isinstance(raw_type, str) or not raw_type.strip():
+        return None, "Missing or malformed alert_type (must be a non-empty string)."
+    alert_type = raw_type.strip()
+
+    # 3. Affected Area Validation
+    raw_area = raw.get("area") or raw.get("affected_locations")
+    if isinstance(raw_area, list):
+        area = ", ".join(str(x).strip() for x in raw_area if str(x).strip())
+    elif isinstance(raw_area, str):
+        area = raw_area.strip()
+    else:
+        area = ""
+
+    if not area:
+        return None, "Missing or blank affected area."
+
+    # 4. Severity Normalization & Validation
+    raw_sev = str(raw.get("severity") or "").lower().strip()
+    sev_map = {
+        "yellow": "low",
+        "low": "low",
+        "orange": "medium",
+        "medium": "medium",
+        "red": "high",
+        "high": "high",
+        "extreme": "extreme",
+        "critical": "extreme"
+    }
+    if raw_sev not in sev_map:
+        return None, f"Invalid severity '{raw_sev}'. Must be a recognized IMD severity level (yellow/low, orange/medium, red/high, extreme)."
+    normalized_sev = sev_map[raw_sev]
+
+    # 5. Timestamp Parsing & Validity Period Validation
+    iss_val = raw.get("issued_at")
+    exp_val = raw.get("expires_at")
+    vf_val = raw.get("valid_from")
+
+    if not iss_val:
+        return None, "Missing issued_at timestamp."
+    if not exp_val:
+        return None, "Missing expires_at timestamp."
+
+    try:
+        if isinstance(iss_val, datetime):
+            iss_dt = iss_val if iss_val.tzinfo else iss_val.replace(tzinfo=timezone.utc)
+        else:
+            iss_dt = datetime.fromisoformat(str(iss_val).replace("Z", "+00:00"))
+            if iss_dt.tzinfo is None:
+                iss_dt = iss_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None, f"Malformed issued_at timestamp '{iss_val}'."
+
+    try:
+        if isinstance(exp_val, datetime):
+            exp_dt = exp_val if exp_val.tzinfo else exp_val.replace(tzinfo=timezone.utc)
+        else:
+            exp_dt = datetime.fromisoformat(str(exp_val).replace("Z", "+00:00"))
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        return None, f"Malformed expires_at timestamp '{exp_val}'."
+
+    vf_dt = None
+    if vf_val:
+        try:
+            if isinstance(vf_val, datetime):
+                vf_dt = vf_val if vf_val.tzinfo else vf_val.replace(tzinfo=timezone.utc)
+            else:
+                vf_dt = datetime.fromisoformat(str(vf_val).replace("Z", "+00:00"))
+                if vf_dt.tzinfo is None:
+                    vf_dt = vf_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            return None, f"Malformed valid_from timestamp '{vf_val}'."
+
+    if exp_dt <= iss_dt:
+        return None, f"Expiry timestamp ({exp_dt.isoformat()}) must be strictly after issuance timestamp ({iss_dt.isoformat()})."
+
+    # 6. Lifecycle Status Evaluation
+    if vf_dt and now < vf_dt:
+        status = AlertStatusEnum.SCHEDULED.value
+    elif now < iss_dt:
+        status = AlertStatusEnum.SCHEDULED.value
+    elif now > exp_dt:
+        status = AlertStatusEnum.EXPIRED.value
+    else:
+        status = AlertStatusEnum.ACTIVE.value
+
+    # 7. Authoritative ID / Fingerprint Generation
+    alert_id = str(raw.get("alert_id") or raw.get("id") or "").strip()
+    if not alert_id:
+        key = f"IMD:{alert_type}:{area}:{iss_dt.isoformat()}".encode("utf-8")
+        alert_id = f"IMD-{hashlib.sha256(key).hexdigest()[:12].upper()}"
+
+    description = str(raw.get("description") or f"Official IMD meteorological warning for {area}.").strip()
+    instructions = raw.get("instructions")
+    if instructions:
+        instructions = str(instructions).strip()
+
+    source_url = raw.get("source_url")
+    if source_url:
+        source_url = str(source_url).strip()
+
+    normalized_item = NormalizedAlertItem(
+        alert_id=alert_id,
+        alert_type=alert_type,
+        severity=normalized_sev,
+        title=title,
+        description=description,
+        instructions=instructions,
+        area=area,
+        source="IMD",
+        source_url=source_url,
+        issued_at=iss_dt.isoformat(),
+        expires_at=exp_dt.isoformat(),
+        valid_from=vf_dt.isoformat() if vf_dt else None,
+        updated_at=raw.get("updated_at"),
+        retrieved_at=raw.get("retrieved_at") or now.isoformat(),
+        status=status,
+        version=int(raw.get("version") or 1)
+    )
+
+    return normalized_item, ""
+
+
+def is_alert_active(
+    issued_at_iso: str,
+    expires_at_iso: str,
+    valid_from_iso: Optional[str] = None,
+    current_time: Optional[datetime] = None
+) -> bool:
+    """Validates that alert is currently active with timezone-aware ISO UTC timestamps."""
+    now = current_time or datetime.now(timezone.utc)
+    try:
+        iss_dt = datetime.fromisoformat(issued_at_iso.replace("Z", "+00:00"))
+        if iss_dt.tzinfo is None:
+            iss_dt = iss_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        iss_dt = now
+
+    try:
+        exp_dt = datetime.fromisoformat(expires_at_iso.replace("Z", "+00:00"))
+        if exp_dt.tzinfo is None:
+            exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+    except Exception:
+        exp_dt = now - timedelta(seconds=1)
+
+    vf_dt = None
+    if valid_from_iso:
+        try:
+            vf_dt = datetime.fromisoformat(valid_from_iso.replace("Z", "+00:00"))
+            if vf_dt.tzinfo is None:
+                vf_dt = vf_dt.replace(tzinfo=timezone.utc)
+        except Exception:
+            vf_dt = None
+
+    if vf_dt and now < vf_dt:
+        return False
+
+    return iss_dt <= now <= exp_dt
+
+
 class AlertEngine:
     """Production automated IMD warning ingestion, targeting, and delivery engine."""
+
+    is_alert_active = staticmethod(is_alert_active)
 
     def __init__(
         self,
@@ -52,25 +262,6 @@ class AlertEngine:
             raise ValueError(f"Unauthorized alert source '{alert.source}'. Only official IMD warnings are permitted.")
         return True
 
-    def is_alert_active(self, issued_at_iso: str, expires_at_iso: str) -> bool:
-        """Validates that alert is currently active with timezone-aware ISO UTC timestamps."""
-        now = datetime.now(timezone.utc)
-        try:
-            iss_dt = datetime.fromisoformat(issued_at_iso)
-            if iss_dt.tzinfo is None:
-                iss_dt = iss_dt.replace(tzinfo=timezone.utc)
-        except Exception:
-            iss_dt = now
-
-        try:
-            exp_dt = datetime.fromisoformat(expires_at_iso)
-            if exp_dt.tzinfo is None:
-                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
-        except Exception:
-            exp_dt = now - timedelta(seconds=1)
-
-        return iss_dt <= now <= exp_dt
-
     # =========================================================================
     # 2. INGESTION, DEDUPLICATION & UPDATE DETECTION
     # =========================================================================
@@ -85,46 +276,74 @@ class AlertEngine:
         raw_items = await self.imd.get_official_alerts(latitude, longitude, location_name)
         persisted_records: List[DBAlert] = []
 
-        for item in raw_items:
-            # 1. Official validation
-            self.validate_official_source(item)
+        now_utc = datetime.now(timezone.utc)
 
-            # 2. Expiry check
-            active_flag = self.is_alert_active(item.issued_at, item.expires_at)
-            if not active_flag:
-                logger.info(f"Skipping expired alert '{item.title}' (expired at {item.expires_at})")
+        for item in raw_items:
+            # 1. Official normalization & safety validation
+            raw_dict = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            validated_alert, error_reason = normalize_and_validate_imd_alert(raw_dict, now_utc=now_utc)
+            if validated_alert is None:
+                logger.warning(f"Rejected invalid IMD alert for '{location_name}': {error_reason}")
+                continue
+
+            # 2. Expiry check - never ingest expired alerts as active
+            if validated_alert.status == AlertStatusEnum.EXPIRED.value:
+                logger.info(f"Skipping expired alert '{validated_alert.title}' (expired at {validated_alert.expires_at})")
                 continue
 
             try:
-                iss_dt = datetime.fromisoformat(item.issued_at)
+                iss_dt = datetime.fromisoformat(validated_alert.issued_at)
             except Exception:
-                iss_dt = datetime.now(timezone.utc)
+                iss_dt = now_utc
 
             try:
-                exp_dt = datetime.fromisoformat(item.expires_at)
+                exp_dt = datetime.fromisoformat(validated_alert.expires_at)
             except Exception:
                 exp_dt = None
 
-            # 3. Duplicate Detection & Update Detection
+            # 3. Duplicate & Update Detection with Timestamp / Version Ordering
             existing = db.query(DBAlert).filter(
                 DBAlert.location_name == location_name,
-                DBAlert.alert_type == item.alert_type,
-                DBAlert.title == item.title
+                DBAlert.alert_type == validated_alert.alert_type,
+                DBAlert.title == validated_alert.title
             ).first()
 
             if existing:
-                # Check for Alert Update (e.g. upgraded severity or newer issuance)
-                if existing.severity != item.severity or existing.issued_at != iss_dt:
-                    logger.info(f"Alert update detected for '{item.title}': {existing.severity} -> {item.severity}")
-                    existing.severity = item.severity
-                    existing.description = item.description
+                # Ensure existing.issued_at is timezone-aware for fair comparison
+                existing_issued = existing.issued_at
+                if existing_issued and existing_issued.tzinfo is None:
+                    existing_issued = existing_issued.replace(tzinfo=timezone.utc)
+
+                # Invariant: Older version cannot overwrite newer version
+                if existing_issued and iss_dt < existing_issued:
+                    logger.warning(
+                        f"Ignoring older version of alert '{validated_alert.title}' "
+                        f"(incoming issued_at {iss_dt} < existing {existing_issued})"
+                    )
+                    persisted_records.append(existing)
+                    continue
+
+                # Check for Alert Update (severity changed, area changed, description changed, or newer issuance)
+                is_changed = (
+                    existing.severity != validated_alert.severity
+                    or existing.description != validated_alert.description
+                    or (existing_issued and iss_dt > existing_issued)
+                )
+
+                if is_changed:
+                    logger.info(
+                        f"Authoritative alert update detected for '{validated_alert.title}': "
+                        f"{existing.severity} -> {validated_alert.severity}"
+                    )
+                    existing.severity = validated_alert.severity
+                    existing.description = validated_alert.description
                     existing.issued_at = iss_dt
                     existing.expires_at = exp_dt
                     db.commit()
                     db.refresh(existing)
                     persisted_records.append(existing)
                 else:
-                    logger.debug(f"Duplicate alert detected for '{item.title}' - skipping database insert.")
+                    logger.debug(f"Duplicate alert detected for '{validated_alert.title}' - skipping insert.")
                     persisted_records.append(existing)
             else:
                 # New Alert Ingestion
@@ -132,11 +351,11 @@ class AlertEngine:
                     location_name=location_name,
                     latitude=latitude,
                     longitude=longitude,
-                    alert_type=item.alert_type,
-                    severity=item.severity,
-                    title=item.title,
-                    description=item.description,
-                    source=item.source,
+                    alert_type=validated_alert.alert_type,
+                    severity=validated_alert.severity,
+                    title=validated_alert.title,
+                    description=validated_alert.description,
+                    source=validated_alert.source,
                     issued_at=iss_dt,
                     expires_at=exp_dt
                 )

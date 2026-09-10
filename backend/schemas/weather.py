@@ -114,6 +114,7 @@ class ForecastResponse(BaseModel):
 
 class AlertItemSchema(BaseModel):
     """Normalized official severe weather alert item schema."""
+    alert_id: Optional[str] = Field(default=None, description="Official alert reference identifier")
     alert_type: str = Field(description="Category e.g., heavy_rain_cyclone, thunderstorm_warning")
     severity: str = Field(description="Standardized severity: low, medium, high, extreme")
     title: str = Field(description="Warning title narrative")
@@ -121,10 +122,14 @@ class AlertItemSchema(BaseModel):
     instructions: Optional[str] = Field(default=None, description="Official emergency safety instructions")
     area: Optional[str] = Field(default=None, description="Affected geographical zone/district")
     source: str = Field(default="IMD", description="Official meteorological authority")
+    source_url: Optional[str] = Field(default=None, description="Official bulletin reference link")
     is_official: bool = Field(default=True, description="Flag confirming official meteorological warning")
     is_active: bool = Field(default=True, description="Flag indicating currently active warning")
+    status: Optional[str] = Field(default="ACTIVE", description="ACTIVE, SCHEDULED, EXPIRED, CANCELLED")
+    version: Optional[int] = Field(default=1, description="Update version sequence number")
     issued_at: str = Field(description="Issuance ISO 8601 UTC timestamp")
     expires_at: str = Field(description="Expiration ISO 8601 UTC timestamp")
+    valid_from: Optional[str] = Field(default=None, description="Valid from ISO 8601 UTC timestamp")
     updated_at: Optional[str] = Field(default=None, description="Update ISO 8601 UTC timestamp")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
 

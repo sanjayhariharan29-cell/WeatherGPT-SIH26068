@@ -106,25 +106,54 @@ class AlertService:
             source_label = f"{self.primary.name} Official (Degraded)"
             verification_status = "UNVERIFIED"
 
-        now_utc = datetime.now(timezone.utc).isoformat()
+        from backend.services.alert_engine import normalize_and_validate_imd_alert
+
+        now_utc = datetime.now(timezone.utc)
+        now_utc_str = now_utc.isoformat()
         alert_schemas: List[AlertItemSchema] = []
 
         for item in raw_alerts:
-            normalized_sev = self.normalize_severity(item.severity)
-            active_flag = self.is_alert_active(item.issued_at, item.expires_at)
+            raw_dict = item.model_dump() if hasattr(item, "model_dump") else dict(item)
+            val_item, err_msg = normalize_and_validate_imd_alert(raw_dict, now_utc=now_utc)
+
+            if val_item:
+                normalized_sev = val_item.severity
+                active_flag = (val_item.status == "ACTIVE")
+                status_str = val_item.status
+                alert_id_val = val_item.alert_id
+                vf_val = val_item.valid_from
+                instructions_val = val_item.instructions
+                source_url_val = val_item.source_url
+                version_val = val_item.version
+                area_val = val_item.area or resolved_name
+            else:
+                normalized_sev = self.normalize_severity(item.severity)
+                active_flag = self.is_alert_active(item.issued_at, item.expires_at)
+                status_str = "ACTIVE" if active_flag else "EXPIRED"
+                alert_id_val = getattr(item, "alert_id", None)
+                vf_val = getattr(item, "valid_from", None)
+                instructions_val = getattr(item, "instructions", None)
+                source_url_val = getattr(item, "source_url", None)
+                version_val = getattr(item, "version", 1)
+                area_val = getattr(item, "area", None) or resolved_name
 
             schema_item = AlertItemSchema(
+                alert_id=alert_id_val,
                 alert_type=item.alert_type,
                 severity=normalized_sev,
                 title=item.title,
                 description=item.description,
-                instructions=item.instructions,
-                area=item.area or resolved_name,
+                instructions=instructions_val,
+                area=area_val,
                 source=item.source,
+                source_url=source_url_val,
                 is_official=True,
                 is_active=active_flag,
+                status=status_str,
+                version=version_val,
                 issued_at=item.issued_at,
                 expires_at=item.expires_at,
+                valid_from=vf_val,
                 updated_at=item.updated_at,
                 retrieved_at=item.retrieved_at
             )
@@ -146,7 +175,7 @@ class AlertService:
             active_count=active_count,
             source=source_label,
             status=verification_status,
-            retrieved_at=now_utc
+            retrieved_at=now_utc_str
         )
 
     def _persist_alerts(
@@ -205,27 +234,41 @@ class AlertService:
         res = await self.fetch_alerts(lat, lon, location_name, active_only=True)
         sev_map = {
             "low": RiskLevelEnum.LOW,
+            "green": RiskLevelEnum.LOW,
             "medium": RiskLevelEnum.MEDIUM,
+            "yellow": RiskLevelEnum.MEDIUM,
             "high": RiskLevelEnum.HIGH,
-            "extreme": RiskLevelEnum.EXTREME
+            "orange": RiskLevelEnum.HIGH,
+            "extreme": RiskLevelEnum.EXTREME,
+            "red": RiskLevelEnum.EXTREME
         }
 
         ai_alerts = []
         for item in res.alerts:
             sev_enum = sev_map.get(item.severity.lower(), RiskLevelEnum.MEDIUM)
+            iss_dt = datetime.fromisoformat(item.issued_at) if item.issued_at else datetime.now(timezone.utc)
+            exp_dt = datetime.fromisoformat(item.expires_at) if item.expires_at else datetime.now(timezone.utc)
+            vf_dt = datetime.fromisoformat(item.valid_from) if getattr(item, "valid_from", None) else None
             ai_alerts.append(
                 AIOfficialAlert(
+                    id=getattr(item, "alert_id", None),
                     type=item.alert_type,
                     severity=sev_enum,
                     title=item.title,
                     description=item.description,
+                    instructions=getattr(item, "instructions", None),
                     source=item.source,
-                    issued_at=datetime.fromisoformat(item.issued_at),
-                    expires_at=datetime.fromisoformat(item.expires_at),
+                    source_url=getattr(item, "source_url", None),
+                    issued_at=iss_dt,
+                    valid_from=vf_dt,
+                    expires_at=exp_dt,
+                    status=getattr(item, "status", "ACTIVE"),
+                    version=getattr(item, "version", 1),
                     affected_locations=[item.area] if item.area else [res.location]
                 )
             )
         return ai_alerts
+
 
     async def process_automatic_pipeline(
         self,

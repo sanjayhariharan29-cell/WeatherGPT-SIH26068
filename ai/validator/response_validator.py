@@ -192,6 +192,37 @@ class ResponseValidator:
                 violations.append(msg)
                 issues.append(msg)
                 violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
+
+            # 1h. Warning Area Tampering / Omission Check (Phase 2 Requirement)
+            # Response cannot claim an affected location is unaffected or shift the warning area.
+            area_tampering_patterns = [
+                r"\b(?:not\s+under\s+(?:any\s+)?warning|outside\s+(?:the\s+)?warning\s+zone|outside\s+the\s+affected\s+area)\b",
+                r"\b(?:warning\s+does\s+not\s+apply\s+to|no\s+threat\s+to\s+your\s+area|safe\s+from\s+(?:the\s+)?(?:storm|cyclone|warning|alert))\b",
+                r"\b(?:warning\s+is\s+only\s+for\s+other\s+(?:districts|areas)|your\s+location\s+is\s+spared)\b",
+            ]
+            for pat in area_tampering_patterns:
+                if re.search(pat, lower_text):
+                    msg = f"Warning Area Tampering: Response claims location is unaffected despite official IMD warning for '{active_alert.title}'."
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
+                    break
+
+            # 1j. Safety Instruction Contradiction / Hazard Encouragement (Phase 2 Requirement)
+            # Response must not advise actions incompatible with official emergency safety instructions.
+            incompatible_instruction_patterns = [
+                r"\b(?:safe\s+to|feel\s+free\s+to|you\s+can|recommended\s+to)\s+(?:go\s+(?:swimming|fishing|sailing|boating)|swim|fish|sail|venture\s+into\s+(?:the\s+)?sea)\b",
+                r"\b(?:great\s+day|great\s+time|perfect\s+time|safe)\s+for\s+(?:swimming|fishing|sailing|boating|beach\s+activities|outdoor\s+hiking)\b",
+                r"\b(?:ignore|disregard|no\s+need\s+for)\s+(?:evacuation|safety\s+precautions|advisories|shelter)\b",
+                r"\b(?:feel\s+free\s+to\s+travel|safe\s+to\s+travel\s+normally)\b",
+            ]
+            for pat in incompatible_instruction_patterns:
+                if re.search(pat, lower_text):
+                    msg = "Safety Instruction Contradiction: Response provides advice directly contrary to official IMD safety directives."
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
+                    break
         else:
             # No official warning active: Response must not fabricate phantom official alerts
             phantom_warning_phrases = [
@@ -207,6 +238,21 @@ class ResponseValidator:
                 violations.append(msg)
                 issues.append(msg)
                 violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
+
+            # 1i. Expired Warning Reactivation Check (Phase 2 Requirement)
+            # Expired warnings must never be presented as active or ongoing through conversational generation.
+            expired_reactivation_patterns = [
+                r"\b(?:expired\s+warning\s+is\s+still\s+active|previous\s+warning\s+remains\s+in\s+effect\s+today)\b",
+                r"\b(?:yesterday's\s+alert\s+is\s+still\s+active|expired\s+alert\s+is\s+currently\s+active)\b",
+                r"\b(?:warning\s+(?:has\s+been\s+extended|remains\s+active|is\s+still\s+ongoing)\s+today)\b",
+            ]
+            for pat in expired_reactivation_patterns:
+                if re.search(pat, lower_text):
+                    msg = "Expired Warning Reactivation: Response claims an expired or past warning is active or extended."
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
+                    break
 
             # 1d. Historical Warning Confusion Check (Phase 8 Requirement 4)
             # Historical data cannot become a current warning when no active warning exists.
