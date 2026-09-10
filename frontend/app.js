@@ -2694,73 +2694,188 @@ if ('speechSynthesis' in window) {
   }
 }
 
+/**
+ * Select the highest quality, native installed voice for the requested language.
+ * Strict rules:
+ * - Tamil -> ta-IN (localService preferred)
+ * - Hindi -> hi-IN (localService preferred)
+ * - English -> en-IN (localService preferred), otherwise en-GB/en-US
+ * - NEVER use the default browser voice blindly for a mismatched language.
+ * - If no matching voice is available, return isAvailable: false with clear reporting.
+ */
 function selectBestVoice(targetLang) {
   updateSpeechVoices();
   const voices = cachedSpeechVoices;
-  const t = String(targetLang || "en").toLowerCase();
+  const t = String(targetLang || "en").toLowerCase().trim();
 
-  let exactLocale = "en-IN";
-  let langFamily = "en";
+  // Normalize language key
+  let langCategory = "en";
   if (t === "ta" || t === "tanglish" || t.startsWith("ta")) {
-    exactLocale = "ta-IN";
-    langFamily = "ta";
+    langCategory = "ta";
   } else if (t === "hi" || t === "hinglish" || t.startsWith("hi")) {
-    exactLocale = "hi-IN";
-    langFamily = "hi";
+    langCategory = "hi";
   }
 
   if (!voices || voices.length === 0) {
-    return { voice: null, isNative: false, langCode: exactLocale };
+    return {
+      voice: null,
+      isAvailable: false,
+      isNative: false,
+      langCode: langCategory === "ta" ? "ta-IN" : (langCategory === "hi" ? "hi-IN" : "en-IN"),
+      targetLang: langCategory,
+      languageName: langCategory === "ta" ? "Tamil (தமிழ்)" : (langCategory === "hi" ? "Hindi (हिंदी)" : "English"),
+      reason: "No speech synthesis voices loaded in browser environment."
+    };
   }
 
-  // 1. Exact locale match e.g. 'ta-in' or 'hi-in' or 'en-in'
-  let match = voices.find(v => v.lang && v.lang.toLowerCase().replace('_', '-') === exactLocale.toLowerCase());
-  if (match) return { voice: match, isNative: true, langCode: exactLocale };
+  if (langCategory === "ta") {
+    // Tamil selection: ta-IN exact match, preferring localService
+    const taCandidates = voices.filter(v => {
+      if (!v.lang) return false;
+      const l = v.lang.toLowerCase().replace('_', '-');
+      const name = (v.name || "").toLowerCase();
+      return l === 'ta-in' || l.startsWith('ta-') || l === 'ta' || name.includes('tamil') || name.includes('தமிழ்');
+    });
 
-  // 2. Language family / regional prefix e.g. 'ta', 'hi', 'en'
-  match = voices.find(v => v.lang && (v.lang.toLowerCase().startsWith(langFamily + "-") || v.lang.toLowerCase() === langFamily));
-  if (match) return { voice: match, isNative: true, langCode: match.lang };
+    if (taCandidates.length > 0) {
+      // Prefer installed native Android/device voice (localService === true)
+      const nativeVoice = taCandidates.find(v => v.localService === true);
+      const chosen = nativeVoice || taCandidates[0];
+      return {
+        voice: chosen,
+        isAvailable: true,
+        isNative: chosen.localService === true,
+        langCode: chosen.lang || "ta-IN",
+        targetLang: "ta",
+        languageName: "Tamil (தமிழ்)"
+      };
+    }
 
-  // 3. Indic fallback: If requested is Tamil or Hindi, but device lacks a Tamil/Hindi voice, record limitation
-  if (langFamily === "ta" || langFamily === "hi") {
-    return { voice: null, isNative: false, langCode: exactLocale, missingFamily: langFamily };
+    // Tamil voice NOT found: NEVER use browser default voice
+    return {
+      voice: null,
+      isAvailable: false,
+      isNative: false,
+      langCode: "ta-IN",
+      targetLang: "ta",
+      languageName: "Tamil (தமிழ்)",
+      reason: "No Tamil (ta-IN) voice found in device speech synthesis engine."
+    };
   }
 
-  // 4. Default English fallback
-  const defaultVoice = voices.find(v => v.default) || voices[0];
-  return { voice: defaultVoice, isNative: false, langCode: "en-IN" };
+  if (langCategory === "hi") {
+    // Hindi selection: hi-IN exact match, preferring localService
+    const hiCandidates = voices.filter(v => {
+      if (!v.lang) return false;
+      const l = v.lang.toLowerCase().replace('_', '-');
+      const name = (v.name || "").toLowerCase();
+      return l === 'hi-in' || l.startsWith('hi-') || l === 'hi' || name.includes('hindi') || name.includes('हिन्दी');
+    });
+
+    if (hiCandidates.length > 0) {
+      // Prefer installed native Android/device voice (localService === true)
+      const nativeVoice = hiCandidates.find(v => v.localService === true);
+      const chosen = nativeVoice || hiCandidates[0];
+      return {
+        voice: chosen,
+        isAvailable: true,
+        isNative: chosen.localService === true,
+        langCode: chosen.lang || "hi-IN",
+        targetLang: "hi",
+        languageName: "Hindi (हिंदी)"
+      };
+    }
+
+    // Hindi voice NOT found: NEVER use browser default voice
+    return {
+      voice: null,
+      isAvailable: false,
+      isNative: false,
+      langCode: "hi-IN",
+      targetLang: "hi",
+      languageName: "Hindi (हिंदी)",
+      reason: "No Hindi (hi-IN) voice found in device speech synthesis engine."
+    };
+  }
+
+  // English selection: en-IN preferred, then en-GB, en-US, preserving native localService
+  const enCandidates = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
+  const enInLocal = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-') === 'en-in' && v.localService === true);
+  const enInAny = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-') === 'en-in');
+  const enGbLocal = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-gb') && v.localService === true);
+  const enGbAny = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-gb'));
+  const enUsLocal = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-us') && v.localService === true);
+  const enDefault = enCandidates.find(v => v.default) || enCandidates[0] || voices[0];
+
+  const chosenEn = enInLocal || enInAny || enGbLocal || enGbAny || enUsLocal || enDefault;
+  return {
+    voice: chosenEn,
+    isAvailable: Boolean(chosenEn),
+    isNative: chosenEn ? chosenEn.localService === true : false,
+    langCode: chosenEn ? chosenEn.lang : "en-IN",
+    targetLang: "en",
+    languageName: "English"
+  };
 }
 
-function extractConciseSpeech(text) {
+/**
+ * Prepares clean, natural, human-understandable speech text:
+ * - Strips markdown, headers, bullets, URLs, JSON, brackets, parenthetical metadata.
+ * - Preserves numbers and units cleanly: 29°C, 70%, 18 km/h.
+ * - Does NOT alter underlying weather facts or warnings.
+ */
+function extractConciseSpeech(text, targetLang) {
   if (!text) return "";
-  let clean = String(text);
-  // Remove parenthetical telemetry/source tags e.g. (Source: ... | Updated ...)
-  clean = clean.replace(/\([^)]*?(?:Source|Updated|Forecast Consistency|தகவல் மூலம்|स्रोत|AQI)[^)]*?\)/gi, "");
+  let clean = String(text).trim();
+
+  // 1. Remove fenced code blocks (```...```) and inline code (`...`)
+  clean = clean.replace(/```[\s\S]*?```/g, "");
+  clean = clean.replace(/`[^`]*`/g, "");
+
+  // 2. Remove JSON objects and raw dictionaries
+  clean = clean.replace(/\{[^{}]*:[^{}]*\}/g, "");
+
+  // 3. Remove URLs
+  clean = clean.replace(/https?:\/\/\S+|www\.\S+/gi, "");
+
+  // 4. Remove parenthetical telemetry, source metadata, timestamps, and model tags
+  clean = clean.replace(/\([^)]*?(?:Source|Updated|Observed|Forecast Consistency|Confidence|Risk|தகவல் மூலம்|மூலம்|स्रोत|AQI|PM2|PM10|Open-Meteo|CAMS|IMD)[^)]*?\)/gi, "");
   clean = clean.replace(/\(தகவல் மூலம்:[^)]*?\)/gi, "");
   clean = clean.replace(/\(स्रोत:[^)]*?\)/gi, "");
-  // Remove technical JSON or bracketed code blocks
-  clean = clean.replace(/\{[\s\S]*?\}/g, "");
-  // Strip bracketed status tags e.g. [OFFICIAL IMD WARNING], [HIGH RISK], etc.
+
+  // 5. Remove technical status brackets e.g. [OFFICIAL IMD WARNING], [HIGH RISK]
   clean = clean.replace(/\[[^\]]*?\]/g, "");
-  // Strip URLs
-  clean = clean.replace(/https?:\/\/\S+/gi, "");
-  // Strip HTML tags and markdown symbols
+
+  // 6. Remove HTML tags
   clean = clean.replace(/<[^>]+>/g, "");
+
+  // 7. Remove Markdown headings
   clean = clean.replace(/^#{1,6}\s+/gm, "");
+
+  // 8. Remove Markdown bold and italic markers while preserving inner text
   clean = clean.replace(/\*\*([^*]+)\*\*/g, "$1");
   clean = clean.replace(/\*([^*]+)\*/g, "$1");
-  clean = clean.replace(/^\s*[-•*]\s+/gm, "");
-  clean = clean.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
-  // Strip emojis
+  clean = clean.replace(/__([^_]+)__/g, "$1");
+  clean = clean.replace(/_([^_]+)_/g, "$1");
+
+  // 9. Remove bullet and numbered list symbols
+  clean = clean.replace(/^\s*(?:[-•*+]|\d+\.)\s+/gm, "");
+
+  // 10. Remove Emojis
   clean = clean.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, "");
-  
-  // Filter out debug metadata and technical disclaimers for natural speech
+
+  // 11. Normalize units spacing so numbers and units remain intact: 29°C, 70%, 18 km/h
+  clean = clean.replace(/(\d+)\s*°\s*C\b/g, "$1°C");
+  clean = clean.replace(/(\d+)\s*%/g, "$1%");
+  clean = clean.replace(/(\d+)\s*(?:km\/h|kmph)\b/gi, "$1 km/h");
+
+  // 12. Filter out technical boilerplate lines
   const lines = clean.split("\n").map(s => s.trim()).filter(Boolean);
   const selected = [];
   const hasWarning = lines.some(l => /warning|alert|எச்சரிக்கை|चेतावनी/i.test(l));
 
   for (const line of lines) {
-    if (/forecast consistency|data confidence indicator|historical records reflect|does not fabricate|air quality model/i.test(line)) {
+    if (/forecast consistency|data confidence indicator|historical records reflect|does not fabricate|air quality model|cpcb ground monitoring/i.test(line)) {
       continue;
     }
     selected.push(line);
@@ -2768,7 +2883,10 @@ function extractConciseSpeech(text) {
     if (hasWarning && selected.length >= 5) break;
   }
 
-  return (selected.length > 0 ? selected.join(". ") : clean).replace(/\.\s*\./g, ".").trim();
+  let finalSpeech = (selected.length > 0 ? selected.join(". ") : clean);
+  finalSpeech = finalSpeech.replace(/\s+/g, " ").replace(/\.\s*\./g, ".").trim();
+
+  return finalSpeech;
 }
 
 function handleVoiceClick() {
@@ -2845,31 +2963,60 @@ function handleVoiceClick() {
 }
 
 function speakText(text, lang) {
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-    const concise = extractConciseSpeech(text);
-    if (!concise) return;
-
-    const utterance = new SpeechSynthesisUtterance(concise);
-    const target = String(lang || currentLanguage || "en").toLowerCase();
-    const voiceResult = selectBestVoice(target);
-
-    if (voiceResult.voice) {
-      utterance.voice = voiceResult.voice;
-      utterance.lang = voiceResult.voice.lang || voiceResult.langCode;
-    } else {
-      utterance.lang = voiceResult.langCode;
-      if (voiceResult.missingFamily) {
-        const langLabel = voiceResult.missingFamily === "ta" ? "Tamil (தமிழ்)" : "Hindi (हिंदी)";
-        showMobileNotice(`Device lacks a native ${langLabel} TTS voice. Pronunciation may use generic voice.`, "info", 3500);
-      }
-    }
-
-    utterance.rate = 1.0;
-    activeSpeechUtterance = utterance;
-    window.speechSynthesis.speak(utterance);
+  if (!('speechSynthesis' in window)) {
+    showMobileNotice("Speech synthesis is not supported on this device.", "warning", 3500);
+    return false;
   }
+
+  window.speechSynthesis.cancel();
+  const target = String(lang || currentLanguage || "en").toLowerCase().trim();
+  const concise = extractConciseSpeech(text, target);
+  if (!concise) return false;
+
+  const voiceResult = selectBestVoice(target);
+
+  // Requirements 5 & 11: Never use browser default voice blindly; report unavailability clearly
+  if (!voiceResult.isAvailable || !voiceResult.voice) {
+    const langLabel = voiceResult.languageName || target;
+    const msg = `Voice Notice: ${voiceResult.languageName} (${voiceResult.langCode}) voice is not installed on this device. Install speech data in Android Settings -> Accessibility -> Text-to-Speech.`;
+    console.warn("[SkyZen TTS Voice Unavailable]", { target, voiceResult, text: concise });
+    showMobileNotice(msg, "warning", 6500);
+    return false;
+  }
+
+  const utterance = new SpeechSynthesisUtterance(concise);
+  utterance.voice = voiceResult.voice;
+  utterance.lang = voiceResult.voice.lang || voiceResult.langCode;
+  utterance.rate = 0.95;
+  utterance.pitch = 1.0;
+
+  console.info(`[SkyZen TTS] Playing speech: "${concise}" | Voice: ${voiceResult.voice.name} (${utterance.lang}) | Native: ${voiceResult.isNative}`);
+
+  activeSpeechUtterance = utterance;
+  window.speechSynthesis.speak(utterance);
+  return true;
 }
+
+window.testSkyZenTTS = function(targetLang, testPhrase) {
+  const voiceInfo = selectBestVoice(targetLang);
+  const cleaned = extractConciseSpeech(testPhrase, targetLang);
+  return {
+    targetLang: targetLang,
+    inputPhrase: testPhrase,
+    cleanPhrase: cleaned,
+    isAvailable: voiceInfo.isAvailable,
+    isNative: voiceInfo.isNative,
+    langCode: voiceInfo.langCode,
+    languageName: voiceInfo.languageName,
+    selectedVoice: voiceInfo.voice ? {
+      name: voiceInfo.voice.name,
+      lang: voiceInfo.voice.lang,
+      localService: voiceInfo.voice.localService,
+      default: voiceInfo.voice.default
+    } : null,
+    reason: voiceInfo.reason || null
+  };
+};
 
 window.toggleSpeakMessage = function(btn, text, lang) {
   if (!('speechSynthesis' in window)) {

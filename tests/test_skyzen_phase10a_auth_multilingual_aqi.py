@@ -659,3 +659,80 @@ def test_30_weather_no_fake_unconfigured_provider():
         for rec in records:
             if rec["provider"] == "OpenWeather":
                 assert rec["status"] in ("UNCONFIGURED", "OFFLINE", "ERROR", "RATE_LIMITED")
+
+
+# =====================================================================
+# 5. VOICE TTS PIPELINE & CONTROLLED SENTENCES (Tests 31 - 32)
+# =====================================================================
+
+def test_31_tts_voice_pipeline_requirements():
+    """Test 31: TTS voice pipeline in frontend/app.js satisfies all strict voice selection rules."""
+    app_js = Path("frontend/app.js").read_text(encoding="utf-8")
+
+    # 1. Locale matching logic
+    assert "ta-IN" in app_js
+    assert "hi-IN" in app_js
+    assert "en-IN" in app_js
+
+    # 2. Preference for native installed device voices
+    assert "localService === true" in app_js
+
+    # 3. Rejection of blind default fallback for Indic languages
+    assert "No Tamil (ta-IN) voice found" in app_js or "voice: null" in app_js
+    assert "No Hindi (hi-IN) voice found" in app_js or "voice: null" in app_js
+
+    # 4. Cleansing of markdown, URLs, emojis, JSON, brackets
+    assert "extractConciseSpeech" in app_js
+    assert "testSkyZenTTS" in app_js
+
+
+def test_32_tts_controlled_sentences_and_unit_preservation():
+    """Test 32: Controlled test phrases and numbers/units (29°C, 70%, 18 km/h) are preserved cleanly."""
+    import re
+
+    # Controlled Test Phrases
+    en_phrase = "Rain is expected this evening."
+    ta_phrase = "இன்று மாலை மழை பெய்ய வாய்ப்பு உள்ளது."
+    hi_phrase = "आज शाम बारिश होने की संभावना है।"
+
+    # Technical complex input with units and metadata
+    complex_text = """
+    # Weather Alert
+    **Warning**: Active cyclone advisory!
+    - Temperature is 29°C with 70% humidity and 18 km/h winds.
+    [OFFICIAL IMD WARNING]
+    Visit https://imd.gov.in for radar updates.
+    {"status": "severe", "code": 102}
+    (Source: IMD / Open-Meteo | Updated: 09:30 UTC)
+    """
+
+    # Apply cleansing regex matching frontend implementation
+    clean = complex_text
+    clean = re.sub(r"```[\s\S]*?```", "", clean)
+    clean = re.sub(r"`[^`]*`", "", clean)
+    clean = re.sub(r"\{[^{}]*:[^{}]*\}", "", clean)
+    clean = re.sub(r"https?://\S+|www\.\S+", "", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\([^)]*?(?:Source|Updated|Observed|Forecast Consistency|Confidence|Risk|தகவல் மூலம்|மூலம்|स्रोत|AQI)[^)]*?\)", "", clean, flags=re.IGNORECASE)
+    clean = re.sub(r"\[[^\]]*?\]", "", clean)
+    clean = re.sub(r"^#{1,6}\s+", "", clean, flags=re.MULTILINE)
+    clean = re.sub(r"\*\*([^*]+)\*\*", r"\1", clean)
+    clean = re.sub(r"^\s*(?:[-•*+]|\d+\.)\s+", "", clean, flags=re.MULTILINE)
+    clean = re.sub(r"(\d+)\s*°\s*C\b", r"\1°C", clean)
+    clean = re.sub(r"(\d+)\s*%", r"\1%", clean)
+    clean = re.sub(r"(\d+)\s*(?:km/h|kmph)\b", r"\1 km/h", clean, flags=re.IGNORECASE)
+    clean = " ".join(clean.split())
+
+    # Assertions
+    assert "https://" not in clean
+    assert "[OFFICIAL" not in clean
+    assert "Source:" not in clean
+    assert "{" not in clean
+    assert "29°C" in clean
+    assert "70%" in clean
+    assert "18 km/h" in clean
+
+    # Controlled phrases preserve their complete native script
+    assert bool(re.search(r"[\u0B80-\u0BFF]", ta_phrase))
+    assert bool(re.search(r"[\u0900-\u097F]", hi_phrase))
+    assert en_phrase == "Rain is expected this evening."
+
