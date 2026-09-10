@@ -22,7 +22,7 @@ from ai.nlu import parse_query
 from ai.voice.models import VoiceResponse, STTResult, TTSResult
 from ai.voice.audio_validator import AudioValidator
 from ai.voice.stt import BaseSTTProvider, MockSTTProvider
-from ai.voice.tts import BaseTTSProvider, MockTTSProvider
+from ai.voice.tts import BaseTTSProvider, MockTTSProvider, format_concise_speech_text
 from ai.voice.exceptions import (
     VoiceError,
     AudioValidationError,
@@ -173,8 +173,12 @@ class VoiceAIService:
             audio_url = None
         else:
             try:
+                concise_speech = format_concise_speech_text(
+                    chat_resp["answer"],
+                    language=resolved_lang
+                )
                 tts_result = await self.tts_provider.synthesize(
-                    text=chat_resp["answer"],
+                    text=concise_speech or chat_resp["answer"],
                     language=resolved_lang
                 )
                 audio_available = tts_result.success

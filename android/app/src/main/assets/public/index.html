@@ -658,7 +658,11 @@
                 WeatherGPT Decision Assistant • Grounded on Official IMD Telemetry
               </p>
             </div>
-            <div style="display:flex; gap:6px;">
+            <div style="display:flex; gap:6px; align-items:center;">
+              <button id="chatResetBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Reset Conversation Context" aria-label="Reset Conversation Context" onclick="resetConversationContext()">
+                <span class="material-symbols-rounded icon-sm">restart_alt</span>
+                <span id="chatResetText">Reset</span>
+              </button>
               <button id="chatLangToggleBtn" class="icon-btn" style="font-size:12px; padding:6px 10px;" title="Switch Language" aria-label="Switch Language">
                 <span class="material-symbols-rounded icon-sm">language</span>
                 <span id="chatLangText">English / தமிழ்</span>

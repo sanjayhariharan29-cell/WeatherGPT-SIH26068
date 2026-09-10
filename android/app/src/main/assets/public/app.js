@@ -2127,7 +2127,13 @@ function appendBotMessage(data) {
         <span class="material-symbols-rounded icon-sm">verified_user</span>
         <span>SkyZen Reasoning Engine ${hazardBadgeHtml}</span>
       </span>
-      <span class="msg-tag">${safeIntent}</span>
+      <div style="display:flex; align-items:center; gap:6px;">
+        <button class="speech-btn" onclick="toggleSpeakMessage(this, '${escapeHTML(data.answer || '')}', '${escapeHTML(data.language || currentLanguage)}')" title="Listen to weather advisory" aria-label="Listen to weather advisory">
+          <span class="material-symbols-rounded icon-xs">volume_up</span>
+          <span>Listen</span>
+        </button>
+        <span class="msg-tag">${safeIntent}</span>
+      </div>
     </div>
     <p>${safeAnswer}</p>
     ${warningsHtml}
@@ -2233,7 +2239,42 @@ async function retryFailedMessage(text, persona, location, btnElem) {
   await handleUserSend();
 }
 
-// 11. Voice Speech Interaction
+// 11. Voice Speech Interaction & Conversational UX
+let activeSpeechUtterance = null;
+
+function extractConciseSpeech(text) {
+  if (!text) return "";
+  let clean = String(text);
+  // Remove parenthetical telemetry/source tags e.g. (Source: ... | Updated ...)
+  clean = clean.replace(/\([^)]*?(?:Source|Updated|Forecast Consistency|தகவல் மூலம்|स्रोत)[^)]*?\)/gi, "");
+  clean = clean.replace(/\(தகவல் மூலம்:[^)]*?\)/gi, "");
+  clean = clean.replace(/\(स्रोत:[^)]*?\)/gi, "");
+  // Strip HTML tags and markdown symbols
+  clean = clean.replace(/<[^>]+>/g, "");
+  clean = clean.replace(/^#{1,6}\s+/gm, "");
+  clean = clean.replace(/\*\*([^*]+)\*\*/g, "$1");
+  clean = clean.replace(/^\s*[-•*]\s+/gm, "");
+  clean = clean.replace(/\[([^\]]+)\]\([^)]+\)/g, "$1");
+  // Strip emojis
+  clean = clean.replace(/[\u{1F300}-\u{1F64F}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1FA70}-\u{1FAFF}]/gu, "");
+  
+  // Filter out debug metadata and disclaimers for voice
+  const lines = clean.split("\n").map(s => s.trim()).filter(Boolean);
+  const selected = [];
+  const hasWarning = lines.some(l => /warning|alert|எச்சரிக்கை|चेतावनी/i.test(l));
+
+  for (const line of lines) {
+    if (/forecast consistency|data confidence indicator|historical records reflect|does not fabricate/i.test(line)) {
+      continue;
+    }
+    selected.push(line);
+    if (!hasWarning && selected.length >= 3) break;
+    if (hasWarning && selected.length >= 5) break;
+  }
+
+  return (selected.length > 0 ? selected.join(". ") : clean).replace(/\.\s*\./g, ".").trim();
+}
+
 function handleVoiceClick() {
   const voiceBtn = document.getElementById("voiceBtn");
 
@@ -2241,26 +2282,51 @@ function handleVoiceClick() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     const recognition = new SpeechRecognition();
     const persona = document.getElementById("personaSelect")?.value;
-    recognition.lang = (currentLanguage === "ta" || persona === "farmer" || persona === "fisherman") ? "ta-IN" : "en-IN";
+    
+    // Resolve speech recognition language
+    let speechLang = "en-IN";
+    const curLang = String(currentLanguage || "").toLowerCase();
+    if (curLang === "hi" || curLang === "hinglish") {
+      speechLang = "hi-IN";
+    } else if (curLang === "ta" || curLang === "tanglish" || persona === "farmer" || persona === "fisherman") {
+      speechLang = "ta-IN";
+    }
+    recognition.lang = speechLang;
 
-    voiceBtn.innerHTML = '<span class="material-symbols-rounded" style="color:var(--alert-red);">graphic_eq</span>';
-    showMobileNotice("Microphone listening... Speak your weather query clearly.", "info", 3000);
+    if (voiceBtn) {
+      voiceBtn.classList.add("listening");
+      voiceBtn.setAttribute("aria-label", "Microphone listening. Speak now.");
+      voiceBtn.innerHTML = '<span class="material-symbols-rounded" style="color:var(--alert-red);">graphic_eq</span>';
+    }
+    
+    showMobileNotice("Microphone active... Speak your weather query clearly.", "info", 3000);
     recognition.start();
 
     recognition.onresult = (event) => {
       const transcript = event.results[0][0].transcript;
-      document.getElementById("chatInput").value = transcript;
-      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+      const chatInput = document.getElementById("chatInput");
+      if (chatInput) chatInput.value = transcript;
+      if (voiceBtn) {
+        voiceBtn.classList.remove("listening");
+        voiceBtn.setAttribute("aria-label", "Voice input");
+        voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+      }
       handleUserSend();
     };
 
     recognition.onerror = (event) => {
-      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+      if (voiceBtn) {
+        voiceBtn.classList.remove("listening");
+        voiceBtn.setAttribute("aria-label", "Voice input");
+        voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+      }
       const errType = event?.error || "unknown";
       if (errType === "not-allowed" || errType === "service-not-allowed") {
-        showMobileNotice("Microphone permission denied. Please allow microphone permissions or type your query.", "warning", 5000);
+        showMobileNotice("Microphone permission denied. Please enable microphone permissions or type your question.", "warning", 5000);
       } else if (errType === "no-speech") {
-        showMobileNotice("No speech was detected. Please try speaking again or type your query.", "info", 3000);
+        showMobileNotice("No speech detected. Please try speaking again or type your query.", "info", 3000);
+      } else if (errType === "network") {
+        showMobileNotice("Voice network unavailable. Please type your query in the chat input.", "warning", 4000);
       } else {
         showMobileNotice("Voice recognition interrupted. Please type your query in the chat box.", "info", 3000);
       }
@@ -2269,23 +2335,92 @@ function handleVoiceClick() {
     };
 
     recognition.onend = () => {
-      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+      if (voiceBtn) {
+        voiceBtn.classList.remove("listening");
+        voiceBtn.setAttribute("aria-label", "Voice input");
+        voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+      }
     };
   } else {
-    showMobileNotice("Voice recognition is not supported in this mobile WebView. Please type your query in the chat box.", "warning", 4000);
+    showMobileNotice("Speech recognition is not supported in this browser. Please type your query.", "warning", 4000);
     const chatInput = document.getElementById("chatInput");
     if (chatInput) chatInput.focus();
   }
 }
 
-function speakText(text) {
+function speakText(text, lang) {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
-    const utterance = new SpeechSynthesisUtterance(text);
-    utterance.lang = (currentLanguage === "ta") ? "ta-IN" : "en-IN";
+    const concise = extractConciseSpeech(text);
+    if (!concise) return;
+
+    const utterance = new SpeechSynthesisUtterance(concise);
+    const target = String(lang || currentLanguage || "en").toLowerCase();
+    if (target === "hi" || target === "hinglish") {
+      utterance.lang = "hi-IN";
+    } else if (target === "ta" || target === "tanglish") {
+      utterance.lang = "ta-IN";
+    } else {
+      utterance.lang = "en-IN";
+    }
+    utterance.rate = 1.0;
+    activeSpeechUtterance = utterance;
     window.speechSynthesis.speak(utterance);
   }
 }
+
+window.toggleSpeakMessage = function(btn, text, lang) {
+  if (!('speechSynthesis' in window)) {
+    showMobileNotice("Voice synthesis is not supported on this device.", "info", 3000);
+    return;
+  }
+
+  if (window.speechSynthesis.speaking) {
+    window.speechSynthesis.cancel();
+    document.querySelectorAll('.speech-btn').forEach(b => {
+      b.classList.remove('speaking');
+      b.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    });
+    return;
+  }
+
+  btn.classList.add('speaking');
+  btn.innerHTML = '<span class="material-symbols-rounded icon-xs">stop_circle</span><span>Stop</span>';
+  speakText(text, lang);
+
+  if (activeSpeechUtterance) {
+    activeSpeechUtterance.onend = () => {
+      btn.classList.remove('speaking');
+      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    };
+    activeSpeechUtterance.onerror = () => {
+      btn.classList.remove('speaking');
+      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    };
+  }
+};
+
+window.resetConversationContext = function() {
+  const history = document.getElementById("chatHistory");
+  if (!history) return;
+
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+
+  // Preserve initial welcome message bubble (first child), remove subsequent dialogue turns
+  const bubbles = history.querySelectorAll(".msg-bubble");
+  for (let i = 1; i < bubbles.length; i++) {
+    bubbles[i].remove();
+  }
+
+  showMobileNotice("Conversation context reset. Starting fresh with verified live weather.", "info", 3000);
+  const chatInput = document.getElementById("chatInput");
+  if (chatInput) {
+    chatInput.value = "";
+    chatInput.focus();
+  }
+};
 
 // 12. Geospatial Weather Map Engine (Phase 15)
 let mapInstance = null;

@@ -227,6 +227,12 @@ def build_grounded_context(
             if w["affected_locations"]:
                 lines.append(f"   Affected Regions: {', '.join(w['affected_locations'])}")
         lines.append("MANDATE: Official IMD alerts have absolute priority and must be highlighted. Never downplay or contradict.")
+        lines.append("SAFETY RESPONSE ORDER (PHASE 10): When an official warning is active, structure your response in this exact order:")
+        lines.append("1. Warning status (e.g., '[OFFICIAL IMD WARNING] <Severity> ALERT: <Title>')")
+        lines.append("2. Affected area (e.g., 'Affected Area: <Locations>')")
+        lines.append("3. Critical safety instruction (e.g., 'Critical Safety Instruction: <Immediate action/precaution>')")
+        lines.append("4. Explanation (e.g., 'Explanation: <Hazard cause/duration/details>')")
+        lines.append("CRITICAL: Do NOT bury warnings beneath conversational greetings, filler, or casual chat. Announce the warning first!")
     else:
         lines.append("Official Warnings: NONE_ACTIVE")
 
@@ -382,6 +388,8 @@ def build_grounded_context(
         "=================================================================",
         "TASK: Generate a concise, factual, empathetic response in the detected language.",
         "Adhere strictly to the facts above without hallucinating or overriding official warnings.",
+        "MANDATORY: If an official warning is active, prioritize it at the VERY TOP: (1) Warning status, (2) Affected area, (3) Critical safety instruction, (4) Explanation. No conversational filler or pleasantries before active warnings!",
+        "MANDATORY: Do NOT invent weather numbers, warnings, severity, affected areas, sources, timestamps, or historical statistics.",
         "================================================================="
     ])
 

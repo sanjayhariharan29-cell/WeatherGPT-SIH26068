@@ -25,7 +25,12 @@ from ai.voice.exceptions import (
 )
 from ai.voice.audio_validator import AudioValidator
 from ai.voice.stt import BaseSTTProvider, MockSTTProvider
-from ai.voice.tts import BaseTTSProvider, MockTTSProvider, format_speech_friendly_text
+from ai.voice.tts import (
+    BaseTTSProvider,
+    MockTTSProvider,
+    format_speech_friendly_text,
+    format_concise_speech_text
+)
 from ai.voice.service import VoiceAIService
 
 __all__ = [
@@ -49,5 +54,6 @@ __all__ = [
     "BaseTTSProvider",
     "MockTTSProvider",
     "format_speech_friendly_text",
+    "format_concise_speech_text",
     "VoiceAIService",
 ]

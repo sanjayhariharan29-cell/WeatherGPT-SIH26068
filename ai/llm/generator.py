@@ -20,6 +20,7 @@ from ai.models import (
     WeatherRecord,
     HistoricalWeatherDataset,
     IntentEnum,
+    SourceAgreementEnum,
 )
 
 
@@ -297,7 +298,13 @@ class GroundedLLMGenerator:
 
             if reasoning.active_warnings:
                 alert = reasoning.active_warnings[0]
-                lines.append(f"⚠️ [அதிகாரப்பூர்வ IMD எச்சரிக்கை] {alert.title}: {alert.description}")
+                sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
+                affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
+                precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "அதிகாரப்பூர்வ முன்னெச்சரிக்கை நடவடிக்கைகளை உடனடியாக பின்பற்றவும்.")
+                lines.append(f"⚠️ [அதிகாரப்பூர்வ IMD {sev} எச்சரிக்கை] நிலை: செயலில் உள்ளது — {alert.title}")
+                lines.append(f"📍 பாதிக்கப்பட்ட பகுதி: {affected}")
+                lines.append(f"🛡️ முக்கிய பாதுகாப்பு வழிமுறை: {precaution}")
+                lines.append(f"ℹ️ விளக்கம்: {alert.description}")
 
             if weather and weather.temperature is not None and weather.rain_probability is not None:
                 lines.append(
@@ -332,7 +339,13 @@ class GroundedLLMGenerator:
 
             if reasoning.active_warnings:
                 alert = reasoning.active_warnings[0]
-                lines.append(f"⚠️ [आधिकारिक IMD चेतावनी] {alert.title}: {alert.description}")
+                sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
+                affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
+                precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "आधिकारिक सुरक्षा सावधानियों का तुरंत पालन करें।")
+                lines.append(f"⚠️ [आधिकारिक IMD {sev} चेतावनी] स्थिति: सक्रिय — {alert.title}")
+                lines.append(f"📍 प्रभावित क्षेत्र: {affected}")
+                lines.append(f"🛡️ महत्वपूर्ण सुरक्षा निर्देश: {precaution}")
+                lines.append(f"ℹ️ विवरण: {alert.description}")
 
             if weather and weather.temperature is not None and weather.rain_probability is not None:
                 lines.append(
@@ -367,7 +380,13 @@ class GroundedLLMGenerator:
 
             if reasoning.active_warnings:
                 alert = reasoning.active_warnings[0]
-                lines.append(f"⚠️ [OFFICIAL IMD WARNING] {alert.title}: {alert.description}")
+                sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
+                affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
+                precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "Follow official civil defense precautions immediately.")
+                lines.append(f"⚠️ [OFFICIAL IMD {sev} WARNING] Status: ACTIVE — {alert.title}")
+                lines.append(f"📍 Affected Area: {affected}")
+                lines.append(f"🛡️ Critical Safety Instruction: {precaution}")
+                lines.append(f"ℹ️ Explanation: {alert.description}")
 
             if weather and weather.temperature is not None and weather.rain_probability is not None:
                 lines.append(

@@ -90,6 +90,7 @@ class RiskLevelEnum(str, Enum):
     MEDIUM = "medium"
     HIGH = "high"
     EXTREME = "extreme"
+    CRITICAL = "extreme"
 
 
 class FreshnessStatusEnum(str, Enum):

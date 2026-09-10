@@ -1307,6 +1307,56 @@ body {
   color: #FFFFFF;
 }
 
+/* Voice Output Speech Button */
+.speech-btn {
+  background: #F1F5F9;
+  color: var(--primary-blue);
+  border: 1px solid #CBD5E1;
+  border-radius: var(--radius-pill);
+  padding: 3px 8px;
+  font-size: 11px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  cursor: pointer;
+  min-height: 28px;
+  touch-action: manipulation;
+  transition: all 0.2s ease;
+}
+
+.speech-btn:hover {
+  background: #E0F2FE;
+  border-color: #38BDF8;
+  color: #0284C7;
+}
+
+.speech-btn.speaking {
+  background: #FEE2E2;
+  border-color: #F87171;
+  color: var(--alert-red);
+  animation: speechWave 1.2s infinite ease-in-out;
+}
+
+@keyframes speechWave {
+  0% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  70% { box-shadow: 0 0 0 6px rgba(239, 68, 68, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
+/* Voice Input Active State */
+#voiceBtn.listening {
+  background: #FEE2E2 !important;
+  border-color: #FCA5A5 !important;
+  animation: micPulse 1.2s infinite ease-in-out;
+}
+
+@keyframes micPulse {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+  50% { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(239, 68, 68, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
 /* Chat Input Bar */
 .chat-input-bar {
   display: flex;

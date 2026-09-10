@@ -172,6 +172,26 @@ class ResponseValidator:
                     issues.append(msg)
                     violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
                     break
+
+            # 1f. Safety Response Order & Conversational Filler Check (Phase 10 Requirement 3)
+            # For official warnings:
+            # 1. Warning status, 2. Affected area, 3. Critical safety instruction, 4. Explanation
+            # Do not bury critical warnings beneath conversational filler.
+            opening_chunk = lower_text[:120].strip()
+            conversational_filler_phrases = [
+                "hello", "hi there", "hey there", "good morning", "good afternoon", "good evening",
+                "hope you are having", "hope you're having", "glad you asked", "sure thing",
+                "i would be happy to help", "how can i help you today", "have a great day",
+                "வணக்கம்", "காலை வணக்கம்", "மாலை வணக்கம்",
+                "नमस्ते", "सुप्रभात", "शुभ संध्या"
+            ]
+            has_filler_opening = any(opening_chunk.startswith(filler) or (filler in opening_chunk and opening_chunk.index(filler) < 20) for filler in conversational_filler_phrases)
+            warning_in_opening = any(w in opening_chunk for w in ["warning", "alert", "எச்சரிக்கை", "चेतावनी"])
+            if has_filler_opening and not warning_in_opening:
+                msg = "Safety Response Order Violation: Critical official warning buried beneath conversational filler or pleasantries."
+                violations.append(msg)
+                issues.append(msg)
+                violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
         else:
             # No official warning active: Response must not fabricate phantom official alerts
             phantom_warning_phrases = [
@@ -205,6 +225,16 @@ class ResponseValidator:
                     issues.append(msg)
                     violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
                     break
+
+        # 1g. Historical Data Fabrication Check (Phase 10 Requirement 5)
+        # When historical records are unavailable, the LLM must not invent historical statistics.
+        if historical_weather and not getattr(historical_weather, "is_available", True):
+            if re.search(r"\b(?:it\s+rained|precipitation\s+was|rainfall\s+was|total\s+rainfall\s+was)\s+\d+(?:\.\d+)?\s*mm\b", lower_text) or \
+               re.search(r"\b(?:average\s+temperature\s+was|recorded\s+temperature\s+was)\s+\d+(?:\.\d+)?\s*°?c\b", lower_text):
+                msg = "Historical Data Fabrication: Fabricated historical weather figures when historical dataset is marked unavailable."
+                violations.append(msg)
+                issues.append(msg)
+                violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
 
         # ---------------------------------------------------------
         # 2. Hazard & Severity Validation
