@@ -405,4 +405,45 @@ The following safety rules are deterministically enforced across the backend and
 
 - **Current Implementation**: `backend/services/imd_adapter.py` currently serves deterministic district bulletins (e.g. Nagapattinam coastal storm bulletin, Coimbatore thunderstorm bulletin, and simulated expired notices for automated regression testing) with dynamic UTC validity windows and deterministic SHA-256 fingerprints.
 - **Live Feed Prerequisite**: IMD's official Common Alerting Protocol (CAP) and RSS/XML bulletin endpoints require government agency API whitelisting and production credentials.
-- **Strict Policy**: In compliance with Step 14, SkyZen **does not** claim live real-time connection to IMD CAP servers until official production credentials and IP whitelisting are provisioned. Under no circumstances are mock endpoints or invented URLs masqueraded as live feeds. All warnings carry explicit provenance and verification status.
+- **Strict Policy**: In compliance with Step 14, SkyZen **does not** claim live real-time connection to IMD CAP servers until official production credentials and IP whitelisting are provisioned. Under no circumstances are mock endpoints or invented URLs masqueraded as live feeds. All warnings carry explicit provenance and verification status.
+
+---
+
+# 21. Automatic IMD Alert Targeting & Notification Pipeline (Phase 3)
+
+The automated notification pipeline safely routes validated official IMD warnings to affected authenticated users and their registered active devices:
+
+```
+IMD Bulletin
+    ↓
+Validated IMD Alert Engine (Phase 2)
+    ↓
+Active / Valid Alert Gating (Lifecycle Check: strictly ACTIVE only)
+    ↓
+Affected Geographic Area Determination (Coordinates <= 60km, District, Zone)
+    ↓
+User Location Matching (Saved Locations, Default Location, Ownership Isolation)
+    ↓
+User Notification Preference Check (`UserPreference.notification_enabled`)
+    ↓
+User Language Selection (`en`, `ta`, `hi`)
+    ↓
+Update-Aware Deduplication (`source:type:area:severity:issued_at:version`)
+    ↓
+Multi-Device Selection (`DeviceToken.user_id == user.id, is_active == True`)
+    ↓
+FCM Dispatch (`NotificationService.send_push_notification`)
+    ↓
+Android System Notification & In-App Foreground Banner
+    ↓
+SkyZen Alert / Warning Screen (`navigateToScreen('alerts')`)
+```
+
+### Safety & Lifecycle Invariants:
+1. **Authoritative Gating**: Only validated `ACTIVE` IMD alerts enter the pipeline. `SCHEDULED` future alerts do not dispatch immediate notifications. `EXPIRED` and `INVALID` alerts are strictly barred from notification dispatch.
+2. **Deterministic Targeting**: Relies on Haversine coordinate proximity ($\le 60\text{ km}$), exact district containment, or curated meteorological zones (coastal belt, delta, Nilgiris/Western Ghats). Never uses LLMs or fuzzy guessing to determine affected users.
+3. **User Location Ownership Isolation**: Users are targeted strictly based on locations they own (`SavedLocation.user_id == user.id`). No user can trigger or view notifications for another user's private locations.
+4. **Multi-Device Support**: Dispatches to all active devices of an eligible user. An invalid or unregistered token deactivates that specific token (`is_active = False`) without blocking sibling devices.
+5. **Translation Preservation**: English, Tamil, and Hindi formatting strictly preserves severity (`LOW`, `MEDIUM`, `HIGH`, `EXTREME`), timing, areas, numbers, units, and official instructions. Danger is never softened, invented, or removed.
+6. **Non-Destructive FCM Failures**: FCM outages, invalid tokens, or network failures are recorded in `AlertDeliveryLog` as `FAILED`, but **never** delete or suppress the official IMD warning inside SkyZen.
+

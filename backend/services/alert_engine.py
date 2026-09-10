@@ -378,6 +378,24 @@ class AlertEngine:
         a = math.sin(dphi / 2.0)**2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0)**2
         return 2.0 * r * math.atan2(math.sqrt(a), math.sqrt(1.0 - a))
 
+    @staticmethod
+    def generate_alert_fingerprint(
+        source: str,
+        alert_type: str,
+        area: str,
+        issued_at: str,
+        severity: Optional[str] = None,
+        version: Optional[int] = None
+    ) -> str:
+        """Generates deterministic SHA-256 fingerprint for alert deduplication and update tracking."""
+        parts = [str(source or "IMD"), str(alert_type or ""), str(area or ""), str(issued_at or "")]
+        if severity:
+            parts.append(str(severity))
+        if version is not None:
+            parts.append(str(version))
+        key = ":".join(parts).encode("utf-8")
+        return hashlib.sha256(key).hexdigest()[:16]
+
     def match_affected_area(
         self,
         alert_area: str,
@@ -387,27 +405,56 @@ class AlertEngine:
         user_lat: Optional[float] = None,
         user_lon: Optional[float] = None
     ) -> bool:
-        """Determines whether a user location falls within the official affected warning zone."""
-        if not alert_area:
+        """Determines whether a user location falls within the official affected warning zone.
+
+        Deterministic Matching Levels:
+        1. Exact coordinate proximity (Haversine <= 60km) where valid GPS coordinates exist.
+        2. Direct substring / administrative district containment.
+        3. Curated meteorological zone keywords (coastal belt, delta, Nilgiris / Western Ghats).
+        """
+        if not alert_area or not user_location_name:
             return False
 
-        area_lower = alert_area.lower()
-        user_loc_lower = user_location_name.lower()
+        area_lower = alert_area.lower().strip()
+        user_loc_lower = user_location_name.lower().strip()
 
-        # 1. Direct name / district containment
+        # 1. Coordinate proximity radius (within 60km of alert epicenter if coordinates exist)
+        if (
+            alert_lat is not None and alert_lon is not None
+            and user_lat is not None and user_lon is not None
+        ):
+            if (
+                -90.0 <= alert_lat <= 90.0 and -180.0 <= alert_lon <= 180.0
+                and -90.0 <= user_lat <= 90.0 and -180.0 <= user_lon <= 180.0
+            ):
+                dist = self.calculate_distance_km(alert_lat, alert_lon, user_lat, user_lon)
+                if dist <= 60.0:
+                    return True
+
+        # 2. Direct name / district containment
         if user_loc_lower in area_lower or area_lower in user_loc_lower:
             return True
 
-        # 2. Known regional zone keywords (e.g. coastal belt, Nilgiris, delta)
-        coastal_districts = ["nagapattinam", "cuddalore", "chennai", "thoothukudi", "ramanathapuram", "kancheepuram"]
+        # Split compound comma/semicolon delimited areas
+        sub_areas = [s.strip() for s in area_lower.replace(";", ",").split(",") if s.strip()]
+        if any(user_loc_lower in sub or sub in user_loc_lower for sub in sub_areas):
+            return True
+
+        # 3. Known regional zone keywords
+        coastal_districts = [
+            "nagapattinam", "cuddalore", "chennai", "thoothukudi",
+            "ramanathapuram", "kancheepuram", "tiruvallur", "kanyakumari", "villupuram"
+        ]
         if "coastal" in area_lower and any(d in user_loc_lower for d in coastal_districts):
             return True
 
-        # 3. Coordinate proximity radius (within 60km of alert epicenter if coordinates exist)
-        if alert_lat is not None and alert_lon is not None and user_lat is not None and user_lon is not None:
-            dist = self.calculate_distance_km(alert_lat, alert_lon, user_lat, user_lon)
-            if dist <= 60.0:
-                return True
+        delta_districts = ["thanjavur", "thiruvarur", "nagapattinam", "mayiladuthurai", "pudukkottai"]
+        if "delta" in area_lower and any(d in user_loc_lower for d in delta_districts):
+            return True
+
+        ghats_districts = ["nilgiris", "ooty", "coonoor", "kodaikanal", "valparai", "theeni", "tenkasi"]
+        if any(term in area_lower for term in ["nilgiris", "ghat", "hill"]) and any(d in user_loc_lower for d in ghats_districts):
+            return True
 
         return False
 
@@ -418,7 +465,8 @@ class AlertEngine:
         self,
         user: User,
         alert_fingerprint: str,
-        db: Session
+        db: Session,
+        quiet_window_hours: int = 12
     ) -> Tuple[bool, str]:
         """Validates user notification preferences, quiet period, and delivery deduplication."""
         # 1. Preference check
@@ -426,13 +474,13 @@ class AlertEngine:
         if pref and not pref.notification_enabled:
             return False, "notification_disabled"
 
-        # 2. Duplicate notification suppression (within 12 hours for same alert fingerprint)
-        twelve_hours_ago = datetime.now(timezone.utc) - timedelta(hours=12)
+        # 2. Duplicate notification suppression (within quiet window for same alert fingerprint)
+        cutoff = datetime.now(timezone.utc) - timedelta(hours=quiet_window_hours)
         prior_delivery = db.query(AlertDeliveryLog).filter(
             AlertDeliveryLog.user_id == user.id,
             AlertDeliveryLog.alert_fingerprint == alert_fingerprint,
             AlertDeliveryLog.status == "SENT",
-            AlertDeliveryLog.created_at >= twelve_hours_ago
+            AlertDeliveryLog.created_at >= cutoff
         ).first()
 
         if prior_delivery:
@@ -448,19 +496,69 @@ class AlertEngine:
         alert: DBAlert,
         db: Session
     ) -> List[Dict[str, Any]]:
-        """Processes targeted notification delivery for an active alert across registered users."""
-        alert_fp = self.imd.generate_alert_fingerprint(
-            alert.source or "IMD",
-            alert.alert_type,
-            alert.location_name,
-            alert.issued_at.isoformat() if alert.issued_at else ""
+        """Processes targeted notification delivery for an active alert across registered users.
+
+        Critical Safety Rules:
+        1. Only validated official IMD warnings can trigger notifications. Non-IMD sources are rejected.
+        2. Expired warnings (now > expires_at) must NEVER trigger active notifications.
+        3. Scheduled warnings (now < issued_at) must NOT trigger immediate notifications.
+        4. Multi-device support: Dispatches to ALL active devices of eligible users.
+        5. Deactivates invalid device tokens without blocking other active devices.
+        6. FCM delivery failures NEVER delete or modify the DBAlert record in SkyZen.
+        """
+        now_utc = datetime.now(timezone.utc)
+
+        # 1. Source Authority Check: Strictly IMD only
+        src = str(alert.source or "").lower().strip()
+        if not src or "imd" not in src:
+            logger.warning(f"Rejected non-IMD alert delivery attempt (source='{alert.source}')")
+            return [{
+                "status": "REJECTED",
+                "reason": "unauthorized_source",
+                "source": alert.source
+            }]
+
+        # 2. Lifecycle Evaluation: Expiry & Scheduled Checks
+        exp_dt = alert.expires_at
+        if exp_dt:
+            if exp_dt.tzinfo is None:
+                exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+            if now_utc > exp_dt:
+                logger.info(f"Skipping expired alert '{alert.title}' from notification dispatch (expired {exp_dt})")
+                return [{
+                    "status": "SKIPPED",
+                    "reason": "expired_alert",
+                    "alert_id": alert.id
+                }]
+
+        iss_dt = alert.issued_at
+        if iss_dt:
+            if iss_dt.tzinfo is None:
+                iss_dt = iss_dt.replace(tzinfo=timezone.utc)
+            if now_utc < iss_dt:
+                logger.info(f"Skipping scheduled future alert '{alert.title}' from immediate dispatch (issued_at {iss_dt})")
+                return [{
+                    "status": "SKIPPED",
+                    "reason": "scheduled_alert",
+                    "alert_id": alert.id
+                }]
+
+        # Generate update-aware alert fingerprint incorporating severity and version
+        version_val = getattr(alert, "version", 1) or 1
+        alert_fp = self.generate_alert_fingerprint(
+            source=alert.source or "IMD",
+            alert_type=alert.alert_type,
+            area=alert.location_name,
+            issued_at=iss_dt.isoformat() if iss_dt else "",
+            severity=alert.severity,
+            version=version_val
         )
 
         all_users = db.query(User).all()
         delivery_results: List[Dict[str, Any]] = []
 
         for user in all_users:
-            # Check user locations (both saved locations and default city)
+            # Check user locations (strictly isolated to this user)
             user_locations: List[Tuple[str, Optional[float], Optional[float]]] = []
             saved_locs = db.query(SavedLocation).filter(SavedLocation.user_id == user.id).all()
 
@@ -471,7 +569,7 @@ class AlertEngine:
             if not user_locations:
                 user_locations.append(("Coimbatore", 11.0168, 76.9558))
 
-            # Determine if any of the user's locations match the affected area
+            # Determine if any of this user's locations match the affected area
             matched_location: Optional[str] = None
             for loc_name, lat, lon in user_locations:
                 if self.match_affected_area(
@@ -530,64 +628,83 @@ class AlertEngine:
                 })
                 continue
 
-            # Eligible & in affected area -> Format multilingual message & dispatch via FCM
+            # Eligible & in affected area -> Format multilingual message
             msg = self.notifications.format_alert_message(
                 title=alert.title,
                 description=alert.description,
                 severity=alert.severity,
-                language=user.language or "ta"
+                language=user.language or "ta",
+                area=alert.location_name,
+                valid_until=alert.expires_at.isoformat() if alert.expires_at else None,
+                alert_id=alert.id
             )
 
-            # Query user's registered active device tokens
-            active_device_tokens = db.query(DeviceToken.token).filter(
+            # Query all active registered device tokens for the user
+            active_devices = db.query(DeviceToken).filter(
                 DeviceToken.user_id == user.id,
                 DeviceToken.is_active == True
             ).all()
-            token_to_send = active_device_tokens[0][0] if active_device_tokens else None
 
-            dispatch_res = await self.notifications.send_push_notification(
-                token=token_to_send,
-                title=msg["title"],
-                body=msg["body"],
-                data={
-                    "alert_id": alert.id,
-                    "severity": alert.severity,
-                    "area": alert.location_name
-                }
-            )
+            # If user has active devices, dispatch to each; otherwise dev/mock fallback token
+            target_devices = active_devices if active_devices else [None]
 
-            # Deactivate token if reported as unregistered by FCM
-            if dispatch_res.get("should_deactivate") and token_to_send:
-                deact_dev = db.query(DeviceToken).filter(DeviceToken.token == token_to_send).first()
-                if deact_dev:
-                    deact_dev.is_active = False
+            for dev in target_devices:
+                token_val = dev.token if dev else None
+                try:
+                    dispatch_res = await self.notifications.send_push_notification(
+                        token=token_val,
+                        title=msg["title"],
+                        body=msg["body"],
+                        data={
+                            "click_action": "OPEN_ALERT",
+                            "screen": "alert_detail",
+                            "alert_id": alert.id,
+                            "severity": alert.severity,
+                            "area": alert.location_name,
+                            "source": "IMD",
+                            "language": user.language or "ta"
+                        }
+                    )
+                except Exception as fcm_err:
+                    logger.error(f"FCM delivery exception for user {user.id}: {fcm_err}")
+                    dispatch_res = {
+                        "success": False,
+                        "error": str(fcm_err),
+                        "should_deactivate": False
+                    }
+
+                # Handle invalid / unregistered tokens safely
+                if dispatch_res.get("should_deactivate") and dev:
+                    logger.info(f"Deactivating invalid device token {dev.id} for user {user.id}")
+                    dev.is_active = False
                     db.commit()
 
-            now_utc = datetime.now(timezone.utc)
-            delivery_status = "SENT" if dispatch_res.get("success") else "FAILED"
-            delivery_reason = "eligible_in_affected_area" if delivery_status == "SENT" else dispatch_res.get("error", "fcm_error")
+                dev_status = "SENT" if dispatch_res.get("success") else "FAILED"
+                dev_reason = "eligible_in_affected_area" if dev_status == "SENT" else dispatch_res.get("error", "fcm_error")
 
-            log_entry = AlertDeliveryLog(
-                alert_id=alert.id,
-                alert_fingerprint=alert_fp,
-                user_id=user.id,
-                location_name=matched_location,
-                channel="fcm",
-                status=delivery_status,
-                reason=delivery_reason,
-                language=user.language or "ta",
-                payload_preview=msg["body"][:100],
-                delivered_at=now_utc if delivery_status == "SENT" else None
-            )
-            db.add(log_entry)
-            db.commit()
+                # Audit log entry for each device dispatch attempt
+                log_entry = AlertDeliveryLog(
+                    alert_id=alert.id,
+                    alert_fingerprint=alert_fp,
+                    user_id=user.id,
+                    location_name=matched_location,
+                    channel="fcm",
+                    status=dev_status,
+                    reason=dev_reason,
+                    language=user.language or "ta",
+                    payload_preview=msg["body"][:100],
+                    delivered_at=datetime.now(timezone.utc) if dev_status == "SENT" else None
+                )
+                db.add(log_entry)
+                db.commit()
 
-            delivery_results.append({
-                "user_id": user.id,
-                "status": delivery_status,
-                "reason": delivery_reason,
-                "language": user.language or "ta",
-                "matched_location": matched_location
-            })
+                delivery_results.append({
+                    "user_id": user.id,
+                    "device_id": dev.id if dev else "simulated",
+                    "status": dev_status,
+                    "reason": dev_reason,
+                    "language": user.language or "ta",
+                    "matched_location": matched_location
+                })
 
         return delivery_results
