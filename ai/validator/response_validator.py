@@ -155,6 +155,23 @@ class ResponseValidator:
                     violations.append(msg)
                     issues.append(msg)
                     violation_categories.append(ValidationCategoryEnum.SEVERITY_DOWNGRADE.value)
+
+            # 1e. Warning Suppression via Consistency Check (Phase 9 Requirement 5)
+            # A high generic forecast consistency score must NEVER suppress an official IMD warning.
+            suppression_patterns = [
+                r"\b(?:models?|sources?|forecast|consistency)\b.*?\b(?:agree|consistent|high)\b.*?\b(?:no\s+need\s+to\s+worry|ignore\s+(?:the\s+)?warning|warning\s+is\s+unnecessary|safe\s+despite|conditions\s+are\s+safe|safe\s+conditions)\b",
+                r"\b(?:high\s+consistency\s+score|consistent\s+forecast)\s+(?:overrides?|cancels?|invalidates?)\s+(?:the\s+)?warning\b",
+                r"\b(?:conditions?\s+(?:are|is)\s+safe|no\s+danger)\s+(?:because|since|as)\s+(?:models?|sources?)\b",
+                r"\bno\s+need\s+to\s+worry\s+about\s+(?:the\s+)?warning\b",
+                r"\bconditions\s+are\s+safe\b",
+            ]
+            for pat in suppression_patterns:
+                if re.search(pat, lower_text):
+                    msg = "Warning Suppression: High forecast consistency was used to suppress or dismiss an active official IMD warning."
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
+                    break
         else:
             # No official warning active: Response must not fabricate phantom official alerts
             phantom_warning_phrases = [
@@ -358,7 +375,21 @@ class ResponseValidator:
                         violations.append(msg)
                         violation_categories.append(ValidationCategoryEnum.UNSUPPORTED_NUMBER.value)
 
-        # 3d. Rainfall Amount Claims
+        # 3d. Scientific Probability Overclaim Check (Phase 9 Requirement 3)
+        # Consistency score is an application-level indicator, not certified scientific probability.
+        overclaim_patterns = [
+            r"\b(?:certified\s+meteorological\s+probability|scientifically\s+validated\s+probability|certified\s+probability)\b",
+            r"\b(?:guaranteed\s+scientific\s+certainty)\b",
+        ]
+        for pat in overclaim_patterns:
+            if re.search(pat, lower_text):
+                msg = "Scientific Overclaim: Forecast consistency was claimed as certified meteorological probability."
+                violations.append(msg)
+                issues.append(msg)
+                violation_categories.append(ValidationCategoryEnum.FABRICATED_DATA.value)
+                break
+
+        # 3e. Rainfall Amount Claims
         rainfall_matches = re.findall(r"(\d+(?:\.\d+)?)\s*mm\b", lower_text)
         imd_thresholds = {64.5, 115.5, 204.4}
         for rm in rainfall_matches:

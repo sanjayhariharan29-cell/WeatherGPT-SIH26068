@@ -38,6 +38,8 @@ from ai.models import (
     DecisionTrace,
     WeatherDataType,
     HistoricalWeatherDataset,
+    ConfidenceLevelEnum,
+    ForecastConsistencyFactors,
 )
 from ai.nlu import (
     classify_intent,

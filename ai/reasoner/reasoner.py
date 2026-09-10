@@ -8,6 +8,8 @@ and produces a structured WeatherReasoningResult.
 from datetime import datetime, timezone
 from typing import List, Optional
 from ai.models import (
+    ConfidenceLevelEnum,
+    ForecastConsistencyFactors,
     ForecastItem,
     FreshnessStatusEnum,
     HazardDetection,
@@ -18,7 +20,9 @@ from ai.models import (
     WeatherRecord,
 )
 from ai.reasoner.agreement import (
+    build_consistency_factors,
     calculate_consistency_score,
+    determine_confidence_level,
     evaluate_source_agreement,
 )
 from ai.reasoner.completeness import evaluate_completeness
@@ -36,7 +40,8 @@ class WeatherReasoner:
         secondary_weather: Optional[WeatherRecord] = None,
         forecast: Optional[List[ForecastItem]] = None,
         active_alerts: Optional[List[OfficialAlert]] = None,
-        current_time: Optional[datetime] = None
+        current_time: Optional[datetime] = None,
+        secondary_forecast: Optional[List[ForecastItem]] = None
     ) -> WeatherReasoningResult:
         """Runs the complete meteorological reasoning pipeline with safety & completeness checks."""
         now = current_time or datetime.now(timezone.utc)
@@ -93,6 +98,18 @@ class WeatherReasoner:
                 missing_fields=["primary_weather_record"],
                 source_agreement=SourceAgreementEnum.SINGLE_SOURCE,
                 consistency_score=0,
+                confidence_level=ConfidenceLevelEnum.LOW,
+                confidence_indicator="Low",
+                consistency_factors={
+                    "rainfall_agreement": "Primary weather observation data is unavailable.",
+                    "temperature_agreement": "Primary weather observation data is unavailable.",
+                    "wind_agreement": "Primary weather observation data is unavailable.",
+                    "timing_agreement": "No timeline data.",
+                    "source_freshness": "STALE",
+                    "completeness": "Incomplete: primary_weather_record missing.",
+                    "contradictions": [],
+                    "summary": "Forecast consistency is low due to missing observation telemetry.",
+                },
                 contradictions=[],
                 active_warnings=valid_active_alerts,
                 detected_hazards=all_hazards,
@@ -113,8 +130,10 @@ class WeatherReasoner:
 
         # 4. Source Agreement
         agreement, agreement_note = evaluate_source_agreement(
-            primary_weather,
-            secondary_weather
+            primary=primary_weather,
+            secondary=secondary_weather,
+            primary_forecast=forecast,
+            secondary_forecast=secondary_forecast
         )
 
         # 5. Contradiction Detection
@@ -160,18 +179,43 @@ class WeatherReasoner:
                 elif h.severity == RiskLevelEnum.MEDIUM and overall_risk == RiskLevelEnum.LOW:
                     overall_risk = RiskLevelEnum.MEDIUM
 
-        # 8. Forecast Consistency Score Calculation
+        # 8. Forecast Consistency Score & Confidence Calculation (Phase 9)
+        timing_disagreement = any("timeline divergence" in agreement_note or "timing" in c.lower() for c in contradictions)
         consistency_score = calculate_consistency_score(
             agreement=agreement,
             freshness=freshness_status,
             has_active_warning=bool(valid_active_alerts),
             data_complete=is_complete,
+            contradiction_count=len(contradictions),
+            timing_disagreement=timing_disagreement
+        )
+
+        confidence_level = determine_confidence_level(
+            score=consistency_score,
+            agreement=agreement,
+            freshness=freshness_status,
+            data_complete=is_complete,
             contradiction_count=len(contradictions)
+        )
+        confidence_indicator = confidence_level.value.capitalize()
+
+        consistency_factors = build_consistency_factors(
+            primary=primary_weather,
+            secondary=secondary_weather,
+            primary_forecast=forecast,
+            secondary_forecast=secondary_forecast,
+            freshness=freshness_status,
+            data_complete=is_complete,
+            contradictions=contradictions,
+            agreement=agreement,
+            confidence_level=confidence_level
         )
 
         # 9. Uncertainty Formulation
         uncertainty_elements = []
-        if agreement == SourceAgreementEnum.LOW:
+        if confidence_level == ConfidenceLevelEnum.LOW:
+            uncertainty_elements.append(consistency_factors.summary or f"Forecast sources show divergence: {agreement_note}")
+        elif agreement == SourceAgreementEnum.LOW:
             uncertainty_elements.append(f"Forecast sources show divergence: {agreement_note}")
         if freshness_status == FreshnessStatusEnum.STALE:
             uncertainty_elements.append(f"Observation data is {age_mins} minutes old.")
@@ -193,6 +237,9 @@ class WeatherReasoner:
             missing_fields=missing_fields,
             source_agreement=agreement,
             consistency_score=consistency_score,
+            confidence_level=confidence_level,
+            confidence_indicator=confidence_indicator,
+            consistency_factors=consistency_factors.model_dump(),
             contradictions=contradictions,
             active_warnings=valid_active_alerts,
             detected_hazards=all_hazards,

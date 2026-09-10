@@ -128,7 +128,12 @@ def build_grounded_context(
             "current_or_forecast": h.current_or_forecast,
         })
 
-    # 5. Data Quality, Freshness & Consistency
+    conf_level = getattr(reasoning, "confidence_level", None)
+    conf_level_str = conf_level.value if hasattr(conf_level, "value") else (str(conf_level) if conf_level else "HIGH")
+    conf_indicator = getattr(reasoning, "confidence_indicator", conf_level_str.capitalize())
+    consistency_factors = getattr(reasoning, "consistency_factors", {}) or {}
+
+    # 5. Data Quality, Freshness & Consistency (Phase 9)
     data_quality: Dict[str, Any] = {
         "freshness": reasoning.freshness.value.upper(),
         "data_age_minutes": reasoning.data_age_minutes,
@@ -136,7 +141,13 @@ def build_grounded_context(
         "missing_fields": missing_fields,
         "source_agreement": reasoning.source_agreement.value.upper(),
         "consistency_score": reasoning.consistency_score,
-        "score_semantics": "Application-level data reliability & agreement indicator (0-100). NOT a precipitation probability.",
+        "confidence_level": conf_level_str,
+        "confidence_indicator": conf_indicator,
+        "consistency_factors": consistency_factors,
+        "score_semantics": (
+            "Application-level data reliability & consistency indicator (0-100). "
+            "This is NOT a certified meteorological probability. Do not claim scientific validation."
+        ),
         "contradictions": reasoning.contradictions,
         "sources_used": reasoning.sources_used,
     }
@@ -232,16 +243,36 @@ def build_grounded_context(
         lines.append("Detected Hazards: NONE")
 
     lines.append("")
-    lines.append("--- 5. DATA QUALITY, FRESHNESS & CONSISTENCY ---")
+    lines.append("--- 5. DATA QUALITY, FRESHNESS & FORECAST CONSISTENCY ---")
     lines.extend([
-        f"Data Freshness: {data_quality['freshness']} (Updated {data_quality['data_age_minutes']} minutes ago)",
-        f"Source Agreement: {data_quality['source_agreement']}",
+        f"Data Confidence Indicator: {data_quality['confidence_level']} ({data_quality['confidence_indicator']})",
         f"Forecast Consistency Score: {data_quality['consistency_score']}/100 "
         f"(Semantic note: {data_quality['score_semantics']})",
+        f"Source Agreement: {data_quality['source_agreement']}",
+        f"Data Freshness: {data_quality['freshness']} (Updated {data_quality['data_age_minutes']} minutes ago)",
+        f"Data Completeness: {'Complete' if data_quality['data_complete'] else 'Incomplete'}",
         f"Sources Used: {', '.join(data_quality['sources_used'])}",
     ])
+    cf = data_quality.get("consistency_factors") or {}
+    if cf:
+        lines.append("Multi-Source Consistency Factors:")
+        if cf.get("rainfall_agreement"):
+            lines.append(f"• Rainfall Agreement: {cf['rainfall_agreement']}")
+        if cf.get("temperature_agreement"):
+            lines.append(f"• Temperature Agreement: {cf['temperature_agreement']}")
+        if cf.get("wind_agreement"):
+            lines.append(f"• Wind Agreement: {cf['wind_agreement']}")
+        if cf.get("timing_agreement"):
+            lines.append(f"• Timing Agreement: {cf['timing_agreement']}")
+        if cf.get("summary"):
+            lines.append(f"• Consistency Summary: {cf['summary']}")
     if data_quality["contradictions"]:
         lines.append(f"Contradiction / Uncertainty Notes: {' | '.join(data_quality['contradictions'])}")
+    lines.append(
+        "SAFETY MANDATE: The Forecast Consistency Score is an application-level indicator, NOT a certified meteorological probability. "
+        "Explain WHY sources agree or disagree using the factors above. Never claim scientific validation. "
+        "Official IMD warnings are unconditionally authoritative and must NEVER be suppressed by high generic model consistency."
+    )
 
     lines.append("")
     lines.append("--- 6. REASONER ADVISORY & SAFETY GUIDANCE ---")

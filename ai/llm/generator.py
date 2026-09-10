@@ -314,8 +314,16 @@ class GroundedLLMGenerator:
                 precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
                 lines.append(f"\nமுக்கிய பாதுகாப்பு வழிகாட்டுதல்கள்:{precautions_str}")
 
+            conf_factors = getattr(reasoning, "consistency_factors", {}) or {}
+            conf_lvl = getattr(reasoning, "confidence_level", None)
+            conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
+            if conf_lvl_str == "LOW":
+                lines.append(f"\nவானிலை முன்னறிவிப்பு நம்பகத்தன்மை குறைவு: கிடைக்கும் வானிலை தகவல் மூலங்கள் வேறுபடுகின்றன.")
+            elif conf_lvl_str == "HIGH":
+                lines.append(f"\nவானிலை முன்னறிவிப்பு நம்பகத்தன்மை அதிகம்: தகவல் மூலங்கள் ஒத்துப் போகின்றன.")
+
             lines.append(
-                f"\n(தகவல் மூலம்: {', '.join(reasoning.sources_used)} | புதுப்பிக்கப்பட்டது {reasoning.data_age_minutes} நிமிடங்களுக்கு முன் | தர நம்பகத்தன்மை: {reasoning.consistency_score}/100)"
+                f"\n(தகவல் மூலம்: {', '.join(reasoning.sources_used)} | புதுப்பிக்கப்பட்டது {reasoning.data_age_minutes} நிமிடங்களுக்கு முன் | முன்னறிவிப்பு நிலைத்தன்மை: {reasoning.consistency_score}/100 [{conf_lvl_str}])"
             )
         elif target_lang == LanguageEnum.HI:
             temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "उपलब्ध नहीं"
@@ -341,8 +349,16 @@ class GroundedLLMGenerator:
                 precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
                 lines.append(f"\nमुख्य सावधानियां:{precautions_str}")
 
+            conf_factors = getattr(reasoning, "consistency_factors", {}) or {}
+            conf_lvl = getattr(reasoning, "confidence_level", None)
+            conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
+            if conf_lvl_str == "LOW":
+                lines.append(f"\nपूर्वानुमान स्थिरता कम है क्योंकि उपलब्ध स्रोत असहमत हैं।")
+            elif conf_lvl_str == "HIGH":
+                lines.append(f"\nपूर्वानुमान स्थिरता उच्च है क्योंकि उपलब्ध स्रोत काफी हद तक सहमत हैं।")
+
             lines.append(
-                f"\n(स्रोत: {', '.join(reasoning.sources_used)} | {reasoning.data_age_minutes} मिनट पहले अपडेट किया गया | डेटा गुणवत्ता स्कोर: {reasoning.consistency_score}/100)"
+                f"\n(स्रोत: {', '.join(reasoning.sources_used)} | {reasoning.data_age_minutes} मिनट पहले अपडेट किया गया | पूर्वानुमान संगति स्कोर: {reasoning.consistency_score}/100 [{conf_lvl_str}])"
             )
         else:
             temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "unavailable"
@@ -387,8 +403,21 @@ class GroundedLLMGenerator:
                 precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
                 lines.append(f"\nRecommended Precautions:{precautions_str}")
 
+            # Phase 9: Forecast Consistency & Multi-Source Agreement Explanation
+            conf_factors = getattr(reasoning, "consistency_factors", {}) or {}
+            conf_summary = conf_factors.get("summary")
+            conf_lvl = getattr(reasoning, "confidence_level", None)
+            conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
+
+            if conf_summary:
+                lines.append(f"\nForecast Consistency ({conf_lvl_str}): {conf_summary}")
+            elif reasoning.source_agreement == SourceAgreementEnum.LOW:
+                lines.append(f"\nForecast consistency is low because available sources disagree.")
+            elif reasoning.source_agreement == SourceAgreementEnum.HIGH:
+                lines.append(f"\nForecast consistency is high as available forecast sources broadly agree.")
+
             lines.append(
-                f"\n(Source: {', '.join(reasoning.sources_used)} | Updated {reasoning.data_age_minutes}m ago | Data Quality Score: {reasoning.consistency_score}/100)"
+                f"\n(Source: {', '.join(reasoning.sources_used)} | Updated {reasoning.data_age_minutes}m ago | Forecast Consistency Score: {reasoning.consistency_score}/100 [Data Confidence Indicator: {conf_lvl_str}])"
             )
 
         return "\n".join(lines)

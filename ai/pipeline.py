@@ -47,7 +47,8 @@ class WeatherGPTPipeline:
         context_summary: Optional[str] = None,
         request_id: Optional[str] = None,
         llm_timeout_seconds: Optional[float] = None,
-        historical_weather: Optional[HistoricalWeatherDataset] = None
+        historical_weather: Optional[HistoricalWeatherDataset] = None,
+        secondary_forecast: Optional[List[ForecastItem]] = None
     ) -> Dict[str, Any]:
         """Runs the complete conversational pipeline from user text to validated answer."""
         t_start = time.perf_counter()
@@ -98,7 +99,8 @@ class WeatherGPTPipeline:
             primary_weather=weather,
             secondary_weather=secondary_weather,
             forecast=forecast,
-            active_alerts=active_alerts
+            active_alerts=active_alerts,
+            secondary_forecast=secondary_forecast
         )
         t_reasoner = (time.perf_counter() - t1) * 1000
 
@@ -571,12 +573,19 @@ class WeatherGPTPipeline:
             })
 
         c_score = reasoning.consistency_score if reasoning.consistency_score is not None else 0
-        if c_score >= 70:
+        conf_lvl = getattr(reasoning, "confidence_level", None)
+        conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else None)
+        if conf_lvl_str:
+            confidence_indicator = conf_lvl_str.capitalize()
+        elif c_score >= 75:
             confidence_indicator = "High"
-        elif c_score >= 40:
-            confidence_indicator = "Moderate"
+            conf_lvl_str = "HIGH"
+        elif c_score >= 45:
+            confidence_indicator = "Medium"
+            conf_lvl_str = "MEDIUM"
         else:
             confidence_indicator = "Low"
+            conf_lvl_str = "LOW"
 
         resolved_period = getattr(nlu.entities, "time", None) or getattr(nlu.entities, "date", None) or "current"
         persona_context = {
@@ -712,6 +721,8 @@ class WeatherGPTPipeline:
             final_recommendation=final_recommendation,
             explanation_points=explanation_points,
             sources=reasoning.sources_used or ["IMD"],
+            confidence_level=conf_lvl_str,
+            consistency_factors=getattr(reasoning, "consistency_factors", None),
             historical_context=historical_context_dict,
             data_types_used=data_types_used,
         )
@@ -729,6 +740,8 @@ class WeatherGPTPipeline:
                 "level": reasoning.overall_risk.value,
                 "consistency": reasoning.source_agreement.value,
                 "consistency_score": reasoning.consistency_score,
+                "confidence_level": conf_lvl_str,
+                "confidence_indicator": confidence_indicator,
             },
             "weather": weather_summary,
             "weather_summary": weather_summary,

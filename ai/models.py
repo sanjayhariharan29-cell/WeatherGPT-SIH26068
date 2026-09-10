@@ -101,8 +101,28 @@ class FreshnessStatusEnum(str, Enum):
 class SourceAgreementEnum(str, Enum):
     HIGH = "high"
     MODERATE = "moderate"
+    MEDIUM = "moderate"  # Phase 9 alias
     LOW = "low"
     SINGLE_SOURCE = "single_source"
+
+
+class ConfidenceLevelEnum(str, Enum):
+    """Application-level data confidence indicator levels (Phase 9)."""
+    HIGH = "HIGH"
+    MEDIUM = "MEDIUM"
+    LOW = "LOW"
+
+
+class ForecastConsistencyFactors(BaseModel):
+    """Deterministic breakdown of consistency factors across NWP / forecast sources."""
+    rainfall_agreement: str = Field(description="Precipitation agreement status")
+    temperature_agreement: str = Field(description="Thermal agreement status")
+    wind_agreement: str = Field(description="Wind speed agreement status")
+    timing_agreement: Optional[str] = Field(default=None, description="Precipitation or hazard onset timing agreement")
+    source_freshness: str = Field(description="Observation or forecast model cycle freshness")
+    completeness: str = Field(description="Data telemetry completeness status")
+    contradictions: List[str] = Field(default_factory=list, description="Explicit discrepancies identified")
+    summary: Optional[str] = Field(default=None, description="Deterministic summary explanation")
 
 
 class WeatherDataType(str, Enum):
@@ -241,6 +261,9 @@ class WeatherReasoningResult(BaseModel):
     missing_fields: List[str] = Field(default_factory=list)
     source_agreement: SourceAgreementEnum
     consistency_score: int = Field(ge=0, le=100, description="0-100 composite indicator")
+    confidence_level: ConfidenceLevelEnum = ConfidenceLevelEnum.HIGH
+    confidence_indicator: str = "High"
+    consistency_factors: Optional[Dict[str, Any]] = None
     contradictions: List[str] = Field(default_factory=list)
     active_warnings: List[OfficialAlert] = Field(default_factory=list)
     detected_hazards: List[HazardDetection] = Field(default_factory=list)
@@ -407,6 +430,8 @@ class DecisionTrace(BaseModel):
     final_recommendation: Optional[str] = None
     explanation_points: List[str] = Field(default_factory=list)
     sources: List[str] = Field(default_factory=list)
+    confidence_level: Optional[str] = "HIGH"
+    consistency_factors: Optional[Dict[str, Any]] = None
     historical_context: Optional[Dict[str, Any]] = None
     data_types_used: List[str] = Field(default_factory=list)
 
@@ -470,6 +495,8 @@ class DecisionTrace(BaseModel):
             "evidence_links": [link.model_dump() for link in self.evidence_links],
             "historical_context": self.historical_context,
             "data_types_used": self.data_types_used,
+            "confidence_level": self.confidence_level,
+            "consistency_factors": self.consistency_factors,
         }
 
     def to_explanation_dict(self) -> Dict[str, Any]:
@@ -504,4 +531,6 @@ class DecisionTrace(BaseModel):
             "evidence_links": [link.model_dump() for link in self.evidence_links],
             "historical_context": self.historical_context,
             "data_types_used": self.data_types_used,
+            "confidence_level": self.confidence_level,
+            "consistency_factors": self.consistency_factors,
         }
