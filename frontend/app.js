@@ -2089,10 +2089,37 @@ function appendBotMessage(data) {
     });
   }
 
-  // Reasoner and Confidence Indicators
-  const consistencyStr = data.risk?.consistency === "high"
-    ? "Forecast sources agree on the evening rainfall pattern"
-    : "Live telemetry verified from IMD & Open-Meteo";
+  // Phase 6: DecisionTrace & Explainability Extraction
+  const trace = data.decision_trace || {};
+  const confidenceIndicator = trace.confidence_indicator || (data.risk?.consistency_score >= 70 ? "High" : (data.risk?.consistency_score >= 40 ? "Moderate" : "Low"));
+  const confClass = confidenceIndicator.toLowerCase();
+
+  // Bulleted rationale points: "Why SkyZen recommends this"
+  let points = trace.explanation_points;
+  if (!points || points.length === 0) {
+    points = [
+      data.weather_summary?.condition ? `${data.weather_summary.condition} conditions reported for ${data.location}` : "Live telemetry analyzed",
+      data.risk?.consistency === "high" ? "Multiple forecast sources agree" : "Authoritative ground-truth verified from IMD",
+      (data.alerts && data.alerts.length > 0) ? `Official alert active: ${data.alerts[0].title || "Severe Weather"}` : "No active severe warning"
+    ];
+  }
+
+  const pointsHtml = points.map(pt => `
+    <li class="trace-point-item">
+      <span class="trace-point-bullet">•</span>
+      <span class="trace-point-text">${escapeHTML(pt)}</span>
+    </li>
+  `).join("");
+
+  const sourcesList = (trace.sources && trace.sources.length > 0)
+    ? trace.sources.join(" · ")
+    : (formattedSources || "IMD · Open-Meteo");
+
+  const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const tempVal = trace.temperature?.current_c != null ? `${trace.temperature.current_c}°C` : (data.weather_summary?.temperature != null ? `${data.weather_summary.temperature}°C` : "--");
+  const windVal = trace.wind?.speed_kmh != null ? `${trace.wind.speed_kmh} km/h` : (data.weather_summary?.wind_speed != null ? `${data.weather_summary.wind_speed} km/h` : "--");
+  const rainVal = trace.rainfall_indicators?.probability_percent != null ? `${trace.rainfall_indicators.probability_percent}%` : (data.weather_summary?.rain_probability != null ? `${data.weather_summary.rain_probability}%` : "--");
+  const freshnessVal = trace.data_freshness ? String(trace.data_freshness).toUpperCase() : "FRESH";
 
   bubble.innerHTML = `
     <div class="msg-author">
@@ -2105,14 +2132,58 @@ function appendBotMessage(data) {
     <p>${safeAnswer}</p>
     ${warningsHtml}
     <div class="ai-reasoning-box">
-      <div class="confidence-row">
-        <span class="confidence-badge">Confidence: High</span>
-        <span class="confidence-desc">${consistencyStr}</span>
+      <div class="trace-header">
+        <div class="verified-tag">
+          <span class="material-symbols-rounded icon-xs">verified</span>
+          <span>LIVE VERIFIED</span>
+        </div>
+        <div class="confidence-badge ${confClass}">
+          <span class="material-symbols-rounded icon-xs">speed</span>
+          <span>Forecast Consistency: ${escapeHTML(confidenceIndicator)}</span>
+        </div>
       </div>
-      <div class="source-attribution-row">
-        <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">sensors</span>
-        <span>${escapeHTML(formattedSources)}</span>
-        <span class="verified-tag">LIVE VERIFIED</span>
+      <div class="trace-why-section">
+        <div class="trace-why-title">
+          <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">help_outline</span>
+          <span>Why SkyZen recommends this:</span>
+        </div>
+        <ul class="trace-points-list">
+          ${pointsHtml}
+        </ul>
+      </div>
+      <div class="trace-footer">
+        <div class="trace-sources">
+          <span class="material-symbols-rounded icon-xs" style="color:var(--primary-blue);">sensors</span>
+          <span>Sources: ${escapeHTML(sourcesList)}</span>
+        </div>
+        <button class="trace-toggle-btn" onclick="toggleTraceFactors('${traceId}')" aria-label="Inspect factors">
+          <span class="material-symbols-rounded icon-xs">tune</span>
+          <span>Factors</span>
+        </button>
+      </div>
+      <div id="${traceId}" class="trace-details-drawer" style="display:none;">
+        <div class="trace-factors-grid">
+          <div class="trace-factor-item">
+            <span class="material-symbols-rounded icon-xs">thermostat</span>
+            <span class="factor-label">Temp:</span>
+            <span class="factor-val">${escapeHTML(String(tempVal))}</span>
+          </div>
+          <div class="trace-factor-item">
+            <span class="material-symbols-rounded icon-xs">air</span>
+            <span class="factor-label">Wind:</span>
+            <span class="factor-val">${escapeHTML(String(windVal))}</span>
+          </div>
+          <div class="trace-factor-item">
+            <span class="material-symbols-rounded icon-xs">water_drop</span>
+            <span class="factor-label">Rain:</span>
+            <span class="factor-val">${escapeHTML(String(rainVal))}</span>
+          </div>
+          <div class="trace-factor-item">
+            <span class="material-symbols-rounded icon-xs">update</span>
+            <span class="factor-label">Data:</span>
+            <span class="factor-val">${escapeHTML(freshnessVal)}</span>
+          </div>
+        </div>
       </div>
     </div>
   `;
@@ -2120,6 +2191,12 @@ function appendBotMessage(data) {
   history.appendChild(bubble);
   history.scrollTop = history.scrollHeight;
 }
+
+window.toggleTraceFactors = function(id) {
+  const elem = document.getElementById(id);
+  if (!elem) return;
+  elem.style.display = elem.style.display === "none" ? "block" : "none";
+};
 
 function appendFailedMessage(failedText, persona, location) {
   const history = document.getElementById("chatHistory");

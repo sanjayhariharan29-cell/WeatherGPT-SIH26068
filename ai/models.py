@@ -306,7 +306,7 @@ class EvidenceLink(BaseModel):
 
 
 class DecisionTrace(BaseModel):
-    """Explainable, auditable internal decision trace showing WHY a response was generated (Phase 19).
+    """Explainable, auditable internal decision trace showing WHY a response was generated.
     
     Exposes concise structured evidence and deterministic logic without exposing hidden LLM chain-of-thought.
     """
@@ -341,16 +341,39 @@ class DecisionTrace(BaseModel):
     stage_latencies_ms: Dict[str, float] = Field(default_factory=dict)
     final_response_status: str
 
+    # Phase 6 Explainability & System Factor Fields
+    request: Optional[str] = None
+    location: Optional[str] = None
+    forecast_period: Optional[str] = None
+    confidence_score: Optional[int] = None
+    confidence_indicator: str = "High"
+    rainfall_indicators: Optional[Dict[str, Any]] = None
+    temperature: Optional[Dict[str, Any]] = None
+    wind: Optional[Dict[str, Any]] = None
+    hazard_signals: List[Dict[str, Any]] = Field(default_factory=list)
+    official_warnings: List[Dict[str, Any]] = Field(default_factory=list)
+    persona_context: Dict[str, Any] = Field(default_factory=dict)
+    final_recommendation: Optional[str] = None
+    explanation_points: List[str] = Field(default_factory=list)
+    sources: List[str] = Field(default_factory=list)
+
     def to_debug_dict(self) -> Dict[str, Any]:
         """Controlled debug dictionary for developer testing, SIH demo, and evaluators."""
+        eff_req = self.request or self.query_summary
+        eff_loc = self.location or self.resolved_location
+        eff_period = self.forecast_period or self.resolved_time_window
+        eff_score = self.confidence_score if self.confidence_score is not None else self.consistency_score
+
         return {
             "trace_id": self.trace_id,
             "evaluated_at": self.evaluated_at.isoformat(),
             "query": self.query_summary,
-            "location": self.resolved_location,
+            "request": eff_req,
+            "location": eff_loc,
             "resolved_location": self.resolved_location,
             "time_window": self.resolved_time_window,
             "resolved_time_window": self.resolved_time_window,
+            "forecast_period": eff_period,
             "intent": self.detected_intent,
             "detected_intent": self.detected_intent,
             "persona": self.persona,
@@ -358,18 +381,29 @@ class DecisionTrace(BaseModel):
             "data_freshness": self.data_freshness,
             "data_completeness": self.data_completeness,
             "source_agreement": self.source_agreement,
-            "consistency_score": self.consistency_score,
+            "consistency_score": eff_score,
+            "confidence_score": eff_score,
+            "confidence_indicator": self.confidence_indicator,
             "warning_status": self.official_warning_status,
             "official_warning_status": self.official_warning_status,
             "warning_count": self.warning_count,
             "warning_details": self.official_warning_details,
+            "official_warnings": self.official_warnings,
             "hazards_count": len(self.hazards_detected),
             "hazards": self.hazards_detected,
+            "hazard_signals": self.hazard_signals or self.hazards_detected,
+            "rainfall_indicators": self.rainfall_indicators,
+            "temperature": self.temperature,
+            "wind": self.wind,
             "overall_risk": self.overall_risk,
             "advisory_category": self.advisory_category,
             "advisory_priority": self.advisory_priority,
             "action_class": self.advisory_action_class,
             "advisory_action_class": self.advisory_action_class,
+            "persona_context": self.persona_context,
+            "final_recommendation": self.final_recommendation,
+            "explanation_points": self.explanation_points,
+            "sources": self.sources,
             "validation_status": self.validation_status,
             "violation_category": self.violation_category,
             "fallback_used": self.fallback_used,
@@ -383,4 +417,34 @@ class DecisionTrace(BaseModel):
             "evidence_links": [link.model_dump() for link in self.evidence_links],
         }
 
+    def to_explanation_dict(self) -> Dict[str, Any]:
+        """Clean explainability representation for frontend cards and API responses.
 
+        Zero hidden chain-of-thought; structured system factors only.
+        """
+        eff_score = self.confidence_score if self.confidence_score is not None else self.consistency_score
+        return {
+            "trace_id": self.trace_id,
+            "evaluated_at": self.evaluated_at.isoformat(),
+            "request": self.request or self.query_summary,
+            "location": self.location or self.resolved_location,
+            "forecast_period": self.forecast_period or self.resolved_time_window,
+            "data_freshness": self.data_freshness,
+            "data_completeness": self.data_completeness,
+            "source_agreement": self.source_agreement,
+            "consistency_score": eff_score,
+            "confidence_score": eff_score,
+            "confidence_indicator": self.confidence_indicator,
+            "warning_status": self.official_warning_status,
+            "official_warnings": self.official_warnings,
+            "hazard_signals": self.hazard_signals or self.hazards_detected,
+            "overall_risk": self.overall_risk,
+            "rainfall_indicators": self.rainfall_indicators,
+            "temperature": self.temperature,
+            "wind": self.wind,
+            "persona_context": self.persona_context,
+            "final_recommendation": self.final_recommendation,
+            "explanation_points": self.explanation_points,
+            "sources": self.sources,
+            "evidence_links": [link.model_dump() for link in self.evidence_links],
+        }

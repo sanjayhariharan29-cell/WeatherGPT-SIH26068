@@ -521,12 +521,119 @@ class WeatherGPTPipeline:
                 "headline": getattr(primary_warning, "title", getattr(primary_warning, "headline", "")),
             }
 
+        # Phase 6: Formulate Structured Weather Signals & Signals Dict
+        rain_prob = float(getattr(weather, "rain_probability", 0.0) or 0.0) if weather else 0.0
+        rain_amt = float(getattr(weather, "rain_amount", 0.0) or 0.0) if weather else 0.0
+        weather_cond = str(getattr(weather, "weather_condition", "Clear") or "Clear") if weather else "Unknown"
+        forecast_rain_expected = any(float(getattr(fc, "rain_probability", 0) or 0) > 40.0 for fc in forecast) if forecast else False
+        is_rain_expected = rain_prob > 40.0 or forecast_rain_expected or any("rain" in getattr(h, "hazard_type", "").lower() for h in reasoning.detected_hazards)
+
+        rainfall_indicators = {
+            "probability_percent": rain_prob,
+            "amount_mm": rain_amt,
+            "condition": weather_cond,
+            "rain_expected": is_rain_expected,
+        }
+
+        temperature_data = {
+            "current_c": getattr(weather, "temperature", None) if weather else None,
+            "feels_like_c": getattr(weather, "feels_like", None) or (getattr(weather, "temperature", None) if weather else None),
+            "unit": "°C",
+        }
+
+        wind_data = {
+            "speed_kmh": getattr(weather, "wind_speed", None) if weather else None,
+            "gusts_kmh": getattr(weather, "wind_gust", None) if weather else None,
+            "unit": "km/h",
+        }
+
+        official_warnings_list = []
+        for alert in reasoning.active_warnings:
+            al_type = getattr(alert, "type", getattr(alert, "warning_type", "alert"))
+            al_type_str = al_type.value if hasattr(al_type, "value") else str(al_type)
+            al_sev = alert.severity.value if hasattr(alert.severity, "value") else str(alert.severity)
+            official_warnings_list.append({
+                "type": al_type_str,
+                "severity": al_sev,
+                "title": getattr(alert, "title", getattr(alert, "headline", "Weather Warning")),
+                "description": getattr(alert, "description", ""),
+                "source": getattr(alert, "source", "IMD"),
+            })
+
+        c_score = reasoning.consistency_score if reasoning.consistency_score is not None else 0
+        if c_score >= 70:
+            confidence_indicator = "High"
+        elif c_score >= 40:
+            confidence_indicator = "Moderate"
+        else:
+            confidence_indicator = "Low"
+
+        resolved_period = getattr(nlu.entities, "time", None) or getattr(nlu.entities, "date", None) or "current"
+        persona_context = {
+            "persona": resolved_persona.value,
+            "location": effective_location,
+            "forecast_period": resolved_period,
+            "intent": nlu.intent.value,
+        }
+        final_recommendation = getattr(advisory, "headline", None) or (getattr(advisory, "advisory_text", "")[:120] if getattr(advisory, "advisory_text", None) else final_answer[:120])
+
+        # Formulate Deterministic Explanation Points ("Why SkyZen recommends this")
+        explanation_points: List[str] = []
+
+        # 1. Rain / Weather Expectation
+        if is_rain_expected:
+            if rain_prob > 0:
+                explanation_points.append(f"Rain expected during your travel period ({rain_prob:.0f}% precipitation probability)")
+            else:
+                explanation_points.append("Precipitation or wet conditions expected during your travel period")
+        else:
+            explanation_points.append(f"No significant rain expected for your selected time window ({weather_cond})")
+
+        # 2. Source Agreement
+        agreement_val = reasoning.source_agreement.value if hasattr(reasoning.source_agreement, "value") else str(reasoning.source_agreement)
+        if agreement_val in ("high", "consistent"):
+            sources_str = ", ".join(reasoning.sources_used) if reasoning.sources_used else "IMD & Open-Meteo"
+            explanation_points.append(f"Multiple sources agree on forecast consistency ({sources_str})")
+        elif agreement_val == "single_source":
+            src_name = reasoning.sources_used[0] if reasoning.sources_used else "IMD"
+            explanation_points.append(f"Authoritative ground-truth data verified from {src_name}")
+        elif agreement_val == "moderate":
+            explanation_points.append("Forecast sources show moderate agreement across temperature and precipitation")
+        else:
+            explanation_points.append("Variance detected across weather providers; advisory tuned with extra safety margin")
+
+        # 3. Official Warning Status
+        if reasoning.active_warnings:
+            warn_titles = [getattr(w, "title", "Alert") for w in reasoning.active_warnings]
+            explanation_points.append(f"Official IMD Warning active: {', '.join(warn_titles[:2])}")
+        else:
+            explanation_points.append("No active severe warning")
+
+        # 4. Persona Context Guidance
+        if resolved_persona.value == "student":
+            explanation_points.append("Commute and college travel timing factored into recommendation")
+        elif resolved_persona.value == "farmer":
+            explanation_points.append("Agricultural spraying, irrigation, and field guidance factored into recommendation")
+        elif resolved_persona.value == "fisherman":
+            explanation_points.append("Coastal squall and sea-safety criteria factored into recommendation")
+        elif resolved_persona.value == "commuter":
+            explanation_points.append("Road safety and transit commute factors evaluated")
+        elif resolved_persona.value in ("traveller", "traveler"):
+            explanation_points.append("Travel route conditions and outdoor planning evaluated")
+
+        # 5. Hazard Signals (if monitored)
+        if reasoning.detected_hazards:
+            hz_names = [h.hazard_type.replace('_', ' ').title() for h in reasoning.detected_hazards[:2]]
+            explanation_points.append(f"Hazard signals monitored: {', '.join(hz_names)}")
+
+
+        query_summary_str = (cleaned_msg or message or "")[:120]
         decision_trace = DecisionTrace(
             trace_id=f"dt_{request_id}",
             evaluated_at=datetime.now(timezone.utc),
-            query_summary=(cleaned_msg or message or "")[:120],
+            query_summary=query_summary_str,
             resolved_location=effective_location,
-            resolved_time_window=getattr(nlu.entities, "time", None) or getattr(nlu.entities, "date", None) or "current",
+            resolved_time_window=resolved_period,
             detected_intent=nlu.intent.value,
             persona=resolved_persona.value,
             language=target_lang.value,
@@ -552,6 +659,21 @@ class WeatherGPTPipeline:
             degradation_reason="; ".join(degraded_reasons) if degraded_reasons else None,
             stage_latencies_ms=stage_latencies,
             final_response_status="VALIDATED" if validation.is_valid else "FALLBACK_SUBSTITUTED",
+            # Phase 6 fields
+            request=query_summary_str,
+            location=effective_location,
+            forecast_period=resolved_period,
+            confidence_score=reasoning.consistency_score,
+            confidence_indicator=confidence_indicator,
+            rainfall_indicators=rainfall_indicators,
+            temperature=temperature_data,
+            wind=wind_data,
+            hazard_signals=hazards_list,
+            official_warnings=official_warnings_list,
+            persona_context=persona_context,
+            final_recommendation=final_recommendation,
+            explanation_points=explanation_points,
+            sources=reasoning.sources_used or ["IMD"],
         )
 
         # Return Canonical Payload conforming to docs/08_Api_Contracts.md & Phase 16/19

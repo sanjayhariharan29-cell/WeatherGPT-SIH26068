@@ -318,5 +318,6 @@ class ChatIntegrationService:
             "safety_telemetry": pipeline_result.get("safety_telemetry"),
             "hazards": pipeline_result.get("hazards", []),
             "advisory": pipeline_result.get("advisory", {}),
-            "fallback_used": pipeline_result.get("fallback_used", False)
+            "fallback_used": pipeline_result.get("fallback_used", False),
+            "decision_trace": pipeline_result.get("decision_trace"),
         }

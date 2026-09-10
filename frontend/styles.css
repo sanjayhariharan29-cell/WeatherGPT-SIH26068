@@ -1003,62 +1003,171 @@ body {
   border-radius: var(--radius-pill);
 }
 
-/* Structured AI Reasoner Card */
+/* Structured AI Reasoner Card & DecisionTrace UI */
 .ai-reasoning-box {
   background: #F8FAFC;
   border: 1px solid #E2E8F0;
   border-radius: var(--radius-md);
-  padding: 10px 12px;
-  margin-top: 4px;
+  padding: 12px 14px;
+  margin-top: 8px;
   display: flex;
   flex-direction: column;
-  gap: 6px;
+  gap: 8px;
   font-size: 12px;
 }
 
-.confidence-row {
+.trace-header {
   display: flex;
   align-items: center;
-  gap: 8px;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid #EDF2F7;
+}
+
+.verified-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 10px;
+  font-weight: 700;
+  color: #0284C7;
+  background: #E0F2FE;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  letter-spacing: 0.5px;
 }
 
 .confidence-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
   font-size: 10px;
   font-weight: 700;
   color: #166534;
   background: var(--success-green-bg);
-  padding: 2px 8px;
+  padding: 3px 8px;
   border-radius: var(--radius-pill);
   text-transform: uppercase;
 }
 
+.confidence-badge.moderate,
 .confidence-badge.medium {
   color: #92400E;
   background: var(--alert-warning-bg);
 }
 
-.confidence-desc {
-  font-size: 12px;
-  font-weight: 500;
-  color: var(--text-secondary);
+.confidence-badge.low {
+  color: #991B1B;
+  background: #FEE2E2;
 }
 
-.source-attribution-row {
+.trace-why-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.trace-why-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.trace-points-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+}
+
+.trace-point-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 6px;
+  font-size: 11.5px;
+  line-height: 1.4;
+  color: #334155;
+}
+
+.trace-point-bullet {
+  color: var(--primary-blue);
+  font-weight: bold;
+}
+
+.trace-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-top: 6px;
+  border-top: 1px solid #EDF2F7;
   font-size: 11px;
   color: var(--text-muted);
+}
+
+.trace-sources {
   display: flex;
   align-items: center;
   gap: 4px;
 }
 
-.verified-tag {
-  font-size: 10px;
-  font-weight: 700;
-  color: var(--primary-blue);
-  background: var(--light-blue);
-  padding: 2px 6px;
+.trace-toggle-btn {
+  background: none;
+  border: 1px solid #CBD5E1;
   border-radius: 4px;
+  padding: 2px 6px;
+  font-size: 10px;
+  font-weight: 600;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  transition: all 0.2s ease;
 }
+
+.trace-toggle-btn:hover {
+  background: #E2E8F0;
+  color: #0F172A;
+}
+
+.trace-details-drawer {
+  background: #F1F5F9;
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 4px;
+}
+
+.trace-factors-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 6px;
+  font-size: 11px;
+}
+
+.trace-factor-item {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  color: #475569;
+}
+
+.factor-label {
+  font-weight: 500;
+  color: #64748B;
+}
+
+.factor-val {
+  font-weight: 600;
+  color: #1E293B;
+}
+
 
 /* Inline Warning Badge for AI Chat Text */
 .inline-warning-badge {

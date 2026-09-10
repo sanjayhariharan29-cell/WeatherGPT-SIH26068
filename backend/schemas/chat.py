@@ -88,3 +88,4 @@ class ChatResponse(BaseModel):
     data_quality: Optional[Dict[str, Any]] = Field(default=None, description="Data availability and quality status")
     data_timestamp: str = Field(description="Observation timestamp (ISO 8601 UTC)")
     validation: Optional[ValidationSummary] = Field(default=None, description="AI safety validation report")
+    decision_trace: Optional[Dict[str, Any]] = Field(default=None, description="Structured DecisionTrace explaining system factors and recommendation basis")
