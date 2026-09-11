@@ -459,6 +459,23 @@
         <span id="offlineBarText">You're offline. Reconnect to refresh weather.</span>
       </div>
 
+      <!-- Location Permission Explanation Banner (First Use / Prompt) -->
+      <div id="locationPermissionPrompt" class="location-permission-prompt hidden" role="region" aria-label="Location Permission Request">
+        <div class="loc-prompt-content">
+          <div class="loc-prompt-icon">
+            <span class="material-symbols-rounded">near_me</span>
+          </div>
+          <div class="loc-prompt-info">
+            <h4 class="loc-prompt-title">Personal Weather &amp; Warning Intelligence</h4>
+            <p class="loc-prompt-text">Allow SkyZen to use your location for local weather and alerts.</p>
+          </div>
+          <div class="loc-prompt-actions">
+            <button id="locPromptAllowBtn" class="loc-btn primary">Allow Location</button>
+            <button id="locPromptDismissBtn" class="loc-btn secondary">Not Now</button>
+          </div>
+        </div>
+      </div>
+
       <!-- Top Header Navigation -->
       <header class="header-glass" role="banner">
         <div class="brand">
@@ -1210,17 +1227,21 @@
               </div>
             </div>
 
-            <!-- Card Actions: Ask AI, Save Location, Compare Matrix -->
+            <!-- Card Actions: Ask AI, Save Location, Set as Home, Compare Matrix -->
             <div class="map-card-actions">
               <button id="mapAskAiBtn" class="map-action-btn primary" title="Ask AI About This Location">
                 <span class="material-symbols-rounded icon-sm">auto_awesome</span>
                 <span data-i18n="map.ask_ai">Ask AI About Location</span>
               </button>
+              <button id="mapSetAsHomeBtn" class="map-action-btn secondary" title="Set as Home Dashboard Location">
+                <span class="material-symbols-rounded icon-sm">home_pin</span>
+                <span>Set as Home</span>
+              </button>
               <button id="mapSaveLocBtn" class="map-action-btn secondary" title="Save This Location">
                 <span class="material-symbols-rounded icon-sm">bookmark_add</span>
                 <span data-i18n="map.save_location">Save</span>
               </button>
-              <button id="mapToggleCompareBtn" class="map-action-btn secondary" title="Compare with GPS & Saved">
+              <button id="mapToggleCompareBtn" class="map-action-btn secondary" title="Compare with GPS &amp; Saved">
                 <span class="material-symbols-rounded icon-sm">compare_arrows</span>
                 <span data-i18n="map.compare_locations">Compare</span>
               </button>

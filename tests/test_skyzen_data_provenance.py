@@ -17,6 +17,7 @@ import pytest
 from datetime import datetime, timezone, timedelta
 from unittest.mock import AsyncMock, patch, MagicMock
 
+from backend.services.cache import provider_cache
 from backend.services.open_meteo_adapter import OpenMeteoAdapter
 from backend.services.nasa_power_adapter import NasaPowerAdapter
 from backend.services.weather_manager import WeatherManager
@@ -71,6 +72,7 @@ async def test_rule_2_no_synthetic_data_when_aqi_provider_fails():
 async def test_rule_3_no_fake_precipitation_percentages():
     """Rule 3: Open-Meteo current weather must extract real model hourly probability, not ternary heuristic."""
     adapter = OpenMeteoAdapter()
+    provider_cache.clear()
 
     fake_payload = {
         "current": {

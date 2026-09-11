@@ -468,6 +468,69 @@ function setupEventListeners() {
     }
   });
   window.addEventListener("focus", handleForegroundWakeup);
+
+  // Location Permission Explanation Prompt Actions
+  const locPromptAllowBtn = document.getElementById("locPromptAllowBtn");
+  if (locPromptAllowBtn) {
+    locPromptAllowBtn.addEventListener("click", () => {
+      hideLocationPermissionPrompt();
+      refreshForegroundLocation("user_permission_allow");
+    });
+  }
+
+  const locPromptDismissBtn = document.getElementById("locPromptDismissBtn");
+  if (locPromptDismissBtn) {
+    locPromptDismissBtn.addEventListener("click", () => {
+      hideLocationPermissionPrompt();
+      localStorage.setItem("skyzen_loc_prompt_dismissed", "true");
+      loadLastKnownLocation();
+    });
+  }
+
+  // Set Inspected Map Location as Home Dashboard Location
+  const mapSetAsHomeBtn = document.getElementById("mapSetAsHomeBtn");
+  if (mapSetAsHomeBtn) {
+    mapSetAsHomeBtn.addEventListener("click", () => {
+      if (!selectedLocationState || !selectedLocationState.name) {
+        showMobileNotice("Please select a location on the map first.", "info", 2000);
+        return;
+      }
+      const locName = selectedLocationState.name;
+      const lat = selectedLocationState.latitude;
+      const lon = selectedLocationState.longitude;
+
+      // Update location dropdown
+      const locSelect = document.getElementById("locationSelect");
+      if (locSelect) {
+        let found = false;
+        for (let i = 0; i < locSelect.options.length; i++) {
+          if (locSelect.options[i].value.toLowerCase() === locName.toLowerCase()) {
+            locSelect.selectedIndex = i;
+            found = true;
+            break;
+          }
+        }
+        if (!found) {
+          const opt = document.createElement("option");
+          opt.value = locName;
+          opt.textContent = `${locName} (Manual)`;
+          locSelect.insertBefore(opt, locSelect.firstChild);
+          locSelect.selectedIndex = 0;
+        }
+      }
+
+      setLocationState(
+        LOCATION_STATE_TYPES.MANUAL,
+        locName,
+        lat,
+        lon,
+        null,
+        new Date().toISOString()
+      );
+      loadCurrentWeather(true);
+      showMobileNotice(`Set ${locName} as Home dashboard location`, "info", 3000);
+    });
+  }
 }
 
 function addAndSelectLocation(cityName, stateName, lat, lon) {
@@ -512,6 +575,16 @@ function addAndSelectLocation(cityName, stateName, lat, lon) {
 // ============================================================================
 
 const LOCATION_STATE_TYPES = {
+  // Mega 2 Canonical Location States
+  LOCATION_LIVE: "LOCATION_LIVE",
+  LOCATION_LAST_KNOWN: "LOCATION_LAST_KNOWN",
+  LOCATION_MANUAL: "LOCATION_MANUAL",
+  LOCATION_PERMISSION_DENIED: "LOCATION_PERMISSION_DENIED",
+  LOCATION_UNAVAILABLE: "LOCATION_UNAVAILABLE",
+  LOCATION_TIMEOUT: "LOCATION_TIMEOUT",
+  LOCATION_REVERSE_GEOCODE_FAILED: "LOCATION_REVERSE_GEOCODE_FAILED",
+
+  // Compatibility Aliases for existing test assertions
   LIVE_GPS: "CURRENT_LIVE_LOCATION",
   LAST_KNOWN: "LAST_KNOWN_LOCATION",
   MANUAL: "MANUAL_LOCATION"
@@ -522,6 +595,7 @@ const FOREGROUND_REFRESH_THROTTLE_MS = 30000; // 30 seconds throttle to prevent 
 let lastForegroundRefreshTime = 0;
 let isLocating = false;
 
+// Primary User Location State (Source of truth on Home Dashboard)
 let currentLocationState = {
   type: LOCATION_STATE_TYPES.LIVE_GPS,
   name: "Coimbatore",
@@ -532,14 +606,29 @@ let currentLocationState = {
   isStale: false
 };
 
+// Actively Inspected Map Location (Preserved separately for map & AI handoff)
+let selectedLocationState = null;
+
+function hasMovedSignificantly(lat1, lon1, lat2, lon2, thresholdKm = 1.0) {
+  if (lat1 === null || lon1 === null || lat2 === null || lon2 === null) return true;
+  const dLat = (lat2 - lat1) * 111;
+  const dLon = (lon2 - lon1) * 111 * Math.cos((lat1 * Math.PI) / 180);
+  const dist = Math.sqrt(dLat * dLat + dLon * dLon);
+  return dist >= thresholdKm;
+}
+
 function getLocationState() {
   return { ...currentLocationState };
+}
+
+function getSelectedLocationState() {
+  return selectedLocationState ? { ...selectedLocationState } : null;
 }
 
 function setLocationState(type, name, lat = null, lon = null, accuracy = null, timestamp = null) {
   const ts = timestamp || new Date().toISOString();
   let isStale = false;
-  if (type === LOCATION_STATE_TYPES.LAST_KNOWN) {
+  if (type === LOCATION_STATE_TYPES.LAST_KNOWN || type === LOCATION_STATE_TYPES.LOCATION_LAST_KNOWN || type === "LAST_KNOWN_LOCATION") {
     const age = Date.now() - new Date(ts).getTime();
     isStale = isNaN(age) ? false : age > STALE_LOCATION_THRESHOLD_MS;
   }
@@ -556,7 +645,7 @@ function setLocationState(type, name, lat = null, lon = null, accuracy = null, t
 
   updateLocationUI();
 
-  if (type === LOCATION_STATE_TYPES.LIVE_GPS || type === LOCATION_STATE_TYPES.LAST_KNOWN) {
+  if (type === LOCATION_STATE_TYPES.LIVE_GPS || type === LOCATION_STATE_TYPES.LOCATION_LIVE || type === LOCATION_STATE_TYPES.LAST_KNOWN || type === LOCATION_STATE_TYPES.LOCATION_LAST_KNOWN) {
     persistLastKnownLocation(currentLocationState);
   }
 }
@@ -587,11 +676,11 @@ function updateLocationUI() {
 
   if (badgeElem && badgeText) {
     badgeElem.className = "location-state-badge";
-    if (state.type === LOCATION_STATE_TYPES.LIVE_GPS) {
+    if (state.type === LOCATION_STATE_TYPES.LIVE_GPS || state.type === LOCATION_STATE_TYPES.LOCATION_LIVE || state.type === "CURRENT_LIVE_LOCATION") {
       badgeElem.classList.add("live");
       badgeText.textContent = "CURRENT LIVE LOCATION";
       badgeElem.title = `Current Live GPS (Accuracy: ${state.accuracy ? Math.round(state.accuracy) + 'm' : 'Standard'})`;
-    } else if (state.type === LOCATION_STATE_TYPES.LAST_KNOWN) {
+    } else if (state.type === LOCATION_STATE_TYPES.LAST_KNOWN || state.type === LOCATION_STATE_TYPES.LOCATION_LAST_KNOWN || state.type === "LAST_KNOWN_LOCATION") {
       if (state.isStale) {
         badgeElem.classList.add("last-known-stale");
         const minutesAgo = Math.round((Date.now() - new Date(state.timestamp).getTime()) / 60000);
@@ -602,6 +691,22 @@ function updateLocationUI() {
         badgeText.textContent = "LAST KNOWN LOCATION";
         badgeElem.title = "Last known location from recent session";
       }
+    } else if (state.type === LOCATION_STATE_TYPES.LOCATION_PERMISSION_DENIED) {
+      badgeElem.classList.add("denied");
+      badgeText.textContent = "PERMISSION DENIED";
+      badgeElem.title = "Device geolocation permission denied by user";
+    } else if (state.type === LOCATION_STATE_TYPES.LOCATION_UNAVAILABLE) {
+      badgeElem.classList.add("unavailable");
+      badgeText.textContent = "GPS UNAVAILABLE";
+      badgeElem.title = "GPS hardware or position unavailable";
+    } else if (state.type === LOCATION_STATE_TYPES.LOCATION_TIMEOUT) {
+      badgeElem.classList.add("timeout");
+      badgeText.textContent = "GPS TIMEOUT";
+      badgeElem.title = "GPS location request timed out";
+    } else if (state.type === LOCATION_STATE_TYPES.LOCATION_REVERSE_GEOCODE_FAILED) {
+      badgeElem.classList.add("partial");
+      badgeText.textContent = "COORDINATES ONLY";
+      badgeElem.title = "Live GPS coordinates acquired, reverse geocoding unavailable";
     } else {
       badgeElem.classList.add("manual");
       badgeText.textContent = "MANUAL LOCATION";
@@ -669,8 +774,55 @@ function loadLastKnownLocation() {
   return false;
 }
 
+function showLocationPermissionPrompt() {
+  const prompt = document.getElementById("locationPermissionPrompt");
+  if (prompt) {
+    prompt.classList.remove("hidden");
+  }
+}
+
+function hideLocationPermissionPrompt() {
+  const prompt = document.getElementById("locationPermissionPrompt");
+  if (prompt) {
+    prompt.classList.add("hidden");
+  }
+}
+
+async function checkAndPromptLocationPermission() {
+  if (!navigator.geolocation) {
+    loadLastKnownLocation();
+    return;
+  }
+
+  if (navigator.permissions && navigator.permissions.query) {
+    try {
+      const status = await navigator.permissions.query({ name: "geolocation" });
+      if (status.state === "prompt" && !localStorage.getItem("skyzen_loc_prompt_dismissed")) {
+        showLocationPermissionPrompt();
+        return;
+      } else if (status.state === "granted") {
+        refreshForegroundLocation("permission_granted");
+        return;
+      } else if (status.state === "denied") {
+        loadLastKnownLocation();
+        return;
+      }
+    } catch (e) {
+      // Permissions API query not supported in environment
+    }
+  }
+  refreshForegroundLocation("app_open");
+}
+
 async function refreshForegroundLocation(triggerReason = "manual") {
   if (isLocating) return;
+
+  const now = Date.now();
+  if (triggerReason !== "user_click" && triggerReason !== "user_permission_allow" && (now - lastForegroundRefreshTime < FOREGROUND_REFRESH_THROTTLE_MS)) {
+    console.log("[Location] Foreground location check throttled.");
+    return;
+  }
+  lastForegroundRefreshTime = now;
 
   // Offline guard: do not attempt network geocoding when offline
   if (!navigator.onLine) {
@@ -705,17 +857,25 @@ async function refreshForegroundLocation(triggerReason = "manual") {
       const accuracy = pos.coords.accuracy;
 
       let resolvedName = null;
+      let isReverseGeocodeFailed = false;
       try {
         const locDetail = await window.apiClient.reverseGeocode(lat, lon, accuracy);
         resolvedName = locDetail?.name || locDetail?.district || null;
       } catch (err) {
         console.warn("[Location] Reverse-geocoding failed:", err.message);
+        isReverseGeocodeFailed = true;
       }
 
       // Anti-fabrication policy: Never invent a location name if geocoding fails!
       if (!resolvedName) {
         resolvedName = `Location (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`;
+        isReverseGeocodeFailed = true;
       }
+
+      // Check if user has moved significantly (> 1km)
+      const prevLat = currentLocationState.latitude;
+      const prevLon = currentLocationState.longitude;
+      const movedSignificantly = !prevLat || !prevLon || hasMovedSignificantly(prevLat, prevLon, lat, lon, 1.0);
 
       // Detect location switch (e.g. user moved from Coimbatore to Chennai)
       const previousLocation = currentLocationState.name;
@@ -742,8 +902,12 @@ async function refreshForegroundLocation(triggerReason = "manual") {
         }
       }
 
+      const stateType = isReverseGeocodeFailed
+        ? LOCATION_STATE_TYPES.LOCATION_REVERSE_GEOCODE_FAILED
+        : LOCATION_STATE_TYPES.LIVE_GPS;
+
       setLocationState(
-        LOCATION_STATE_TYPES.LIVE_GPS,
+        stateType,
         resolvedName,
         lat,
         lon,
@@ -757,8 +921,10 @@ async function refreshForegroundLocation(triggerReason = "manual") {
         showMobileNotice(`GPS acquired: ${resolvedName}`, "info", 3000);
       }
 
-      // Fetch fresh weather for the new live GPS coordinates
-      await loadCurrentWeather(true);
+      // Fetch fresh weather if moved significantly or explicitly requested
+      if (movedSignificantly || triggerReason === "user_click" || triggerReason === "session_restore" || triggerReason === "user_permission_allow") {
+        await loadCurrentWeather(true);
+      }
     },
     (err) => {
       isLocating = false;
@@ -772,6 +938,9 @@ async function refreshForegroundLocation(triggerReason = "manual") {
 
       if (err.code === 1) {
         // PERMISSION_DENIED
+        if (!hadLastKnown) {
+          setLocationState(LOCATION_STATE_TYPES.LOCATION_PERMISSION_DENIED, "Location Permission Denied", null, null);
+        }
         if (triggerReason === "user_click") {
           showMobileNotice("Location permission denied. Please enable GPS permissions in browser settings.", "warning", 5000);
         } else {
@@ -779,11 +948,17 @@ async function refreshForegroundLocation(triggerReason = "manual") {
         }
       } else if (err.code === 2) {
         // POSITION_UNAVAILABLE
+        if (!hadLastKnown) {
+          setLocationState(LOCATION_STATE_TYPES.LOCATION_UNAVAILABLE, "GPS Position Unavailable", null, null);
+        }
         if (triggerReason === "user_click") {
           showMobileNotice("GPS signal unavailable. Please ensure location is enabled on device.", "warning", 4000);
         }
       } else if (err.code === 3) {
         // TIMEOUT
+        if (!hadLastKnown) {
+          setLocationState(LOCATION_STATE_TYPES.LOCATION_TIMEOUT, "GPS Request Timed Out", null, null);
+        }
         if (triggerReason === "user_click") {
           showMobileNotice("GPS request timed out. Using last known location.", "warning", 3500);
         }
@@ -2866,14 +3041,23 @@ async function handleUserSend(isVoice = false) {
   const persona = document.getElementById("personaSelect")?.value || "student";
 
   // Build structured location payload with live GPS coordinates, accuracy, and staleness metadata
-  const locationPayload = {
-    name: location,
-    latitude: currentLocationState?.latitude ?? null,
-    longitude: currentLocationState?.longitude ?? null,
-    source_type: currentLocationState?.type ?? LOCATION_STATE_TYPES.MANUAL,
-    accuracy: currentLocationState?.accuracy ?? null,
-    is_stale: Boolean(currentLocationState?.isStale)
-  };
+  const locationPayload = (selectedLocationState && selectedLocationState.name && (text.toLowerCase().includes("there") || text.toLowerCase().includes(selectedLocationState.name.toLowerCase())))
+    ? {
+        name: selectedLocationState.name,
+        latitude: selectedLocationState.latitude ?? null,
+        longitude: selectedLocationState.longitude ?? null,
+        source_type: "SELECTED_MAP_LOCATION",
+        accuracy: null,
+        is_stale: false
+      }
+    : {
+        name: location,
+        latitude: currentLocationState?.latitude ?? null,
+        longitude: currentLocationState?.longitude ?? null,
+        source_type: currentLocationState?.type ?? LOCATION_STATE_TYPES.MANUAL,
+        accuracy: currentLocationState?.accuracy ?? null,
+        is_stale: Boolean(currentLocationState?.isStale)
+      };
 
   // Lock UI to prevent duplicate submission
   isSendingChatMessage = true;
@@ -3989,6 +4173,17 @@ async function selectLocationAndFetchWeather(lat, lon, knownName = null, centerM
     mapWeatherCache.set(cacheKey, { data: payload, timestamp: now });
     currentSelectedMapData = payload;
 
+    // Track inspected selected location separately from current user location
+    selectedLocationState = {
+      name: resolvedName,
+      latitude: lat,
+      longitude: lon,
+      weather: weather?.weather || null,
+      source: payload.source,
+      timestamp: new Date().toISOString(),
+      is_map_selected: true
+    };
+
     // AI context handoff integration: sync lastWeatherData
     window.lastWeatherData = weather;
 
@@ -4763,7 +4958,7 @@ class WeatherAtmosphereEngine {
         y: Math.random() * this.height,
         radius: Math.random() * 130 + 70,
         speedX: (Math.random() * 0.35 + 0.1) * (Math.random() > 0.5 ? 1 : -1),
-        speedY: (Math.random() * 0.16 - 0.08),
+        speedY: (Math.random() * 0.2 - 0.1),
         opacity: Math.random() * 0.07 + 0.03
       };
     } else if (this.condition === "NIGHT") {
@@ -4783,7 +4978,7 @@ class WeatherAtmosphereEngine {
         radius: Math.random() * 24 + 10,
         speedY: -(Math.random() * 0.35 + 0.1),
         speedX: Math.random() * 0.3 - 0.15,
-        opacity: Math.random() * 0.11 + 0.03
+        opacity: Math.random() * 0.09 + 0.03
       };
     }
   }
