@@ -620,9 +620,9 @@ def test_27_weather_live_provider_provenance():
     resp = client.get("/api/v1/weather/current?location=Coimbatore")
     assert resp.status_code == 200
     data = resp.json()
-    assert data["source"] in ("Open-Meteo", "Multi-Source Consensus (Open-Meteo)") or "Open-Meteo" in data["source"]
+    assert data["source"] in ("Open-Meteo", "Multi-Source Consensus (Open-Meteo)", "IMD (Primary)") or "Open-Meteo" in data["source"] or "IMD" in data["source"]
     assert "sources" in data
-    assert "Open-Meteo" in data["sources"]
+    assert any(s in ("Open-Meteo", "IMD") for s in data["sources"])
 
 
 def test_28_weather_freshness_status():

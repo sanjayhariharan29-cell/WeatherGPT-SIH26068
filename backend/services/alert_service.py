@@ -103,6 +103,8 @@ class AlertService:
         now_utc = datetime.now(timezone.utc)
         now_utc_str = now_utc.isoformat()
 
+        imd_state_val = "LIVE"
+
         try:
             raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
         except ProviderError:
@@ -110,6 +112,7 @@ class AlertService:
             source_label = f"{self.primary.name} Official (Degraded)"
             verification_status = "UNVERIFIED"
             system_state_val = "DEGRADED"
+            imd_state_val = "UNAVAILABLE"
 
             # Check for unexpired persisted alerts in DB to maintain safety awareness during outages
             if db_session is not None:
@@ -131,6 +134,8 @@ class AlertService:
                                     instructions=getattr(pa, "instructions", None),
                                     area=getattr(pa, "area", None) or resolved_name,
                                     source=f"{pa.source} (Persisted)",
+                                    product_type="district_warning",
+                                    state="STALE",
                                     issued_at=pa.issued_at.isoformat() if pa.issued_at else now_utc_str,
                                     expires_at=pa.expires_at.isoformat() if pa.expires_at else now_utc_str,
                                     retrieved_at=now_utc_str
@@ -156,6 +161,12 @@ class AlertService:
                 source_url_val = val_item.source_url
                 version_val = val_item.version
                 area_val = val_item.area or resolved_name
+                prod_type = val_item.product_type
+                state_val = val_item.state
+                geom_val = val_item.geometry
+                toi_val = val_item.toi
+                vupto_val = val_item.vupto
+                matched_dist = val_item.matched_district
             else:
                 normalized_sev = self.normalize_severity(item.severity)
                 active_flag = self.is_alert_active(item.issued_at, item.expires_at)
@@ -166,6 +177,12 @@ class AlertService:
                 source_url_val = getattr(item, "source_url", None)
                 version_val = getattr(item, "version", 1)
                 area_val = getattr(item, "area", None) or resolved_name
+                prod_type = getattr(item, "product_type", "district_warning")
+                state_val = getattr(item, "state", "LIVE")
+                geom_val = getattr(item, "geometry", None)
+                toi_val = getattr(item, "toi", None)
+                vupto_val = getattr(item, "vupto", None)
+                matched_dist = getattr(item, "matched_district", None)
 
             schema_item = AlertItemSchema(
                 alert_id=alert_id_val,
@@ -177,6 +194,12 @@ class AlertService:
                 area=area_val,
                 source=item.source,
                 source_url=source_url_val,
+                product_type=prod_type,
+                state=state_val,
+                geometry=geom_val,
+                toi=toi_val,
+                vupto=vupto_val,
+                matched_district=matched_dist,
                 is_official=True,
                 is_active=active_flag,
                 status=status_str,
@@ -205,6 +228,7 @@ class AlertService:
             active_count=active_count,
             source=source_label,
             status=verification_status,
+            imd_state=imd_state_val,
             retrieved_at=now_utc_str,
             system_state=system_state_val
         )
@@ -233,8 +257,7 @@ class AlertService:
                 existing = db.query(DBAlert).filter(
                     DBAlert.location_name == location_name,
                     DBAlert.alert_type == item.alert_type,
-                    DBAlert.title == item.title,
-                    DBAlert.issued_at == iss_dt
+                    DBAlert.title == item.title
                 ).first()
 
                 if not existing:

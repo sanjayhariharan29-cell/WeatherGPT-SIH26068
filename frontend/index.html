@@ -18,14 +18,12 @@
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="./styles.css">
   <script src="./i18n.js"></script>
+  <script src="./icons.js"></script>
 </head>
 <body>
 
-  <!-- System / Network Status Bar -->
-  <div id="offlineBar" class="offline-bar hidden" role="alert" aria-live="assertive">
-    <span class="material-symbols-rounded" id="offlineBarIcon">cloud_off</span>
-    <span id="offlineBarText">You're offline. Reconnect to refresh weather.</span>
-  </div>
+  <!-- Cinematic Living Atmosphere Background Canvas -->
+  <canvas id="weatherAtmosphereCanvas" class="weather-atmosphere-canvas" aria-hidden="true"></canvas>
 
   <!-- Mobile Permission & Feedback Notice Banner -->
   <div id="mobileNotice" class="mobile-notice hidden" role="status" aria-live="polite"></div>
@@ -389,6 +387,12 @@
   </div>
 
   <div class="app-container">
+    <!-- System / Network Status Bar (Integrated into app layout) -->
+    <div id="offlineBar" class="offline-bar hidden" role="alert" aria-live="assertive">
+      <span class="material-symbols-rounded" id="offlineBarIcon">cloud_off</span>
+      <span id="offlineBarText">You're offline. Reconnect to refresh weather.</span>
+    </div>
+
     <!-- Top Header Navigation -->
     <header class="header-glass" role="banner">
       <div class="brand">
@@ -432,6 +436,44 @@
         </button>
       </div>
     </header>
+
+    <!-- Desktop Horizontal Navigation Bar -->
+    <nav class="desktop-nav-bar" role="navigation" aria-label="Desktop Dashboard Navigation">
+      <div class="desktop-nav-inner">
+        <button class="nav-item active" data-screen="home" aria-label="Home Dashboard" aria-selected="true">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
+          <span data-i18n="nav.home">Dashboard</span>
+        </button>
+        <button class="nav-item" data-screen="map" aria-label="Live Radar & Geospatial Map" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
+          <span>Live Radar Map</span>
+        </button>
+        <button class="nav-item" data-screen="alerts" aria-label="Official IMD Warnings" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
+          <span data-i18n="nav.alerts">IMD Warnings</span>
+        </button>
+        <button class="nav-item" data-screen="weather" aria-label="7-Day & Hourly Forecast" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">calendar_month</span>
+          <span>Forecast & Trends</span>
+        </button>
+        <button class="nav-item" data-screen="chat" aria-label="AI Meteorologist Copilot" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">psychology</span>
+          <span data-i18n="nav.ai">AI Meteorologist</span>
+        </button>
+        <button class="nav-item" data-screen="air-quality" aria-label="Air Quality Index" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">air</span>
+          <span>Air Quality (AQI)</span>
+        </button>
+        <button class="nav-item" data-screen="locations" aria-label="Multi-District Weather Radar" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">location_on</span>
+          <span>Saved Districts</span>
+        </button>
+        <button class="nav-item" data-screen="settings" aria-label="Settings & Configuration" aria-selected="false">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
+          <span>Settings</span>
+        </button>
+      </div>
+    </nav>
 
     <!-- Official Warning Priority Banner (Top Priority Visual Component) -->
     <div id="alertBanner" class="alert-banner hidden" role="region" aria-label="Official Warning Banner" aria-live="assertive">
@@ -568,6 +610,60 @@
           </div>
         </section>
 
+        <!-- Next 60-Minute Precipitation Timeline (Dark Sky / Apple Weather Nowcast) -->
+        <section id="minuteRainSection" class="glass-panel minute-rain-card" aria-label="Next 60-Minute Precipitation Forecast">
+          <div class="minute-rain-header">
+            <div class="minute-rain-title-group">
+              <div class="minute-pulse-indicator" id="minutePulseIndicator"></div>
+              <div>
+                <h3 class="minute-rain-title" id="minuteRainHeadline">Next 60 Minutes Precipitation</h3>
+                <p class="minute-rain-summary" id="minuteRainSummary">Analyzing Doppler radar nowcast...</p>
+              </div>
+            </div>
+            <div class="minute-rain-badges">
+              <span class="nowcast-live-badge" id="nowcastLiveBadge">
+                <span class="material-symbols-rounded icon-sm">radar</span>
+                <span>IMD NOWCAST</span>
+              </span>
+            </div>
+          </div>
+          
+          <div class="minute-rain-chart-wrapper">
+            <div class="minute-rain-y-axis">
+              <span>Heavy</span>
+              <span>Med</span>
+              <span>Light</span>
+              <span>Dry</span>
+            </div>
+            <div class="minute-rain-canvas-box" id="minuteRainCanvasBox">
+              <canvas id="minuteRainChart" class="minute-rain-chart" height="96"></canvas>
+              <div id="minuteRainScrubber" class="minute-rain-scrubber hidden">
+                <div class="scrubber-line"></div>
+                <div class="scrubber-tooltip" id="minuteScrubberTooltip">0m: Dry</div>
+              </div>
+            </div>
+          </div>
+          
+          <div class="minute-rain-timeline-labels">
+            <span>Now</span>
+            <span>15m</span>
+            <span>30m</span>
+            <span>45m</span>
+            <span>60m</span>
+          </div>
+
+          <div class="minute-rain-footer">
+            <div class="minute-footer-left">
+              <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">water_drop</span>
+              <span id="minuteRainPeakText">Peak rate: 0.0 mm/hr</span>
+            </div>
+            <button type="button" class="minute-radar-link-btn" onclick="activateRadarLayer()" aria-label="View Live Doppler Radar Map">
+              <span>View Live Radar Map</span>
+              <span class="material-symbols-rounded icon-sm">arrow_forward</span>
+            </button>
+          </div>
+        </section>
+
         <!-- Hourly Forecast Carousel -->
         <section class="glass-panel hourly-section-wrapper" aria-label="Hourly Forecast Timeline">
           <div class="section-header">
@@ -593,6 +689,30 @@
           </div>
           <div id="dailyForecastList" class="daily-forecast-list" role="list">
             <!-- Dynamically populated -->
+          </div>
+        </section>
+
+        <!-- Smart Lifestyle & Persona "Can I..." Decision Hub -->
+        <section id="lifestyleHubSection" class="glass-panel lifestyle-hub-section" aria-label="Smart Lifestyle & Daily Decision Hub">
+          <div class="section-header lifestyle-header">
+            <div>
+              <h3 class="section-title">
+                <span class="material-symbols-rounded" style="color:var(--primary-blue);">insights</span>
+                <span>Smart Lifestyle & Persona Insights</span>
+              </h3>
+              <p class="section-subtitle">Real-time AI feasibility indices computed from live telemetry</p>
+            </div>
+            <div class="lifestyle-filter-chips" role="tablist" aria-label="Filter persona insights">
+              <button type="button" class="lifestyle-chip active" data-filter="all" onclick="filterLifestyleCards('all')">All</button>
+              <button type="button" class="lifestyle-chip" data-filter="commute" onclick="filterLifestyleCards('commute')">Commute</button>
+              <button type="button" class="lifestyle-chip" data-filter="farmer" onclick="filterLifestyleCards('farmer')">Farmer</button>
+              <button type="button" class="lifestyle-chip" data-filter="fitness" onclick="filterLifestyleCards('fitness')">Fitness</button>
+              <button type="button" class="lifestyle-chip" data-filter="home" onclick="filterLifestyleCards('home')">Home & Daily</button>
+            </div>
+          </div>
+
+          <div class="lifestyle-cards-grid" id="lifestyleCardsGrid">
+            <!-- Dynamically populated cards -->
           </div>
         </section>
 
@@ -634,7 +754,7 @@
         </section>
 
         <!-- Quick Weather Tools Hub Tiles -->
-        <section class="glass-panel" aria-label="Weather Intelligence Tools">
+        <section id="homeWeatherToolsSection" class="glass-panel home-grid-col-right" aria-label="Weather Intelligence Tools">
           <div class="section-header">
             <h3 class="section-title">
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">grid_view</span>
@@ -945,6 +1065,10 @@
             <button class="map-layer-pill alerts" data-map-layer="warnings" role="radio" aria-checked="false">
               <span class="material-symbols-rounded icon-sm">warning</span>
               <span data-i18n="map.layer_warnings">IMD Alerts</span>
+            </button>
+            <button class="map-layer-pill radar" data-map-layer="radar" role="radio" aria-checked="false" id="mapRadarLayerPill">
+              <span class="material-symbols-rounded icon-sm">radar</span>
+              <span>Live Radar</span>
             </button>
           </div>
           
@@ -1526,6 +1650,101 @@
         <span data-i18n="nav.more">More</span>
       </button>
     </nav>
+
+    <!-- Floating SkyZen AI Copilot Action Button -->
+    <button id="skyzenCopilotFab" class="copilot-fab" onclick="toggleSkyzenCopilot()" aria-label="Open SkyZen Proactive AI Copilot" title="SkyZen AI Copilot">
+      <div class="copilot-fab-pulse"></div>
+      <div class="copilot-fab-icon">
+        <span class="material-symbols-rounded">psychology</span>
+      </div>
+      <span class="copilot-fab-label">AI Copilot</span>
+    </button>
+
+    <!-- SkyZen Proactive AI Copilot Drawer -->
+    <div id="skyzenCopilotDrawer" class="copilot-drawer hidden" role="dialog" aria-modal="true" aria-label="SkyZen AI Meteorological Copilot">
+      <div class="copilot-drawer-backdrop" onclick="toggleSkyzenCopilot(false)"></div>
+      <div class="copilot-drawer-sheet">
+        <div class="copilot-drawer-header">
+          <div class="copilot-drawer-brand">
+            <div class="copilot-icon-badge">
+              <span class="material-symbols-rounded">neurology</span>
+            </div>
+            <div>
+              <h3 class="copilot-drawer-title">SkyZen AI Copilot</h3>
+              <p class="copilot-drawer-status">
+                <span class="copilot-status-dot"></span>
+                <span>MoES & IMD Decision Intelligence</span>
+              </p>
+            </div>
+          </div>
+          <button type="button" class="copilot-close-btn" onclick="toggleSkyzenCopilot(false)" aria-label="Close Copilot">
+            <span class="material-symbols-rounded">close</span>
+          </button>
+        </div>
+
+        <!-- Copilot Audio Briefing Bar -->
+        <div class="copilot-briefing-card">
+          <div class="copilot-briefing-info">
+            <span class="material-symbols-rounded briefing-speaker-icon" id="copilotSpeakerIcon">volume_up</span>
+            <div>
+              <div class="briefing-tag">DAILY AUDIO BRIEFING</div>
+              <div class="briefing-title" id="copilotBriefingTitle">Listen to localized meteorological summary</div>
+            </div>
+          </div>
+          <button type="button" id="copilotPlayBriefBtn" class="copilot-play-brief-btn" onclick="playAudioWeatherBriefing()" aria-label="Play Weather Briefing">
+            <span class="material-symbols-rounded" id="copilotPlayIcon">play_arrow</span>
+            <span id="copilotPlayBtnText">Play Briefing</span>
+          </button>
+        </div>
+
+        <!-- Quick 1-Tap Smart Queries -->
+        <div class="copilot-quick-prompts-section">
+          <span class="copilot-prompts-label">Instant Actionable Guidance:</span>
+          <div class="copilot-prompts-scroll">
+            <button type="button" class="copilot-prompt-chip" onclick="askCopilotPrompt('Do I need an umbrella today?')">
+              <span class="material-symbols-rounded icon-sm">umbrella</span>
+              <span>Need umbrella today?</span>
+            </button>
+            <button type="button" class="copilot-prompt-chip" onclick="askCopilotPrompt('Is it safe to spray crops or harvest right now?')">
+              <span class="material-symbols-rounded icon-sm">agriculture</span>
+              <span>Safe for crop spray?</span>
+            </button>
+            <button type="button" class="copilot-prompt-chip" onclick="askCopilotPrompt('Will laundry dry outdoors today?')">
+              <span class="material-symbols-rounded icon-sm">dry_cleaning</span>
+              <span>Will laundry dry?</span>
+            </button>
+            <button type="button" class="copilot-prompt-chip" onclick="askCopilotPrompt('Is it safe for outdoor cycling or jogging today?')">
+              <span class="material-symbols-rounded icon-sm">directions_bike</span>
+              <span>Outdoor fitness safety?</span>
+            </button>
+            <button type="button" class="copilot-prompt-chip" onclick="askCopilotPrompt('Are there any active IMD severe warnings or flood risks?')">
+              <span class="material-symbols-rounded icon-sm">warning</span>
+              <span>Active IMD alerts?</span>
+            </button>
+          </div>
+        </div>
+
+        <!-- Instant Copilot Answer Card -->
+        <div id="copilotAnswerCard" class="copilot-answer-card hidden">
+          <div class="copilot-answer-header">
+            <span class="copilot-query-bubble" id="copilotQueryBubble">Query</span>
+            <button type="button" class="copilot-speech-toggle-btn" id="copilotAnswerSpeakBtn" onclick="toggleReadAnswerSpeech()" title="Read aloud" aria-label="Read answer aloud">
+              <span class="material-symbols-rounded icon-sm">volume_up</span>
+            </button>
+          </div>
+          <div class="copilot-answer-body" id="copilotAnswerBody">
+            <!-- Dynamic answer rendered here -->
+          </div>
+          <div class="copilot-answer-actions">
+            <button type="button" class="copilot-deep-chat-btn" onclick="openDeepChatWithCopilot()">
+              <span>Ask Follow-up in Full AI Chat</span>
+              <span class="material-symbols-rounded icon-sm">arrow_forward</span>
+            </button>
+          </div>
+        </div>
+
+      </div>
+    </div>
 
     <!-- Footer -->
     <footer class="footer">

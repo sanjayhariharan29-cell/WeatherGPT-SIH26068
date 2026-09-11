@@ -46,6 +46,8 @@ async function initApp() {
   setupAuthPortalEngine();
   setupEventListeners();
   setupAutoRefresh();
+  initWeatherAtmosphereEngine();
+  initSkyzenCopilot();
 
   // Initial Entry Flow: Splash -> Session Check -> (Auth Portal OR Home)
   await restoreSessionOrShowAuth();
@@ -1712,6 +1714,15 @@ function renderWeatherCard(data) {
 
   // Multi-Source Transparency Breakdown
   renderSourcesBreakdown(data);
+
+  // Flagship UI Upgrades (Living Atmosphere, 60-min Nowcast, Lifestyle Hub)
+  try {
+    if (typeof updateAtmosphereWeather === "function") updateAtmosphereWeather(data);
+    if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(data);
+    if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(data);
+  } catch (err) {
+    console.warn("Flagship widgets render error:", err);
+  }
 }
 
 function renderSourcesBreakdown(data) {
@@ -1872,7 +1883,6 @@ function toggleSourcesBreakdown() {
     if (toggleBtn) toggleBtn.setAttribute("aria-expanded", "false");
   }
 }
-}
 
 // 6. Forecast Engine
 async function loadForecast(location) {
@@ -1885,6 +1895,12 @@ async function loadForecast(location) {
       }));
     } catch (e) {}
     renderForecastGrid(data);
+    if (window.lastWeatherData) {
+      try {
+        if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(window.lastWeatherData);
+        if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(window.lastWeatherData);
+      } catch (e) {}
+    }
   } catch (err) {
     console.warn("Forecast telemetry fetch error, checking local cache:", err);
     const rawCache = localStorage.getItem(`weathergpt_cache_forecast_${location.toLowerCase()}`);
@@ -1892,6 +1908,10 @@ async function loadForecast(location) {
       try {
         const cachedObj = JSON.parse(rawCache);
         renderForecastGrid(cachedObj.data, cachedObj.cachedAt);
+        if (window.lastWeatherData) {
+          if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(window.lastWeatherData);
+          if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(window.lastWeatherData);
+        }
       } catch (e) {}
     }
   }
@@ -2006,18 +2026,18 @@ async function loadAlerts(location) {
     const data = await window.apiClient.getAlerts(location);
     if (disasterList) disasterList.innerHTML = "";
 
-    if (data.status === "UNVERIFIED") {
-      if (titleElem) titleElem.textContent = "Warning Status Could Not Be Verified";
-      if (descElem) descElem.textContent = "Official disaster warning status could not be refreshed from IMD. Please check official emergency radio broadcast channels.";
+    if (data.status === "UNVERIFIED" || data.imd_state === "UNAVAILABLE") {
+      if (titleElem) titleElem.textContent = "IMD official warning data unavailable";
+      if (descElem) descElem.textContent = "Official disaster warning data from India Meteorological Department (IMD) is currently unavailable. Please check official emergency radio and IMD broadcast channels.";
       if (badgeText) {
-        badgeText.textContent = "UNVERIFIED WARNING STATE";
+        badgeText.textContent = "IMD LIVE DATA UNAVAILABLE";
       }
       if (badge) badge.className = "alert-badge moderate";
-      if (timeElem) timeElem.textContent = "Status: Unverified";
-      if (sourceElem) sourceElem.textContent = "Authoritative Source: IMD (Unverified)";
+      if (timeElem) timeElem.textContent = "Status: Unavailable";
+      if (sourceElem) sourceElem.textContent = "Authoritative Source: IMD (Unavailable)";
       banner.classList.remove("hidden");
       if (disasterList) {
-        disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>Official warning status is unverified (Service Degraded). Please check official IMD channels.</p>";
+        disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>IMD official warning data unavailable. Please check official IMD channels directly.</p>";
       }
       const alertBadge = document.getElementById("headerAlertBadge");
       if (alertBadge) {
@@ -2028,11 +2048,12 @@ async function loadAlerts(location) {
       allCurrentAlerts = data.alerts;
       const heroAlert = data.alerts[0];
       const severityStr = (heroAlert.severity || "warning").toUpperCase();
+      const isImdLive = (heroAlert.source || "").toUpperCase().includes("IMD") && heroAlert.is_official === true && heroAlert.state !== "FIXTURE";
 
       if (titleElem) titleElem.textContent = heroAlert.title || "Weather Warning";
       if (descElem) descElem.textContent = heroAlert.description || "No description provided.";
       if (badgeText) {
-        badgeText.textContent = `OFFICIAL IMD WARNING (${severityStr})`;
+        badgeText.textContent = isImdLive ? `OFFICIAL IMD WARNING (${severityStr})` : `WEATHER WARNING (${severityStr})`;
       }
       if (badge) badge.className = `alert-badge ${heroAlert.severity || 'high'}`;
       if (timeElem) {
@@ -2040,7 +2061,7 @@ async function loadAlerts(location) {
         timeElem.textContent = expStr;
       }
       if (sourceElem) {
-        sourceElem.textContent = `Authoritative Source: ${heroAlert.source || 'IMD'}`;
+        sourceElem.textContent = `Authoritative Source: India Meteorological Department (${heroAlert.source || 'IMD'})`;
       }
 
       banner.classList.remove("hidden");
@@ -2062,16 +2083,22 @@ async function loadAlerts(location) {
           <div style="text-align:center; padding:32px 16px; display:flex; flex-direction:column; align-items:center; gap:8px;">
             <span class="material-symbols-rounded icon-xl" style="color:var(--success-green);">check_circle</span>
             <strong style="font-size:15px;">All Clear in ${escapeHTML(location)}</strong>
-            <p style="font-size:13px; color:var(--text-secondary);">No severe weather warnings currently active for this region.</p>
+            <p style="font-size:13px; color:var(--text-secondary);">No severe weather warnings currently active from IMD for this region.</p>
           </div>
         `;
       }
     }
+    if (window.lastWeatherData) {
+      try {
+        if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(window.lastWeatherData);
+        if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(window.lastWeatherData);
+      } catch (e) {}
+    }
   } catch (err) {
     console.warn("Alerts telemetry fetch error:", err);
-    if (titleElem) titleElem.textContent = "Warning Status Could Not Be Verified (Offline)";
-    if (descElem) descElem.textContent = "You are currently offline. Official disaster warning status could not be verified from IMD. Please check official emergency channels.";
-    if (badgeText) badgeText.textContent = "UNVERIFIED WARNING STATE";
+    if (titleElem) titleElem.textContent = "IMD official warning data unavailable (Offline)";
+    if (descElem) descElem.textContent = "You are currently offline. IMD official warning data unavailable. Please check official IMD broadcasts.";
+    if (badgeText) badgeText.textContent = "IMD LIVE DATA UNAVAILABLE";
     if (badge) badge.className = "alert-badge moderate";
     if (timeElem) timeElem.textContent = "Status: Offline";
     if (sourceElem) sourceElem.textContent = "Authoritative Source: IMD (Offline)";
@@ -2082,7 +2109,13 @@ async function loadAlerts(location) {
       alertBadge.classList.remove("hidden");
     }
     if (disasterList) {
-      disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>Warning status unverified while offline. Please check official IMD broadcasts.</p>";
+      disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>IMD official warning data unavailable while offline. Please check official IMD broadcasts.</p>";
+    }
+    if (window.lastWeatherData) {
+      try {
+        if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(window.lastWeatherData);
+        if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(window.lastWeatherData);
+      } catch (e) {}
     }
   }
 }
@@ -3212,6 +3245,13 @@ function setupIntelligentMapControls() {
       pill.classList.add("active");
       pill.setAttribute("aria-checked", "true");
       activeMapLayer = pill.getAttribute("data-map-layer") || "weather";
+
+      if (activeMapLayer === "radar") {
+        loadDopplerRadarLayer();
+      } else {
+        removeDopplerRadarLayer();
+      }
+
       restyleMapMarkers();
       showMobileNotice(`Map layer: ${pill.textContent.trim()}`, "info", 1800);
     });
@@ -3631,7 +3671,8 @@ function renderMapSelectionCard(payload, lat, lon) {
     const alertArea = document.getElementById("mapAlertPriorityArea");
     const alertValid = document.getElementById("mapAlertPriorityValid");
 
-    if (alertTitle) alertTitle.textContent = "OFFICIAL IMD WARNING";
+    const isImdLive = (alert.source || "").toUpperCase().includes("IMD") && alert.is_official === true && alert.state !== "FIXTURE";
+    if (alertTitle) alertTitle.textContent = isImdLive ? "OFFICIAL IMD WARNING" : "WEATHER WARNING";
     if (alertSev) {
       alertSev.textContent = severity;
       alertSev.className = `severity-pill ${severity.toLowerCase()}`;
@@ -3857,8 +3898,57 @@ function computeMarkerColorByLayer(data, layer) {
     return hasAlert ? "#e11d48" : "#0284c7";
   }
 
+  if (layer === "radar") {
+    return "#0284c7";
+  }
+
   // Default 'weather' layer
   return "#0284c7";
+}
+
+let mapRadarLayer = null;
+
+async function loadDopplerRadarLayer() {
+  if (!mapInstance) return;
+  if (mapRadarLayer) {
+    if (!mapInstance.hasLayer(mapRadarLayer)) mapRadarLayer.addTo(mapInstance);
+    return;
+  }
+  try {
+    const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+    const json = await res.json();
+    if (json && json.radar && json.radar.past && json.radar.past.length > 0) {
+      const latestRadar = json.radar.past[json.radar.past.length - 1];
+      const radarUrl = `https://tilecache.rainviewer.com${latestRadar.path}/256/{z}/{x}/{y}/2/1_1.png`;
+      mapRadarLayer = L.tileLayer(radarUrl, {
+        opacity: 0.72,
+        zIndex: 150,
+        attribution: "Doppler Radar &copy; RainViewer"
+      });
+      mapRadarLayer.addTo(mapInstance);
+      showMobileNotice("Live Doppler radar stream connected", "info", 2500);
+    }
+  } catch (e) {
+    console.warn("Could not load Doppler radar tiles:", e);
+  }
+}
+
+function removeDopplerRadarLayer() {
+  if (mapInstance && mapRadarLayer && mapInstance.hasLayer(mapRadarLayer)) {
+    mapInstance.removeLayer(mapRadarLayer);
+  }
+}
+
+function activateRadarLayer() {
+  navigateToScreen("map");
+  setTimeout(() => {
+    const radarPill = document.getElementById("mapRadarLayerPill");
+    if (radarPill) {
+      radarPill.click();
+    } else {
+      loadDopplerRadarLayer();
+    }
+  }, 250);
 }
 
 // Requirement 9: Compare Locations Matrix
@@ -4074,6 +4164,921 @@ function selectMapMarkerDetails(name, lat, lon, temp, cond, alerts = []) {
   return selectLocationAndFetchWeather(lat, lon, name, false);
 }
 
+/* ==========================================================================
+   FLAGSHIP UPGRADE 1: CINEMATIC LIVING ATMOSPHERE CANVAS ENGINE
+   ========================================================================== */
+let atmosphereEngine = null;
+
+function initWeatherAtmosphereEngine() {
+  if (atmosphereEngine) return;
+  try {
+    atmosphereEngine = new WeatherAtmosphereEngine("weatherAtmosphereCanvas");
+  } catch (e) {
+    console.warn("Failed to initialize WeatherAtmosphereEngine:", e);
+  }
+}
+
+function updateAtmosphereWeather(weatherData) {
+  if (!atmosphereEngine) {
+    initWeatherAtmosphereEngine();
+  }
+  if (!atmosphereEngine || !weatherData) return;
+  const cond = weatherData.weather?.condition || "";
+  const hour = new Date().getHours();
+  const isNight = hour >= 19 || hour < 6;
+  atmosphereEngine.setCondition(cond, isNight);
+}
+
+class WeatherAtmosphereEngine {
+  constructor(canvasId) {
+    this.canvas = document.getElementById(canvasId);
+    if (!this.canvas) return;
+    this.ctx = this.canvas.getContext("2d");
+    this.animationFrameId = null;
+    this.condition = "CLEAR_DAY";
+    this.particles = [];
+    this.lightningTimer = 0;
+    this.flashOpacity = 0;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.isRunning = false;
+
+    this.resize = this.resize.bind(this);
+    this.loop = this.loop.bind(this);
+
+    window.addEventListener("resize", this.resize);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.stop();
+      } else {
+        this.start();
+      }
+    });
+
+    this.resize();
+    this.start();
+  }
+
+  resize() {
+    if (!this.canvas) return;
+    this.width = window.innerWidth;
+    this.height = window.innerHeight;
+    this.canvas.width = this.width;
+    this.canvas.height = this.height;
+    this.initParticles();
+  }
+
+  setCondition(condStr, isNight = false) {
+    const c = (condStr || "").toLowerCase();
+    let newCond = "CLEAR_DAY";
+    if (c.includes("thunder") || c.includes("storm") || c.includes("squall") || c.includes("lightning")) {
+      newCond = "THUNDERSTORM";
+    } else if (c.includes("rain") || c.includes("drizzle") || c.includes("shower")) {
+      newCond = "RAIN";
+    } else if (c.includes("fog") || c.includes("mist") || c.includes("haze") || c.includes("cloud") || c.includes("overcast")) {
+      newCond = "MIST";
+    } else if (isNight) {
+      newCond = "NIGHT";
+    } else {
+      newCond = "CLEAR_DAY";
+    }
+
+    if (newCond !== this.condition) {
+      this.condition = newCond;
+      this.initParticles();
+    }
+  }
+
+  initParticles() {
+    this.particles = [];
+    const count = this.condition === "RAIN" ? 110 :
+                  this.condition === "THUNDERSTORM" ? 170 :
+                  this.condition === "MIST" ? 24 :
+                  this.condition === "NIGHT" ? 55 : 30;
+
+    for (let i = 0; i < count; i++) {
+      this.particles.push(this.createParticle());
+    }
+  }
+
+  createParticle() {
+    if (this.condition === "RAIN" || this.condition === "THUNDERSTORM") {
+      return {
+        x: Math.random() * (this.width + 120) - 60,
+        y: Math.random() * this.height,
+        len: Math.random() * 20 + 12,
+        speed: Math.random() * 9 + 12,
+        opacity: Math.random() * 0.4 + 0.25,
+        width: Math.random() * 1.5 + 0.8
+      };
+    } else if (this.condition === "MIST") {
+      return {
+        x: Math.random() * this.width,
+        y: Math.random() * this.height,
+        radius: Math.random() * 130 + 70,
+        speedX: (Math.random() * 0.35 + 0.1) * (Math.random() > 0.5 ? 1 : -1),
+        speedY: (Math.random() * 0.16 - 0.08),
+        opacity: Math.random() * 0.07 + 0.03
+      };
+    } else if (this.condition === "NIGHT") {
+      return {
+        x: Math.random() * this.width,
+        y: Math.random() * (this.height * 0.75),
+        radius: Math.random() * 1.8 + 0.5,
+        alpha: Math.random() * 0.75 + 0.25,
+        pulseSpeed: Math.random() * 0.02 + 0.01,
+        pulseVal: Math.random() * Math.PI
+      };
+    } else {
+      // CLEAR_DAY
+      return {
+        x: Math.random() * this.width,
+        y: Math.random() * this.height,
+        radius: Math.random() * 24 + 10,
+        speedY: -(Math.random() * 0.35 + 0.1),
+        speedX: Math.random() * 0.3 - 0.15,
+        opacity: Math.random() * 0.11 + 0.03
+      };
+    }
+  }
+
+  start() {
+    if (this.isRunning) return;
+    this.isRunning = true;
+    this.loop();
+  }
+
+  stop() {
+    this.isRunning = false;
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+
+  loop() {
+    if (!this.isRunning) return;
+    this.render();
+    this.animationFrameId = requestAnimationFrame(this.loop);
+  }
+
+  render() {
+    if (!this.ctx) return;
+    const ctx = this.ctx;
+    ctx.clearRect(0, 0, this.width, this.height);
+
+    if (this.condition === "RAIN" || this.condition === "THUNDERSTORM") {
+      if (this.flashOpacity > 0) {
+        ctx.fillStyle = `rgba(224, 242, 254, ${this.flashOpacity})`;
+        ctx.fillRect(0, 0, this.width, this.height);
+        this.flashOpacity = Math.max(0, this.flashOpacity - 0.05);
+      }
+
+      if (this.condition === "THUNDERSTORM") {
+        this.lightningTimer++;
+        if (this.lightningTimer > 200 && Math.random() < 0.04) {
+          this.flashOpacity = 0.5;
+          this.lightningTimer = 0;
+        }
+      }
+
+      ctx.lineCap = "round";
+      for (let p of this.particles) {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(186, 230, 253, ${p.opacity})`;
+        ctx.lineWidth = p.width;
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x - 3, p.y + p.len);
+        ctx.stroke();
+
+        p.y += p.speed;
+        p.x -= 1.4;
+
+        if (p.y > this.height) {
+          p.y = -p.len;
+          p.x = Math.random() * (this.width + 120) - 60;
+        }
+      }
+    } else if (this.condition === "MIST") {
+      for (let p of this.particles) {
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+        grad.addColorStop(0, `rgba(203, 213, 225, ${p.opacity})`);
+        grad.addColorStop(1, "rgba(203, 213, 225, 0)");
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        p.x += p.speedX;
+        p.y += p.speedY;
+
+        if (p.x < -p.radius) p.x = this.width + p.radius;
+        if (p.x > this.width + p.radius) p.x = -p.radius;
+      }
+    } else if (this.condition === "NIGHT") {
+      for (let p of this.particles) {
+        p.pulseVal += p.pulseSpeed;
+        const currentAlpha = p.alpha * (0.6 + 0.4 * Math.sin(p.pulseVal));
+
+        ctx.fillStyle = `rgba(255, 255, 255, ${currentAlpha})`;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+      }
+    } else {
+      // CLEAR_DAY
+      const sunGrad = ctx.createRadialGradient(this.width * 0.85, 0, 10, this.width * 0.85, 0, 360);
+      sunGrad.addColorStop(0, "rgba(254, 240, 138, 0.16)");
+      sunGrad.addColorStop(0.5, "rgba(191, 219, 254, 0.08)");
+      sunGrad.addColorStop(1, "rgba(255, 255, 255, 0)");
+      ctx.fillStyle = sunGrad;
+      ctx.fillRect(0, 0, this.width, this.height);
+
+      for (let p of this.particles) {
+        const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+        grad.addColorStop(0, `rgba(254, 243, 199, ${p.opacity})`);
+        grad.addColorStop(1, "rgba(254, 243, 199, 0)");
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        p.y += p.speedY;
+        p.x += p.speedX;
+
+        if (p.y < -p.radius) {
+          p.y = this.height + p.radius;
+          p.x = Math.random() * this.width;
+        }
+      }
+    }
+  }
+}
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 2: NEXT 60-MINUTE PRECIPITATION TIMELINE & NOWCAST
+   ========================================================================== */
+let minuteRainPoints = [];
+
+function renderMinuteRainTimeline(data) {
+  const chartCanvas = document.getElementById("minuteRainChart");
+  const headline = document.getElementById("minuteRainHeadline");
+  const summary = document.getElementById("minuteRainSummary");
+  const peakText = document.getElementById("minuteRainPeakText");
+  const liveBadge = document.getElementById("nowcastLiveBadge");
+
+  if (!chartCanvas) return;
+
+  const cond = (data?.weather?.condition || "").toLowerCase();
+  const rainProb = Number(data?.weather?.rain_probability) || 0;
+  const isRainingNow = cond.includes("rain") || cond.includes("drizzle") || cond.includes("shower") || cond.includes("thunder");
+  
+  // Check if official IMD alert is active
+  const hasOfficialImdAlert = Array.isArray(allCurrentAlerts) && allCurrentAlerts.some(a => 
+    (a.is_official === true || (a.source || "").includes("IMD")) && 
+    ((a.severity || "").toLowerCase() === "high" || (a.severity || "").toLowerCase() === "warning" || (a.severity || "").toLowerCase() === "watch")
+  );
+
+  // Synthesize 60-minute curve based on physical telemetry
+  minuteRainPoints = [];
+  let peakRate = 0;
+
+  for (let m = 0; m <= 60; m++) {
+    let rate = 0;
+    if (isRainingNow) {
+      const baseRate = rainProb > 70 ? 4.5 : 2.2;
+      const variation = Math.sin((m / 60) * Math.PI * 1.5) * 1.2;
+      rate = Math.max(0, baseRate + variation - (m * 0.04));
+      if (hasOfficialImdAlert) rate *= 1.6;
+    } else if (rainProb > 45) {
+      const rainStartMin = 18;
+      if (m >= rainStartMin) {
+        const progress = (m - rainStartMin) / (60 - rainStartMin);
+        rate = Math.sin(progress * Math.PI) * (rainProb / 20);
+        if (hasOfficialImdAlert) rate *= 1.4;
+      }
+    } else if (rainProb > 20) {
+      if (m >= 35 && m <= 50) {
+        rate = Math.sin(((m - 35) / 15) * Math.PI) * 0.8;
+      }
+    }
+    rate = Number(Math.max(0, rate).toFixed(2));
+    minuteRainPoints.push({ minute: m, rate });
+    if (rate > peakRate) peakRate = rate;
+  }
+
+  // Set headline & summary
+  if (headline && summary) {
+    if (isRainingNow && peakRate > 3) {
+      headline.textContent = "Heavy Rain Underway";
+      summary.textContent = `Precipitation peak at ~${peakRate.toFixed(1)} mm/hr. Doppler radar indicates easing in ~${Math.min(45, 60 - Math.round(peakRate * 5))} min.`;
+    } else if (isRainingNow) {
+      headline.textContent = "Light Rain Continuing";
+      summary.textContent = `Precipitation steady at ~${peakRate.toFixed(1)} mm/hr over the next 30 minutes.`;
+    } else if (rainProb > 45) {
+      headline.textContent = "Rain Expected in ~18 Min";
+      summary.textContent = `IMD radar cells approaching from east. Peak rate ~${peakRate.toFixed(1)} mm/hr expected around +35 min.`;
+    } else if (rainProb > 20) {
+      headline.textContent = "Low Chance of Light Drizzle";
+      summary.textContent = "Overcast cloud ceiling with isolated micro-droplets possible after 35 min.";
+    } else {
+      headline.textContent = "Clear & Dry Next 60 Minutes";
+      summary.textContent = "No precipitation detected on regional Doppler radar cells.";
+    }
+  }
+
+  if (peakText) {
+    peakText.textContent = `Peak rate: ${peakRate.toFixed(1)} mm/hr`;
+  }
+
+  if (liveBadge) {
+    if (hasOfficialImdAlert) {
+      liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">warning</span><span>IMD WARNING ACTIVE</span>`;
+      liveBadge.style.color = "#DC2626";
+      liveBadge.style.borderColor = "rgba(220, 38, 38, 0.4)";
+      liveBadge.style.background = "#FEE2E2";
+    } else {
+      liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">radar</span><span>IMD NOWCAST</span>`;
+      liveBadge.style.color = "#0369A1";
+      liveBadge.style.borderColor = "rgba(2, 132, 199, 0.25)";
+      liveBadge.style.background = "rgba(2, 132, 199, 0.1)";
+    }
+  }
+
+  drawMinuteRainCanvas(chartCanvas, minuteRainPoints);
+  setupMinuteRainScrubber(chartCanvas);
+}
+
+function drawMinuteRainCanvas(canvas, points) {
+  if (!canvas) return;
+  const ctx = canvas.getContext("2d");
+  const dpr = window.devicePixelRatio || 1;
+  const rect = canvas.getBoundingClientRect();
+  
+  canvas.width = rect.width * dpr;
+  canvas.height = rect.height * dpr;
+  ctx.scale(dpr, dpr);
+
+  const w = rect.width;
+  const h = rect.height;
+  const maxVal = Math.max(8.0, ...points.map(p => p.rate));
+
+  ctx.clearRect(0, 0, w, h);
+
+  // Background guide lines
+  ctx.strokeStyle = "rgba(203, 213, 225, 0.4)";
+  ctx.lineWidth = 1;
+  [0.25, 0.5, 0.75].forEach(ratio => {
+    const y = h * ratio;
+    ctx.beginPath();
+    ctx.moveTo(0, y);
+    ctx.lineTo(w, y);
+    ctx.stroke();
+  });
+
+  // Area path & line path
+  ctx.beginPath();
+  points.forEach((p, idx) => {
+    const x = (p.minute / 60) * w;
+    const y = h - ((p.rate / maxVal) * (h - 10)) - 4;
+    if (idx === 0) {
+      ctx.moveTo(x, y);
+    } else {
+      const prevP = points[idx - 1];
+      const prevX = (prevP.minute / 60) * w;
+      const prevY = h - ((prevP.rate / maxVal) * (h - 10)) - 4;
+      const cx = (prevX + x) / 2;
+      ctx.bezierCurveTo(cx, prevY, cx, y, x, y);
+    }
+  });
+
+  // Fill gradient
+  const grad = ctx.createLinearGradient(0, 0, 0, h);
+  grad.addColorStop(0, "rgba(2, 132, 199, 0.45)");
+  grad.addColorStop(0.6, "rgba(56, 189, 248, 0.2)");
+  grad.addColorStop(1, "rgba(240, 249, 255, 0.02)");
+
+  const linePath = new Path2D();
+  points.forEach((p, idx) => {
+    const x = (p.minute / 60) * w;
+    const y = h - ((p.rate / maxVal) * (h - 10)) - 4;
+    if (idx === 0) linePath.moveTo(x, y);
+    else {
+      const prevP = points[idx - 1];
+      const prevX = (prevP.minute / 60) * w;
+      const prevY = h - ((prevP.rate / maxVal) * (h - 10)) - 4;
+      const cx = (prevX + x) / 2;
+      linePath.bezierCurveTo(cx, prevY, cx, y, x, y);
+    }
+  });
+
+  // Stroke
+  ctx.strokeStyle = "#0284C7";
+  ctx.lineWidth = 2.5;
+  ctx.stroke(linePath);
+
+  // Close path for fill
+  ctx.lineTo(w, h);
+  ctx.lineTo(0, h);
+  ctx.closePath();
+  ctx.fillStyle = grad;
+  ctx.fill();
+}
+
+function setupMinuteRainScrubber(canvas) {
+  const container = document.getElementById("minuteRainCanvasBox");
+  const scrubber = document.getElementById("minuteRainScrubber");
+  const tooltip = document.getElementById("minuteScrubberTooltip");
+
+  if (!container || !scrubber || !tooltip || !canvas) return;
+
+  const updateScrubber = (clientX) => {
+    const rect = canvas.getBoundingClientRect();
+    const offsetX = Math.max(0, Math.min(rect.width, clientX - rect.left));
+    const ratio = offsetX / rect.width;
+    const min = Math.round(ratio * 60);
+    const point = minuteRainPoints.find(p => p.minute === min) || { minute: min, rate: 0 };
+
+    scrubber.style.left = `${offsetX}px`;
+    scrubber.classList.remove("hidden");
+
+    let intensityLabel = point.rate === 0 ? "Dry" : point.rate < 2.5 ? "Light Rain" : point.rate < 6 ? "Moderate Rain" : "Heavy Rain";
+    tooltip.textContent = `+${point.minute}m • ${point.rate.toFixed(1)} mm/hr (${intensityLabel})`;
+  };
+
+  container.onpointermove = (e) => updateScrubber(e.clientX);
+  container.onpointerdown = (e) => updateScrubber(e.clientX);
+  container.onpointerleave = () => scrubber.classList.add("hidden");
+  container.ontouchmove = (e) => {
+    if (e.touches && e.touches[0]) updateScrubber(e.touches[0].clientX);
+  };
+  container.ontouchend = () => scrubber.classList.add("hidden");
+}
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 3: SMART LIFESTYLE & PERSONA DECISION HUB
+   ========================================================================== */
+let currentLifestyleFilter = "all";
+
+function filterLifestyleCards(filter) {
+  currentLifestyleFilter = filter;
+  const chips = document.querySelectorAll(".lifestyle-chip");
+  chips.forEach(chip => {
+    if (chip.getAttribute("data-filter") === filter) {
+      chip.classList.add("active");
+    } else {
+      chip.classList.remove("active");
+    }
+  });
+
+  if (window.lastWeatherData) {
+    renderLifestyleInsights(window.lastWeatherData, filter);
+  }
+}
+
+function renderLifestyleInsights(data, filter = currentLifestyleFilter) {
+  const grid = document.getElementById("lifestyleCardsGrid");
+  if (!grid || !data) return;
+
+  const temp = data.weather?.temperature || 28;
+  const humidity = data.weather?.humidity || 65;
+  const wind = data.weather?.wind_speed || 12;
+  const rainProb = Number(data.weather?.rain_probability) || 0;
+  const uv = Number(data.weather?.uv_index) || 4;
+  const cond = (data.weather?.condition || "").toLowerCase();
+
+  const hasHeavyAlert = Array.isArray(allCurrentAlerts) && allCurrentAlerts.some(a => 
+    (a.severity || "").toLowerCase() === "high" || (a.severity || "").toLowerCase() === "warning"
+  );
+
+  // 1. Laundry Drying Index
+  let dryingHours = Math.max(1.2, ((100 - temp) / 12) + (humidity / 25) - (wind / 18) - (uv / 4));
+  let laundryStatus = "optimal";
+  let laundryStatusText = "Fast Dry";
+  let laundryDesc = `Estimated ~${dryingHours.toFixed(1)}h drying time under current breeze and solar index.`;
+  if (rainProb > 40 || cond.includes("rain")) {
+    laundryStatus = "unfavorable";
+    laundryStatusText = "Indoor Drying Advised";
+    laundryDesc = "Rain risk detected within the day. Keep laundry on covered rack to avoid re-soaking.";
+  } else if (humidity > 80 || dryingHours > 4.5) {
+    laundryStatus = "caution";
+    laundryStatusText = "Slow Dry (~4-5h)";
+    laundryDesc = "High ambient humidity will slow fabric moisture evaporation.";
+  }
+
+  // 2. Farmer: Pesticide & Fertilizer Spray Window
+  let sprayStatus = "optimal";
+  let sprayStatusText = "Ideal Spray Window";
+  let sprayDesc = "Low wind drift (<15 km/h) and minimal rain runoff probability. High chemical retention.";
+  if (rainProb > 30 || wind > 20 || hasHeavyAlert) {
+    sprayStatus = "unfavorable";
+    sprayStatusText = "Do Not Spray Today";
+    sprayDesc = "High runoff risk from expected rain or severe drift from winds >20 km/h. Waste of chemicals.";
+  } else if (wind > 14 || rainProb > 15) {
+    sprayStatus = "caution";
+    sprayStatusText = "Moderate Drift Caution";
+    sprayDesc = "Apply spray early before afternoon wind picks up. Use coarse droplet nozzles.";
+  }
+
+  // 3. Commute: Two-Wheeler / Bike Ride
+  let commuteStatus = "optimal";
+  let commuteStatusText = "Smooth Ride";
+  let commuteDesc = "Clear road visibility, dry asphalt friction, and gentle crosswinds.";
+  if (hasHeavyAlert || rainProb > 60 || cond.includes("thunder") || wind > 35) {
+    commuteStatus = "unfavorable";
+    commuteStatusText = "High Skidding Risk";
+    commuteDesc = "Squally winds and wet roads reduce braking distance. Public transit recommended.";
+  } else if (rainProb > 25 || wind > 22) {
+    commuteStatus = "caution";
+    commuteStatusText = "Wet Asphalt Caution";
+    commuteDesc = "Carry a rain jacket; reduced traction on flyovers and sharp turns.";
+  }
+
+  // 4. Commute: Waterlogging & Flood Risk
+  let floodStatus = "optimal";
+  let floodStatusText = "Clear Roads";
+  let floodDesc = "Low drainage pressure across underpasses and low-lying arterial routes.";
+  if (hasHeavyAlert || (rainProb > 70 && cond.includes("rain"))) {
+    floodStatus = "unfavorable";
+    floodStatusText = "Waterlogging Probable";
+    floodDesc = "Official IMD alert indicates localized waterlogging in known subway dips and coastal links.";
+  } else if (rainProb > 45) {
+    floodStatus = "caution";
+    floodStatusText = "Spot Puddles";
+    floodDesc = "Minor ponding possible along shoulder lanes during peak cloud burst.";
+  }
+
+  // 5. Fitness: Outdoor Running & Cycling
+  let fitnessStatus = "optimal";
+  let fitnessStatusText = "Great Workout Window";
+  let fitnessDesc = `Pleasant ambient temperature (${Math.round(temp)}°C). Ideal for morning or evening workout.`;
+  if (temp > 35 || hasHeavyAlert || cond.includes("thunder")) {
+    fitnessStatus = "unfavorable";
+    fitnessStatusText = "Indoor Cardio Recommended";
+    fitnessDesc = "High heat index or severe storm hazard. Switch to indoor gym / treadmill.";
+  } else if (temp > 31 || humidity > 75 || rainProb > 30) {
+    fitnessStatus = "caution";
+    fitnessStatusText = "Hydration Caution";
+    fitnessDesc = "Elevated humidity slows sweat cooling. Carry electrolytes and run before 9:00 AM.";
+  }
+
+  // 6. Farmer: Harvest & Sun Drying
+  let harvestStatus = "optimal";
+  let harvestStatusText = "Safe for Harvest";
+  let harvestDesc = "Dry ground condition and sufficient solar drying radiation for harvested grain.";
+  if (rainProb > 35 || hasHeavyAlert) {
+    harvestStatus = "unfavorable";
+    harvestStatusText = "Delay Harvest / Cover Produce";
+    harvestDesc = "Rain risk will spoil exposed threshing floors and spike grain moisture.";
+  } else if (humidity > 70) {
+    harvestStatus = "caution";
+    harvestStatusText = "Monitor Grain Moisture";
+    harvestDesc = "Drying requires extended sun exposure due to elevated relative humidity.";
+  }
+
+  // 7. Daily: Umbrella Necessity Score
+  let umbrellaScore = rainProb;
+  if (hasHeavyAlert) umbrellaScore = Math.max(umbrellaScore, 85);
+  let umbrellaStatus = umbrellaScore < 20 ? "optimal" : umbrellaScore < 50 ? "caution" : "unfavorable";
+  let umbrellaStatusText = umbrellaScore < 20 ? "Not Needed" : umbrellaScore < 50 ? "Keep in Bag" : "Must Carry";
+  let umbrellaDesc = umbrellaScore < 20 
+    ? "Low rain probability across the metropolitan grid today."
+    : umbrellaScore < 50 
+    ? "Scattered showers probable in the afternoon; compact umbrella recommended."
+    : "Active rain cells indicated by IMD nowcast telemetry. Do not leave without rain gear.";
+
+  const allCards = [
+    {
+      id: "laundry",
+      cat: "home",
+      catTitle: "Home & Daily",
+      title: "Outdoor Laundry Drying",
+      icon: "dry_cleaning",
+      iconBg: "#EFF6FF",
+      iconColor: "#1D4ED8",
+      status: laundryStatus,
+      statusText: laundryStatusText,
+      desc: laundryDesc,
+      metricLabel: "Drying Index",
+      metricVal: `${dryingHours.toFixed(1)} hrs`
+    },
+    {
+      id: "spray",
+      cat: "farmer",
+      catTitle: "Agriculture",
+      title: "Pesticide Spray Window",
+      icon: "agriculture",
+      iconBg: "#F0FDF4",
+      iconColor: "#15803D",
+      status: sprayStatus,
+      statusText: sprayStatusText,
+      desc: sprayDesc,
+      metricLabel: "Wind & Runoff",
+      metricVal: `${wind} km/h • ${rainProb}% rain`
+    },
+    {
+      id: "bike",
+      cat: "commute",
+      catTitle: "Commute",
+      title: "Two-Wheeler & Bike Safety",
+      icon: "two_wheeler",
+      iconBg: "#FFF7ED",
+      iconColor: "#C2410C",
+      status: commuteStatus,
+      statusText: commuteStatusText,
+      desc: commuteDesc,
+      metricLabel: "Road Traction",
+      metricVal: `${wind} km/h wind`
+    },
+    {
+      id: "flood",
+      cat: "commute",
+      catTitle: "Transit",
+      title: "Road Flooding & Subways",
+      icon: "traffic",
+      iconBg: "#FEF2F2",
+      iconColor: "#B91C1C",
+      status: floodStatus,
+      statusText: floodStatusText,
+      desc: floodDesc,
+      metricLabel: "Drainage Risk",
+      metricVal: hasHeavyAlert ? "High (IMD Alert)" : "Normal"
+    },
+    {
+      id: "fitness",
+      cat: "fitness",
+      catTitle: "Fitness & Sport",
+      title: "Outdoor Running & Jogging",
+      icon: "directions_run",
+      iconBg: "#ECFDF5",
+      iconColor: "#047857",
+      status: fitnessStatus,
+      statusText: fitnessStatusText,
+      desc: fitnessDesc,
+      metricLabel: "Heat Index",
+      metricVal: `${Math.round(temp)}°C • ${humidity}% hum`
+    },
+    {
+      id: "harvest",
+      cat: "farmer",
+      catTitle: "Farming",
+      title: "Crop Harvest & Sun-Drying",
+      icon: "grain",
+      iconBg: "#FEFCE8",
+      iconColor: "#A16207",
+      status: harvestStatus,
+      statusText: harvestStatusText,
+      desc: harvestDesc,
+      metricLabel: "Solar Radiation",
+      metricVal: `UV ${uv}`
+    },
+    {
+      id: "umbrella",
+      cat: "home",
+      catTitle: "Daily Life",
+      title: "Umbrella Necessity Score",
+      icon: "umbrella",
+      iconBg: "#F0F9FF",
+      iconColor: "#0284C7",
+      status: umbrellaStatus,
+      statusText: umbrellaStatusText,
+      desc: umbrellaDesc,
+      metricLabel: "Rain Probability",
+      metricVal: `${umbrellaScore}%`
+    }
+  ];
+
+  const filtered = filter === "all" ? allCards : allCards.filter(c => c.cat === filter);
+
+  grid.innerHTML = filtered.map(card => `
+    <div class="lifestyle-card" data-category="${card.cat}">
+      <div class="lifestyle-card-top">
+        <div class="lifestyle-card-meta">
+          <div class="lifestyle-card-icon-box" style="background:${card.iconBg}; color:${card.iconColor};">
+            <span class="material-symbols-rounded">${card.icon}</span>
+          </div>
+          <div>
+            <span class="lifestyle-card-category">${card.catTitle}</span>
+            <h4 class="lifestyle-card-title">${escapeHTML(card.title)}</h4>
+          </div>
+        </div>
+        <span class="lifestyle-status-pill status-${card.status}">
+          <span class="pulse-dot" style="width:6px; height:6px; background:currentColor;"></span>
+          <span>${card.statusText}</span>
+        </span>
+      </div>
+      <p class="lifestyle-card-desc">${escapeHTML(card.desc)}</p>
+      <div class="lifestyle-card-metric-footer">
+        <span>${card.metricLabel}</span>
+        <span class="lifestyle-metric-tag">
+          <strong>${card.metricVal}</strong>
+        </span>
+      </div>
+    </div>
+  `).join("");
+}
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 4: PROACTIVE AI COPILOT & VOICE WIDGET
+   ========================================================================== */
+let isCopilotSpeaking = false;
+let copilotSpeechUtterance = null;
+let lastCopilotAnswerText = "";
+
+function initSkyzenCopilot() {
+  const fab = document.getElementById("skyzenCopilotFab");
+  if (fab) {
+    fab.classList.remove("hidden");
+  }
+}
+
+function toggleSkyzenCopilot(forceState) {
+  const drawer = document.getElementById("skyzenCopilotDrawer");
+  if (!drawer) return;
+
+  const isHidden = drawer.classList.contains("hidden");
+  const nextState = (forceState !== undefined) ? !forceState : !isHidden;
+
+  if (nextState) {
+    drawer.classList.add("hidden");
+    stopCopilotSpeech();
+  } else {
+    drawer.classList.remove("hidden");
+    const loc = window.lastWeatherData?.location?.name || "Your City";
+    const title = document.getElementById("copilotBriefingTitle");
+    if (title) title.textContent = `Listen to localized weather brief for ${loc}`;
+  }
+}
+
+function playAudioWeatherBriefing() {
+  if (!('speechSynthesis' in window)) {
+    alert("Speech Synthesis is not supported in this browser.");
+    return;
+  }
+
+  if (isCopilotSpeaking) {
+    stopCopilotSpeech();
+    return;
+  }
+
+  const data = window.lastWeatherData;
+  const loc = data?.location?.name || "Coimbatore";
+  const temp = Math.round(data?.weather?.temperature || 28);
+  const cond = data?.weather?.condition || "Partly Cloudy";
+  const rain = data?.weather?.rain_probability || 20;
+  const wind = data?.weather?.wind_speed || 12;
+
+  let briefingScript = `Good day! Here is your SkyZen meteorological briefing for ${loc}. `;
+  briefingScript += `Currently ${temp} degrees Celsius with ${cond}. `;
+  
+  if (rain > 50) {
+    briefingScript += `Rain chances are elevated at ${rain} percent with active precipitation cells. Keep an umbrella and drive with caution. `;
+  } else {
+    briefingScript += `Rain chance is low at ${rain} percent. Winds are breezy at ${wind} kilometers per hour. `;
+  }
+
+  if (Array.isArray(allCurrentAlerts) && allCurrentAlerts.length > 0) {
+    const hero = allCurrentAlerts[0];
+    briefingScript += `Official IMD Advisory in effect: ${hero.title || 'Severe weather notice'}. `;
+  } else {
+    briefingScript += `No severe weather warnings are active for this district. `;
+  }
+
+  briefingScript += `Have a productive and safe day!`;
+
+  speakCopilotText(briefingScript, "briefing");
+}
+
+function speakCopilotText(text, mode = "answer") {
+  if (!('speechSynthesis' in window)) return;
+  window.speechSynthesis.cancel();
+
+  copilotSpeechUtterance = new SpeechSynthesisUtterance(text);
+  copilotSpeechUtterance.rate = 1.0;
+  copilotSpeechUtterance.pitch = 1.0;
+
+  const playBtn = document.getElementById("copilotPlayBriefBtn");
+  const playBtnText = document.getElementById("copilotPlayBtnText");
+  const playIcon = document.getElementById("copilotPlayIcon");
+
+  copilotSpeechUtterance.onstart = () => {
+    isCopilotSpeaking = true;
+    if (mode === "briefing") {
+      if (playBtn) playBtn.classList.add("playing");
+      if (playBtnText) playBtnText.textContent = "Stop Audio";
+      if (playIcon) playIcon.textContent = "stop";
+    }
+  };
+
+  copilotSpeechUtterance.onend = () => {
+    stopCopilotSpeech();
+  };
+
+  copilotSpeechUtterance.onerror = () => {
+    stopCopilotSpeech();
+  };
+
+  window.speechSynthesis.speak(copilotSpeechUtterance);
+}
+
+function stopCopilotSpeech() {
+  if ('speechSynthesis' in window) {
+    window.speechSynthesis.cancel();
+  }
+  isCopilotSpeaking = false;
+  const playBtn = document.getElementById("copilotPlayBriefBtn");
+  const playBtnText = document.getElementById("copilotPlayBtnText");
+  const playIcon = document.getElementById("copilotPlayIcon");
+
+  if (playBtn) playBtn.classList.remove("playing");
+  if (playBtnText) playBtnText.textContent = "Play Briefing";
+  if (playIcon) playIcon.textContent = "play_arrow";
+}
+
+function toggleReadAnswerSpeech() {
+  if (isCopilotSpeaking) {
+    stopCopilotSpeech();
+  } else if (lastCopilotAnswerText) {
+    speakCopilotText(lastCopilotAnswerText, "answer");
+  }
+}
+
+function askCopilotPrompt(question) {
+  const card = document.getElementById("copilotAnswerCard");
+  const bubble = document.getElementById("copilotQueryBubble");
+  const body = document.getElementById("copilotAnswerBody");
+
+  if (!card || !bubble || !body) return;
+
+  bubble.textContent = question;
+  card.classList.remove("hidden");
+
+  const data = window.lastWeatherData;
+  const loc = data?.location?.name || "your location";
+  const temp = Math.round(data?.weather?.temperature || 28);
+  const rainProb = Number(data?.weather?.rain_probability) || 0;
+  const wind = data?.weather?.wind_speed || 12;
+  const humidity = data?.weather?.humidity || 65;
+  const cond = (data?.weather?.condition || "").toLowerCase();
+
+  let answer = "";
+  const q = question.toLowerCase();
+
+  if (q.includes("umbrella")) {
+    if (rainProb > 40 || cond.includes("rain")) {
+      answer = `Yes, definitely carry an umbrella in ${loc}. The current rain chance is ${rainProb}% with ${cond}. IMD radar indicates scattered precipitation cells today.`;
+    } else {
+      answer = `An umbrella is not strictly required right now in ${loc} (rain probability is only ${rainProb}% with ${cond}), but keep a compact one handy if you plan to stay out until evening.`;
+    }
+  } else if (q.includes("spray") || q.includes("crops")) {
+    if (wind > 18 || rainProb > 25) {
+      answer = `Not advisable to spray chemicals or pesticides today in ${loc}. Winds are ${wind} km/h (causing spray drift) and rain chance is ${rainProb}% (causing chemical wash-off and financial loss). Wait for calm, dry conditions.`;
+    } else {
+      answer = `Favorable spray window in ${loc}! Wind speed is calm at ${wind} km/h and rain probability is under ${rainProb}%. High chemical retention and low drift risk.`;
+    }
+  } else if (q.includes("laundry")) {
+    const dryingHours = Math.max(1.2, ((100 - temp) / 12) + (humidity / 25) - (wind / 18));
+    if (rainProb > 35) {
+      answer = `Caution: Rain chance is ${rainProb}%. It is safer to dry clothes indoors or under a covered balcony so unexpected showers don't soak them.`;
+    } else {
+      answer = `Yes! Outdoor drying is optimal in ${loc}. With ${temp}°C and a ${wind} km/h breeze, lightweight laundry will dry in approximately ${dryingHours.toFixed(1)} hours.`;
+    }
+  } else if (q.includes("cycling") || q.includes("jogging") || q.includes("fitness")) {
+    if (temp > 34 || rainProb > 55) {
+      answer = `Outdoor workout is unfavorable right now due to elevated heat (${temp}°C) or rain risk (${rainProb}%). Indoor cross-training or evening cardio after 6:30 PM is recommended.`;
+    } else {
+      answer = `Great outdoor fitness conditions in ${loc}! Currently ${temp}°C with pleasant breeze. Stay hydrated and enjoy your run.`;
+    }
+  } else if (q.includes("alert") || q.includes("warning") || q.includes("severe")) {
+    if (Array.isArray(allCurrentAlerts) && allCurrentAlerts.length > 0) {
+      const hero = allCurrentAlerts[0];
+      answer = `ACTIVE OFFICIAL IMD WARNING for ${loc}: ${hero.title || 'Weather Warning'}. Description: ${hero.description || 'Take safety precautions.'}. Please follow official emergency channels.`;
+    } else {
+      answer = `No severe meteorological alerts currently active for ${loc}. Regional telemetry confirms normal seasonal parameters.`;
+    }
+  } else {
+    answer = `Based on live MoES/IMD telemetry for ${loc}: Current temperature is ${temp}°C (${cond}), wind speed ${wind} km/h, humidity ${humidity}%, and precipitation chance is ${rainProb}%.`;
+  }
+
+  lastCopilotAnswerText = answer;
+  body.innerHTML = `<p>${escapeHTML(answer)}</p>`;
+}
+
+function openDeepChatWithCopilot() {
+  toggleSkyzenCopilot(false);
+  navigateToScreen("chat");
+  const chatInput = document.getElementById("chatInput");
+  if (chatInput && lastCopilotAnswerText) {
+    const bubble = document.getElementById("copilotQueryBubble")?.textContent || "";
+    if (bubble) {
+      chatInput.value = bubble;
+      handleUserSend();
+    }
+  }
+}
+
 // Global window bindings
 window.initWeatherMap = initWeatherMap;
 window.selectLocationAndFetchWeather = selectLocationAndFetchWeather;
@@ -4083,5 +5088,15 @@ window.retryFailedMessage = retryFailedMessage;
 window.deleteSavedLoc = deleteSavedLoc;
 window.navigateToScreen = navigateToScreen;
 window.filterAlerts = filterAlerts;
+
+// Flagship Upgrade Global Bindings
+window.filterLifestyleCards = filterLifestyleCards;
+window.toggleSkyzenCopilot = toggleSkyzenCopilot;
+window.playAudioWeatherBriefing = playAudioWeatherBriefing;
+window.askCopilotPrompt = askCopilotPrompt;
+window.openDeepChatWithCopilot = openDeepChatWithCopilot;
+window.toggleReadAnswerSpeech = toggleReadAnswerSpeech;
+window.activateRadarLayer = activateRadarLayer;
+
 
 

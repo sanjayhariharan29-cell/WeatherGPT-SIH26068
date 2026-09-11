@@ -181,6 +181,12 @@ class NormalizedAlertItem(BaseModel):
     area: Optional[str] = None
     source: str = Field(default="IMD")
     source_url: Optional[str] = Field(default=None, description="Official bulletin URL or CAP reference")
+    product_type: str = Field(default="district_warning", description="Product: district_warning or district_nowcast")
+    state: str = Field(default="LIVE", description="Explicit IMD state: LIVE, STALE, FAILED, UNAVAILABLE, FIXTURE")
+    geometry: Optional[Dict[str, Any]] = Field(default=None, description="Official GeoJSON geometry")
+    toi: Optional[str] = Field(default=None, description="Time of issue HHMM")
+    vupto: Optional[str] = Field(default=None, description="Valid upto HHMM")
+    matched_district: Optional[str] = Field(default=None, description="Canonical resolved IMD district name")
     issued_at: str
     expires_at: str
     valid_from: Optional[str] = Field(default=None, description="Valid from ISO 8601 UTC timestamp")

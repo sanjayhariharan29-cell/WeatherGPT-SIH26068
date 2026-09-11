@@ -30,6 +30,7 @@ from backend.core.security import (
     security_scheme
 )
 from backend.config.settings import settings
+from backend.services.email_service import send_verification_email, send_password_reset_email
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
 
@@ -103,6 +104,9 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
     )
     db.add(pref)
     db.commit()
+
+    # Dispatch real verification email via Resend API (with safe sandbox fallback)
+    await send_verification_email(user.email, user.name, verification_token)
 
     return {
         "user_id": user.id,
@@ -197,6 +201,8 @@ async def resend_verification(req: ResendVerificationRequest, db: Session = Depe
     user.verification_token_expires = datetime.now(timezone.utc) + timedelta(hours=24)
     db.commit()
 
+    await send_verification_email(user.email, user.name, verification_token)
+
     return {
         "message": "Verification code resent successfully.",
         "verification_token": verification_token
@@ -215,6 +221,8 @@ async def forgot_password(req: ForgotPasswordRequest, db: Session = Depends(get_
     user.reset_token = reset_token
     user.reset_token_expires = datetime.now(timezone.utc) + timedelta(hours=1)
     db.commit()
+
+    await send_password_reset_email(user.email, user.name, reset_token)
 
     resp = {
         "message": "If the email is registered, password reset instructions have been generated."

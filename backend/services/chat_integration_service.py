@@ -111,8 +111,17 @@ class ChatIntegrationService:
         data_error_detail: Optional[str] = None
 
         try:
-            current_resp = await self.weather_mgr.current_service.fetch_current_weather(
-                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
+            import asyncio
+            current_resp, forecast_items, official_alerts = await asyncio.gather(
+                self.weather_mgr.current_service.fetch_current_weather(
+                    lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
+                ),
+                self.weather_mgr.forecast_service.get_ai_forecast_items(
+                    lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
+                ),
+                self.weather_mgr.alert_service.get_ai_official_alerts(
+                    lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
+                )
             )
 
             primary_obs = AIWeatherRecord(
@@ -144,14 +153,6 @@ class ChatIntegrationService:
                 wind_speed=15.0,
                 weather_condition=current_resp.weather.condition,
                 source="Open-Meteo (Secondary)"
-            )
-
-            forecast_items = await self.weather_mgr.forecast_service.get_ai_forecast_items(
-                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
-            )
-
-            official_alerts = await self.weather_mgr.alert_service.get_ai_official_alerts(
-                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
             )
 
             weather_summary = current_resp.weather.model_dump()

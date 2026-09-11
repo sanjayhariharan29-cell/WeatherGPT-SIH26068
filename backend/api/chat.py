@@ -85,7 +85,7 @@ async def chat_endpoint(
                 user_id=user_id,
                 db_session=db
             ),
-            timeout=10.0
+            timeout=30.0
         )
         return res
     except asyncio.TimeoutError:

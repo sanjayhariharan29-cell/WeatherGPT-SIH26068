@@ -52,8 +52,9 @@ body {
   color: var(--text-primary);
   min-height: 100vh;
   display: flex;
-  justify-content: center;
-  align-items: flex-start;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
   padding: 16px;
   padding-top: calc(16px + env(safe-area-inset-top, 0px));
   padding-bottom: calc(84px + env(safe-area-inset-bottom, 0px));
@@ -62,9 +63,10 @@ body {
   line-height: 1.5;
   overflow-wrap: break-word;
   word-break: break-word;
+  width: 100%;
 }
 
-/* Material Symbols Rules */
+/* Material Symbols & SVG Icon Rules */
 .material-symbols-rounded {
   font-family: 'Material Symbols Rounded', sans-serif;
   font-weight: 400;
@@ -81,15 +83,37 @@ body {
   direction: ltr;
   -webkit-font-smoothing: antialiased;
   text-rendering: optimizeLegibility;
+  font-feature-settings: 'liga';
+  -webkit-font-feature-settings: 'liga';
   vertical-align: middle;
   user-select: none;
+  overflow: hidden;
+  max-width: 1.25em;
+  max-height: 1.25em;
 }
 
-.material-symbols-rounded.icon-sm { font-size: 16px; }
-.material-symbols-rounded.icon-md { font-size: 22px; }
-.material-symbols-rounded.icon-lg { font-size: 28px; }
-.material-symbols-rounded.icon-xl { font-size: 40px; }
-.material-symbols-rounded.icon-hero { font-size: 56px; }
+.skyzen-svg-icon {
+  width: 1em;
+  height: 1em;
+  display: inline-flex;
+  vertical-align: middle;
+  fill: currentColor;
+  flex-shrink: 0;
+  pointer-events: none;
+}
+
+.material-symbols-rounded[data-svg-rendered="true"] {
+  font-size: 0 !important;
+  line-height: 0 !important;
+  max-width: none;
+  max-height: none;
+}
+
+.material-symbols-rounded.icon-sm, .skyzen-svg-icon.icon-sm { font-size: 16px; width: 16px; height: 16px; }
+.material-symbols-rounded.icon-md, .skyzen-svg-icon.icon-md { font-size: 22px; width: 22px; height: 22px; }
+.material-symbols-rounded.icon-lg, .skyzen-svg-icon.icon-lg { font-size: 28px; width: 28px; height: 28px; }
+.material-symbols-rounded.icon-xl, .skyzen-svg-icon.icon-xl { font-size: 40px; width: 40px; height: 40px; }
+.material-symbols-rounded.icon-hero, .skyzen-svg-icon.icon-hero { font-size: 56px; width: 56px; height: 56px; }
 
 /* Focus and Accessibility */
 :focus-visible {
@@ -2075,70 +2099,294 @@ body {
 }
 
 @media (min-width: 1025px) {
-  .app-container {
-    max-width: 1080px;
+  body {
+    padding: 24px 32px 36px;
   }
 
-  .screen-container.active {
-    display: grid;
-    grid-template-columns: repeat(12, 1fr);
+  .app-container {
+    max-width: 1360px;
+    width: 100%;
+    margin: 0 auto;
     gap: 20px;
   }
 
-  #screen-home.active > .hero-weather-card {
+  /* Hide mobile bottom navigation on desktop */
+  .mobile-bottom-nav {
+    display: none !important;
+  }
+
+  /* Desktop Top Navigation Bar */
+  .desktop-nav-bar {
+    display: block;
+    background: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: var(--radius-xl);
+    padding: 8px 12px;
+    box-shadow: var(--card-shadow);
+    margin-bottom: 4px;
+  }
+
+  .desktop-nav-inner {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    justify-content: flex-start;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .desktop-nav-inner::-webkit-scrollbar {
+    display: none;
+  }
+
+  .desktop-nav-bar .nav-item {
+    display: inline-flex;
+    flex-direction: row;
+    align-items: center;
+    gap: 8px;
+    padding: 9px 18px;
+    font-size: 13.5px;
+    font-weight: 600;
+    color: var(--text-secondary);
+    border-radius: var(--radius-lg);
+    background: transparent;
+    border: none;
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+    max-width: none;
+    flex: initial;
+    min-height: 42px;
+  }
+
+  .desktop-nav-bar .nav-item:hover {
+    background: var(--blue-subtle);
+    color: var(--primary-blue);
+  }
+
+  .desktop-nav-bar .nav-item.active {
+    background: var(--light-blue);
+    color: var(--primary-blue);
+    font-weight: 700;
+    box-shadow: 0 1px 4px rgba(25, 118, 210, 0.12);
+  }
+
+  .desktop-nav-bar .nav-item .nav-icon {
+    font-size: 19px;
+    display: inline-flex;
+    transform: none !important;
+  }
+
+  /* Reposition AI Copilot FAB on desktop */
+  .copilot-fab {
+    bottom: 28px;
+    right: 32px;
+  }
+
+  /* SCREEN 1: Home Dashboard Desktop 12-Column Grid */
+  #screen-home.active {
+    display: grid;
+    grid-template-columns: repeat(12, 1fr);
+    gap: 20px;
+    align-items: start;
+  }
+
+  #screen-home.active > #dashboardSkeleton,
+  #screen-home.active > #dashboardErrorCard {
     grid-column: span 12;
   }
 
+  /* Row 1: Hero Weather Card (8 cols) + Minute Rain / Radar Card (4 cols) */
+  #screen-home.active > .hero-weather-card {
+    grid-column: span 8;
+    margin-bottom: 0;
+  }
+
+  #screen-home.active > #minuteRainSection {
+    grid-column: span 4;
+    margin-bottom: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+  }
+
+  /* Row 2: 24-Hour Hourly Forecast (12 cols) */
   #screen-home.active > .hourly-section-wrapper {
     grid-column: span 12;
   }
 
+  /* Row 3: 7-Day Multi-Source Forecast (7 cols) + Quick Weather Tools (5 cols) */
   #screen-home.active > .home-grid-col-left {
-    grid-column: span 7;
+    grid-column: span 7 !important;
   }
 
-  #screen-home.active > .home-grid-col-right {
-    grid-column: span 5;
+  #screen-home.active > .home-grid-col-right,
+  #screen-home.active > #homeWeatherToolsSection {
+    grid-column: span 5 !important;
+  }
+
+  /* Row 4: Smart Lifestyle Hub (7 cols) + Ask SkyZen Card (5 cols) */
+  #screen-home.active > #lifestyleHubSection {
+    grid-column: span 7 !important;
+  }
+
+  #screen-home.active > .ask-skyzen-card {
+    grid-column: span 5 !important;
+  }
+
+  /* Fallback for other home direct children */
+  #screen-home.active > .glass-panel {
+    grid-column: span 12;
+  }
+
+  /* Lifestyle Hub Cards Desktop Multi-Column Grid */
+  .lifestyle-cards-grid {
+    grid-template-columns: repeat(auto-fill, minmax(250px, 1fr)) !important;
+    gap: 14px;
+  }
+
+  .lifestyle-card-icon-box {
+    width: 38px;
+    height: 38px;
+    font-size: 20px;
+    flex-shrink: 0;
+  }
+
+  /* SCREEN 2: Forecast & Trends Screen */
+  #screen-weather.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  #screen-weather.active .screen-top-bar,
+  #screen-weather.active .forecast-section,
+  #screen-weather.active .trends-section {
+    width: 100%;
+  }
+
+  /* SCREEN 3: Conversational AI Screen */
+  #screen-chat.active {
+    display: flex;
+    justify-content: center;
+    width: 100%;
   }
 
   #screen-chat.active > .chat-left-col {
-    grid-column: span 8;
+    max-width: 980px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 24px;
   }
 
-  #screen-chat.active > .chat-right-col {
-    grid-column: span 4;
+  /* SCREEN 4: Dedicated Weather Alerts Screen */
+  #screen-alerts.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
   }
 
-  #screen-weather.active > .glass-panel {
-    grid-column: span 12;
+  #screen-alerts.active .glass-panel {
+    width: 100%;
+    padding: 24px;
   }
 
-  #screen-alerts.active > .glass-panel {
-    grid-column: span 12;
+  .disaster-list {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(360px, 1fr));
+    gap: 16px;
   }
 
-  #screen-map.active > .glass-panel {
-    grid-column: span 12;
+  /* SCREEN 5: Geospatial Weather & Radar Map Screen */
+  #screen-map.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
   }
 
-  #screen-air-quality.active > .glass-panel {
-    grid-column: span 12;
+  #screen-map.active .glass-panel {
+    width: 100%;
+    padding: 24px;
   }
 
-  #screen-locations.active > .glass-panel {
-    grid-column: span 12;
+  #mapContainer {
+    height: 640px !important;
+    min-height: 600px !important;
+    border-radius: var(--radius-xl);
   }
 
-  #screen-more.active > .glass-panel {
-    grid-column: span 12;
+  /* SCREEN 6: Air Quality Screen */
+  #screen-air-quality.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
   }
 
-  #screen-profile.active > .glass-panel {
-    grid-column: span 8;
+  #screen-air-quality.active .glass-panel {
+    width: 100%;
+    padding: 24px;
   }
 
+  .pollutants-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 16px;
+  }
+
+  /* SCREEN 7: Saved Locations Screen */
+  #screen-locations.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  #screen-locations.active .glass-panel {
+    width: 100%;
+    padding: 24px;
+  }
+
+  .saved-cities-grid {
+    display: grid;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 16px;
+  }
+
+  /* SCREEN 8: Hub / More Screen */
+  #screen-more.active {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 100%;
+  }
+
+  #screen-more.active .glass-panel {
+    max-width: 980px;
+    margin: 0 auto;
+    width: 100%;
+    padding: 24px;
+  }
+
+  /* SCREEN 9 & 10: Profile & Settings Screens */
+  #screen-profile.active,
+  #screen-settings.active {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    width: 100%;
+  }
+
+  #screen-profile.active > .glass-panel,
   #screen-settings.active > .glass-panel {
-    grid-column: span 8;
+    max-width: 860px;
+    width: 100%;
+    margin: 0 auto;
+    padding: 28px;
   }
 }
 
@@ -3347,4 +3595,787 @@ body {
   display: flex;
   justify-content: space-between;
 }
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 1: CINEMATIC LIVING ATMOSPHERE CANVAS
+   ========================================================================== */
+.weather-atmosphere-canvas {
+  position: fixed;
+  top: 0;
+  left: 0;
+  width: 100vw;
+  height: 100vh;
+  z-index: 0;
+  pointer-events: none;
+  opacity: 0.92;
+  transition: opacity 1.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.app-container {
+  position: relative;
+  z-index: 1;
+}
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 2: NEXT 60-MINUTE PRECIPITATION TIMELINE (DARK SKY / APPLE)
+   ========================================================================== */
+.minute-rain-card {
+  margin-top: 2px;
+  margin-bottom: 6px;
+  padding: 16px 18px;
+  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(240, 249, 255, 0.75));
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(186, 230, 253, 0.6);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(14, 116, 144, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+  position: relative;
+  overflow: hidden;
+}
+
+.minute-rain-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.minute-rain-title-group {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+}
+
+.minute-pulse-indicator {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #0284C7;
+  position: relative;
+  margin-top: 4px;
+  flex-shrink: 0;
+}
+
+.minute-pulse-indicator::after {
+  content: '';
+  position: absolute;
+  inset: -4px;
+  border-radius: 50%;
+  background: rgba(2, 132, 199, 0.4);
+  animation: radarPulse 2s infinite cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+@keyframes radarPulse {
+  0% { transform: scale(0.8); opacity: 0.8; }
+  100% { transform: scale(2.4); opacity: 0; }
+}
+
+.minute-rain-title {
+  font-size: 15px;
+  font-weight: 700;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+  margin-bottom: 2px;
+}
+
+.minute-rain-summary {
+  font-size: 13px;
+  color: var(--text-secondary);
+  font-weight: 500;
+  line-height: 1.35;
+}
+
+.nowcast-live-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 3px 9px;
+  border-radius: var(--radius-pill);
+  background: rgba(2, 132, 199, 0.1);
+  color: #0369A1;
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  border: 1px solid rgba(2, 132, 199, 0.25);
+  white-space: nowrap;
+}
+
+.minute-rain-chart-wrapper {
+  display: flex;
+  align-items: stretch;
+  gap: 10px;
+  margin: 10px 0 6px 0;
+  position: relative;
+}
+
+.minute-rain-y-axis {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  align-items: flex-end;
+  font-size: 10px;
+  font-weight: 600;
+  color: var(--text-muted);
+  padding: 4px 0;
+  min-width: 34px;
+  user-select: none;
+}
+
+.minute-rain-canvas-box {
+  flex: 1;
+  position: relative;
+  height: 96px;
+  background: rgba(241, 245, 249, 0.45);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(226, 232, 240, 0.8);
+  overflow: hidden;
+  cursor: crosshair;
+}
+
+.minute-rain-chart {
+  width: 100%;
+  height: 100%;
+  display: block;
+}
+
+.minute-rain-scrubber {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 10;
+  transform: translateX(-50%);
+}
+
+.scrubber-line {
+  width: 1.5px;
+  height: 100%;
+  background: var(--primary-blue);
+  box-shadow: 0 0 6px rgba(25, 118, 210, 0.5);
+}
+
+.scrubber-tooltip {
+  position: absolute;
+  top: 6px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #0F172A;
+  color: #FFFFFF;
+  padding: 3px 7px;
+  border-radius: 6px;
+  font-size: 11px;
+  font-weight: 600;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.25);
+}
+
+.minute-rain-timeline-labels {
+  display: flex;
+  justify-content: space-between;
+  padding-left: 44px;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  user-select: none;
+}
+
+.minute-rain-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid rgba(226, 232, 240, 0.7);
+  font-size: 12px;
+}
+
+.minute-footer-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text-secondary);
+  font-weight: 600;
+}
+
+.minute-radar-link-btn {
+  background: none;
+  border: none;
+  color: var(--primary-blue);
+  font-size: 12px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.minute-radar-link-btn:hover {
+  background: var(--light-blue);
+  color: var(--primary-blue-hover);
+}
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 3: SMART LIFESTYLE & PERSONA DECISION HUB
+   ========================================================================== */
+.lifestyle-hub-section {
+  padding: 18px 20px;
+  border-radius: var(--radius-lg);
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--border-color);
+  box-shadow: var(--card-shadow);
+}
+
+.lifestyle-header {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+@media (min-width: 640px) {
+  .lifestyle-header {
+    flex-direction: row;
+    align-items: flex-end;
+    justify-content: space-between;
+  }
+}
+
+.lifestyle-filter-chips {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  overflow-x: auto;
+  padding-bottom: 2px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.lifestyle-filter-chips::-webkit-scrollbar {
+  display: none;
+}
+
+.lifestyle-chip {
+  padding: 6px 14px;
+  border-radius: var(--radius-pill);
+  border: 1px solid var(--border-color);
+  background: var(--bg-subtle);
+  color: var(--text-secondary);
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.lifestyle-chip:hover {
+  background: var(--light-blue);
+  color: var(--primary-blue);
+  border-color: #BFDBFE;
+}
+
+.lifestyle-chip.active {
+  background: var(--primary-blue);
+  color: #FFFFFF;
+  border-color: var(--primary-blue);
+  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+}
+
+.lifestyle-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.lifestyle-card {
+  padding: 14px 16px;
+  border-radius: var(--radius-md);
+  background: #FFFFFF;
+  border: 1px solid rgba(226, 232, 240, 0.85);
+  box-shadow: 0 1px 4px rgba(15, 23, 42, 0.04);
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 10px;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.lifestyle-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 6px 16px rgba(15, 23, 42, 0.08);
+  border-color: #CBD5E1;
+}
+
+.lifestyle-card-top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.lifestyle-card-meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.lifestyle-card-icon-box {
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.lifestyle-card-title {
+  font-size: 13.5px;
+  font-weight: 700;
+  color: var(--text-primary);
+  line-height: 1.25;
+}
+
+.lifestyle-card-category {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.lifestyle-status-pill {
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  white-space: nowrap;
+}
+
+.lifestyle-status-pill.status-optimal {
+  background: #DCFCE7;
+  color: #15803D;
+  border: 1px solid #BBF7D0;
+}
+
+.lifestyle-status-pill.status-caution {
+  background: #FEF3C7;
+  color: #B45309;
+  border: 1px solid #FDE68A;
+}
+
+.lifestyle-status-pill.status-unfavorable {
+  background: #FEE2E2;
+  color: #B91C1C;
+  border: 1px solid #FECACA;
+}
+
+.lifestyle-card-desc {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  line-height: 1.45;
+  font-weight: 450;
+}
+
+.lifestyle-card-metric-footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  padding-top: 8px;
+  border-top: 1px dashed #E2E8F0;
+}
+
+.lifestyle-metric-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  color: var(--primary-blue);
+}
+
+/* ==========================================================================
+   FLAGSHIP UPGRADE 4: PROACTIVE AI COPILOT & VOICE WIDGET
+   ========================================================================== */
+.copilot-fab {
+  position: fixed;
+  bottom: 84px;
+  right: 20px;
+  z-index: 990;
+  border: none;
+  background: linear-gradient(135deg, #1E40AF, #1D4ED8 60%, #2563EB);
+  color: #FFFFFF;
+  padding: 10px 18px 10px 14px;
+  border-radius: var(--radius-pill);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  cursor: pointer;
+  box-shadow: 0 6px 20px rgba(29, 78, 216, 0.4), 0 2px 6px rgba(0, 0, 0, 0.1);
+  transition: transform 0.25s cubic-bezier(0.4, 0, 0.2, 1), box-shadow 0.25s ease;
+}
+
+.copilot-fab:hover {
+  transform: translateY(-3px) scale(1.03);
+  box-shadow: 0 10px 28px rgba(29, 78, 216, 0.5);
+}
+
+.copilot-fab:active {
+  transform: translateY(0) scale(0.98);
+}
+
+.copilot-fab-pulse {
+  position: absolute;
+  inset: -4px;
+  border-radius: var(--radius-pill);
+  border: 2px solid rgba(59, 130, 246, 0.6);
+  animation: copilotRing 3s infinite ease-out;
+  pointer-events: none;
+}
+
+@keyframes copilotRing {
+  0% { transform: scale(0.95); opacity: 0.8; }
+  50% { transform: scale(1.15); opacity: 0.2; }
+  100% { transform: scale(1.25); opacity: 0; }
+}
+
+.copilot-fab-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 26px;
+  height: 26px;
+}
+
+.copilot-fab-label {
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+}
+
+/* Copilot Drawer Modal */
+.copilot-drawer {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  display: flex;
+  justify-content: center;
+  align-items: flex-end;
+  visibility: visible;
+  opacity: 1;
+  transition: opacity 0.3s ease, visibility 0.3s ease;
+}
+
+.copilot-drawer.hidden {
+  visibility: hidden;
+  opacity: 0;
+  pointer-events: none;
+}
+
+.copilot-drawer-backdrop {
+  position: absolute;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+}
+
+.copilot-drawer-sheet {
+  position: relative;
+  z-index: 10;
+  width: 100%;
+  max-width: 600px;
+  background: rgba(255, 255, 255, 0.96);
+  backdrop-filter: blur(28px);
+  -webkit-backdrop-filter: blur(28px);
+  border-top-left-radius: 28px;
+  border-top-right-radius: 28px;
+  padding: 22px 20px 36px 20px;
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  box-shadow: 0 -12px 48px rgba(15, 23, 42, 0.25);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  animation: slideUpDrawer 0.32s cubic-bezier(0.16, 1, 0.3, 1);
+  max-height: 85vh;
+  overflow-y: auto;
+}
+
+@keyframes slideUpDrawer {
+  from { transform: translateY(100%); }
+  to { transform: translateY(0); }
+}
+
+.copilot-drawer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.copilot-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.copilot-icon-badge {
+  width: 40px;
+  height: 40px;
+  border-radius: 12px;
+  background: linear-gradient(135deg, #1D4ED8, #3B82F6);
+  color: #FFFFFF;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+  box-shadow: 0 3px 10px rgba(37, 99, 235, 0.3);
+}
+
+.copilot-drawer-title {
+  font-size: 17px;
+  font-weight: 800;
+  color: var(--text-primary);
+  letter-spacing: -0.01em;
+}
+
+.copilot-drawer-status {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.copilot-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  background: #16A34A;
+}
+
+.copilot-close-btn {
+  background: var(--bg-subtle);
+  border: none;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--text-secondary);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+
+.copilot-close-btn:hover {
+  background: #E2E8F0;
+  color: var(--text-primary);
+}
+
+/* Audio Briefing Player Card */
+.copilot-briefing-card {
+  padding: 14px 16px;
+  background: linear-gradient(135deg, #EFF6FF, #DBEAFE);
+  border: 1px solid #BFDBFE;
+  border-radius: 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.copilot-briefing-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.briefing-speaker-icon {
+  color: #1D4ED8;
+  font-size: 24px;
+}
+
+.briefing-tag {
+  font-size: 10px;
+  font-weight: 800;
+  color: #1D4ED8;
+  letter-spacing: 0.06em;
+}
+
+.briefing-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: #1E3A8A;
+  line-height: 1.3;
+}
+
+.copilot-play-brief-btn {
+  background: #1D4ED8;
+  color: #FFFFFF;
+  border: none;
+  padding: 8px 14px;
+  border-radius: var(--radius-pill);
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 2px 8px rgba(29, 78, 216, 0.3);
+  transition: all 0.2s ease;
+}
+
+.copilot-play-brief-btn:hover {
+  background: #1E40AF;
+  transform: translateY(-1px);
+}
+
+.copilot-play-brief-btn.playing {
+  background: #DC2626;
+  box-shadow: 0 2px 8px rgba(220, 38, 38, 0.3);
+}
+
+/* Quick 1-Tap Prompts */
+.copilot-quick-prompts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.copilot-prompts-label {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.copilot-prompts-scroll {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.copilot-prompt-chip {
+  padding: 8px 12px;
+  border-radius: var(--radius-pill);
+  border: 1px solid #CBD5E1;
+  background: #FFFFFF;
+  color: var(--text-primary);
+  font-size: 12px;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.4, 0, 0.2, 1);
+}
+
+.copilot-prompt-chip:hover {
+  background: #F0F7FF;
+  border-color: #3B82F6;
+  color: #1D4ED8;
+  transform: translateY(-1px);
+}
+
+/* Instant Answer Card */
+.copilot-answer-card {
+  padding: 16px;
+  background: #FFFFFF;
+  border: 1px solid #E2E8F0;
+  border-radius: 16px;
+  box-shadow: 0 4px 14px rgba(15, 23, 42, 0.05);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  animation: fadeInAnswer 0.25s ease-out;
+}
+
+@keyframes fadeInAnswer {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.copilot-answer-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.copilot-query-bubble {
+  font-size: 12px;
+  font-weight: 700;
+  color: var(--primary-blue);
+  background: var(--light-blue);
+  padding: 3px 10px;
+  border-radius: 12px;
+  max-width: 85%;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.copilot-speech-toggle-btn {
+  background: var(--bg-subtle);
+  border: none;
+  width: 30px;
+  height: 30px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: var(--text-secondary);
+}
+
+.copilot-speech-toggle-btn:hover {
+  background: var(--light-blue);
+  color: var(--primary-blue);
+}
+
+.copilot-answer-body {
+  font-size: 13.5px;
+  line-height: 1.5;
+  color: var(--text-primary);
+  font-weight: 450;
+}
+
+.copilot-answer-actions {
+  display: flex;
+  justify-content: flex-end;
+  padding-top: 8px;
+  border-top: 1px solid #F1F5F9;
+}
+
+.copilot-deep-chat-btn {
+  background: none;
+  border: none;
+  color: var(--primary-blue);
+  font-size: 12.5px;
+  font-weight: 700;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.copilot-deep-chat-btn:hover {
+  background: var(--light-blue);
+}
+
 

@@ -18,7 +18,7 @@ class WeatherGPTApiClient {
       this.baseUrl = "/api/v1";
     }
     this.tokenKey = "weathergpt_auth_token";
-    this.timeoutMs = 10000;
+    this.timeoutMs = 35000;
   }
 
   isNativeAndroid() {
