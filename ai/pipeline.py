@@ -68,16 +68,22 @@ class WeatherGPTPipeline:
         resolved_mem_location = None
         if not resolved_context_summary and conversation_id and conversation_id != "default":
             try:
-                from ai.memory import memory_manager, ContextResolver
+                from ai.memory import memory_manager, ContextResolver, state_service
                 if ContextResolver.is_reset_query(message):
                     memory_manager.reset_context(conversation_id)
-                ctx = memory_manager.get_context(conversation_id)
-                resolved = ContextResolver.resolve_query(message, context=ctx)
-                resolved_context_summary = resolved.context_summary
-                if resolved.resolved_location:
-                    resolved_mem_location = resolved.resolved_location
-                elif ctx and ctx.location:
-                    resolved_mem_location = ctx.location
+                    state_service.reset_state(conversation_id)
+                cur_state = state_service.get_state(conversation_id)
+                turn_analysis = state_service.analyze_turn(message, cur_state)
+                resolved_context_summary = turn_analysis.context_summary
+                if turn_analysis.resolved_location and turn_analysis.resolved_location != "Unspecified":
+                    resolved_mem_location = turn_analysis.resolved_location
+                else:
+                    ctx = memory_manager.get_context(conversation_id)
+                    resolved = ContextResolver.resolve_query(message, context=ctx)
+                    if resolved.resolved_location:
+                        resolved_mem_location = resolved.resolved_location
+                    elif ctx and ctx.location:
+                        resolved_mem_location = ctx.location
             except Exception as mem_err:
                 # Failure isolation: memory manager failure MUST NEVER crash query processing
                 degraded_reasons.append(f"Memory resolution failed: {str(mem_err)}")

@@ -5,9 +5,30 @@ Ensures clear separation between Session Context, User Preferences,
 Conversational References, and Recent Chat History.
 """
 
+from enum import Enum
 from datetime import datetime, timezone
 from typing import Optional, Dict, Any, List
 from pydantic import BaseModel, Field
+
+
+class TurnTypeEnum(str, Enum):
+    """Categorized conversational turn transition."""
+    NEW_QUESTION = "new_question"
+    FOLLOW_UP = "follow_up"
+    TOPIC_CONTINUATION = "topic_continuation"
+    TOPIC_CHANGE = "topic_change"
+    EXPLICIT_CORRECTION = "explicit_correction"
+    CLARIFICATION_RESPONSE = "clarification_response"
+    AMBIGUOUS_REQUEST = "ambiguous_request"
+
+
+class ClarificationState(BaseModel):
+    """State tracking for required conversational clarifications."""
+    needed: bool = False
+    field: Optional[str] = None          # e.g. "location", "date", "reference"
+    prompt: Optional[str] = None         # e.g. "Which district or city are you asking about?"
+    options: List[str] = Field(default_factory=list) # e.g. ["Chennai", "Coimbatore"]
+    pending_query: Optional[str] = None # original user query needing disambiguation
 
 
 class ConversationTurn(BaseModel):
@@ -81,7 +102,107 @@ class ResolvedQueryContext(BaseModel):
     resolved_persona: str = Field(default="general", description="Resolved persona")
     resolved_language: str = Field(default="en", description="Resolved target language")
     resolved_topic: Optional[str] = Field(default=None, description="Resolved meteorological topic")
+    resolved_activity: Optional[str] = Field(default=None, description="Resolved domain activity")
     is_ambiguous: bool = Field(default=False, description="Whether reference could not be unambiguously resolved")
     ambiguity_reason: Optional[str] = Field(default=None, description="Explanation of reference ambiguity")
+    turn_type: TurnTypeEnum = Field(default=TurnTypeEnum.NEW_QUESTION, description="Classified turn transition")
+    clarification: ClarificationState = Field(default_factory=ClarificationState)
     inherited_fields: List[str] = Field(default_factory=list, description="Fields inherited from memory")
     context_summary: str = Field(default="", description="Structured summary string for LLM grounding")
+
+
+class ConversationState(BaseModel):
+    """Personal Weather AI Persistent State Model.
+
+    Houses deterministic, authoritative conversational state across multi-turn interactions.
+    Acts as the grounding anchor so the LLM never fabricates context or safety boundaries.
+    """
+    conversation_id: str = Field(description="Unique conversation identifier")
+    session_id: Optional[str] = Field(default=None, description="Optional client session identifier")
+    user_id: Optional[str] = Field(default=None, description="Authenticated user identifier")
+    turn_index: int = Field(default=0, description="Sequential turn count")
+    current_intent: Optional[str] = Field(default=None, description="Currently classified intent")
+    turn_type: TurnTypeEnum = Field(default=TurnTypeEnum.NEW_QUESTION, description="Categorized turn transition")
+
+    # Active Entities & Parameters
+    active_entities: Dict[str, Any] = Field(default_factory=dict, description="Active meteorological & spatial entities")
+    active_location: Optional[str] = Field(default=None, description="Resolved active primary location")
+    active_latitude: Optional[float] = Field(default=None)
+    active_longitude: Optional[float] = Field(default=None)
+    active_time: Optional[str] = Field(default=None, description="Active time of day or clock time (e.g. 5:00 PM)")
+    active_date: Optional[str] = Field(default=None, description="Active calendar date or relative date (today, tomorrow)")
+    active_activity: Optional[str] = Field(default=None, description="Active domain activity (commute, farming, fishing)")
+
+    # Historical Tracking
+    previous_user_question: Optional[str] = Field(default=None, description="Exact text of previous user query")
+    previous_resolved_decision_context: Optional[Dict[str, Any]] = Field(default=None, description="Decision summary from previous turn")
+    unresolved_references: List[str] = Field(default_factory=list, description="Unresolved pronouns or vague terms")
+
+    # Clarification State
+    clarification_state: ClarificationState = Field(default_factory=ClarificationState)
+
+    # User Profile & Context IDs
+    preferred_language: str = Field(default="en", description="Target language preference")
+    persona: str = Field(default="general", description="Target user persona")
+    relevant_user_context_ids: List[str] = Field(default_factory=list, description="Context tags, e.g. saved locations, home district")
+
+    # Safety Critical Context Preservation (Preserves severe alerts across turns)
+    safety_critical_context: Optional[Dict[str, Any]] = Field(default=None, description="Persists severe weather warnings across follow-ups")
+
+    # Spatial disambiguation tracking
+    recent_locations: List[str] = Field(default_factory=list, description="Recent distinct locations discussed (bounded to 5)")
+
+    # Bounded Turn History (Max 10)
+    turns: List[ConversationTurn] = Field(default_factory=list, description="Bounded chronological turn history")
+
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    ttl_seconds: int = Field(default=1800, description="Context TTL in seconds (default 30 mins)")
+
+    def is_expired(self, current_time: Optional[datetime] = None) -> bool:
+        """Checks whether the conversational state has exceeded its TTL."""
+        now = current_time or datetime.now(timezone.utc)
+        elapsed = (now - self.updated_at).total_seconds()
+        return elapsed > self.ttl_seconds
+
+    def to_bounded_context(self, max_turns: int = 2) -> str:
+        """Constructs a compact, strictly bounded context representation for LLM grounding.
+
+        Prevents prompt bloat and historical hallucination by injecting only:
+        - Active location, time, date, activity
+        - Active safety-critical alert (if any)
+        - Last 1-2 turn questions and answers
+        """
+        parts = []
+        if self.active_location:
+            parts.append(f"Active Location: {self.active_location}")
+        if self.active_date or self.active_time:
+            time_str = f"{self.active_date or ''} {self.active_time or ''}".strip()
+            parts.append(f"Target Time: {time_str}")
+        if self.active_activity:
+            parts.append(f"Activity: {self.active_activity}")
+        if self.persona and self.persona != "general":
+            parts.append(f"User Persona: {self.persona}")
+
+        # Safety critical persistence
+        if self.safety_critical_context and self.safety_critical_context.get("has_active_warning"):
+            w_title = self.safety_critical_context.get("warning_title", "Severe Weather Warning")
+            w_sev = self.safety_critical_context.get("severity", "ALERT")
+            parts.append(f"ACTIVE OFFICIAL WARNING: [{w_sev}] {w_title}")
+
+        # Bounded historical turns (last max_turns only)
+        if self.turns:
+            recent_turns = self.turns[-(max_turns * 2):]
+            turn_lines = []
+            for t in recent_turns:
+                msg = t.message[:100].replace("\n", " ")
+                turn_lines.append(f"{t.role.capitalize()}: {msg}")
+            if turn_lines:
+                parts.append("Recent Context: " + " | ".join(turn_lines))
+
+        return " | ".join(parts) if parts else "No prior context"
+
+    def to_dict(self) -> Dict[str, Any]:
+        """Dictionary serialization for API responses."""
+        return self.model_dump()
+

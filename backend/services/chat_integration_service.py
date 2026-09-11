@@ -25,7 +25,15 @@ from ai.models import (
     IntentEnum,
     LanguageEnum
 )
-from ai.memory import memory_manager, ContextResolver, ConversationTurn
+from ai.memory import (
+    memory_manager,
+    ContextResolver,
+    ConversationTurn,
+    state_service,
+    ConversationState,
+    ClarificationState,
+    TurnTypeEnum
+)
 from ai.tools import weather_tools
 from ai.voice.tts import format_concise_speech_text
 from ai.nlu import parse_query
@@ -73,6 +81,7 @@ class ChatIntegrationService:
         conv_id = conversation_id or "default"
         if not conversation_id or ContextResolver.is_reset_query(message):
             memory_manager.reset_context(conv_id)
+            state_service.reset_state(conv_id)
 
         user_name: Optional[str] = None
         if user_id and db_session:
@@ -87,15 +96,19 @@ class ChatIntegrationService:
             except Exception:
                 pass
 
+        cur_state = state_service.get_state(conv_id, user_id=user_id)
         ctx = memory_manager.get_context(conv_id)
         explicit_loc = location_name if location_name and location_name.lower() != "coimbatore" else None
-        resolved = ContextResolver.resolve_query(
+
+        # Turn transition analysis via ConversationStateService
+        turn_analysis = state_service.analyze_turn(
             message=message,
-            context=ctx,
+            current_state=cur_state,
             explicit_location=explicit_loc,
             explicit_language=language,
             explicit_persona=persona
         )
+        resolved = turn_analysis
 
         now_dt = datetime.now(timezone.utc)
         lower_msg = message.lower().strip()
@@ -154,16 +167,22 @@ class ChatIntegrationService:
                 request_id=request_id,
                 user_id=user_id,
                 db_session=db_session,
-                now_dt=now_dt
+                now_dt=now_dt,
+                resolved_ctx=turn_analysis
             )
 
         # =========================================================================
-        # FAST PATH 2: CLARIFICATION NEEDED (Requirement 13: Ask concise clarification)
+        # FAST PATH 2: CLARIFICATION NEEDED / AMBIGUOUS REQUEST (Personal Weather AI)
         # =========================================================================
-        has_context_loc = bool(ctx and ctx.location)
+        has_context_loc = bool((cur_state and cur_state.active_location) or (ctx and ctx.location))
         is_there_query = any(k in lower_msg for k in ["weather there", "how is it there", "what's the weather there", "there?"])
-        if (pre_nlu.intent == IntentEnum.CLARIFICATION_NEEDED or is_there_query) and not has_context_loc and not explicit_loc:
-            if norm_lang in ("ta", "tanglish", "tamil"):
+        is_ambiguous_no_loc = (turn_analysis.turn_type == TurnTypeEnum.AMBIGUOUS_REQUEST and not location_name and not has_context_loc)
+
+        if (pre_nlu.intent == IntentEnum.CLARIFICATION_NEEDED or is_there_query or is_ambiguous_no_loc) and not has_context_loc and not explicit_loc:
+            if turn_analysis.clarification and turn_analysis.clarification.prompt:
+                clar_text = turn_analysis.clarification.prompt
+                ret_lang = norm_lang
+            elif norm_lang in ("ta", "tanglish", "tamil"):
                 clar_text = "எந்த இடத்தின் வானிலை விவரம் உங்களுக்கு தேவைப்படுகிறது? தயவுசெய்து உங்கள் மாவட்டம் அல்லது நகரத்தின் பெயரை குறிப்பிடவும் (உதாரணமாக: கோயம்புத்தூர், சென்னை, மதுரை)."
                 ret_lang = "ta"
             elif norm_lang in ("hi", "hinglish", "hindi"):
@@ -172,6 +191,14 @@ class ChatIntegrationService:
             else:
                 clar_text = "Which location would you like the weather for? Please specify your city or district name (e.g., Coimbatore, Chennai, Madurai)."
                 ret_lang = "en"
+
+            turn_analysis.clarification = ClarificationState(
+                needed=True,
+                field="location",
+                prompt=clar_text,
+                pending_query=message
+            )
+            turn_analysis.turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
 
             return self._finalize_chat_turn(
                 message=message,
@@ -190,7 +217,8 @@ class ChatIntegrationService:
                 request_id=request_id,
                 user_id=user_id,
                 db_session=db_session,
-                now_dt=now_dt
+                now_dt=now_dt,
+                resolved_ctx=turn_analysis
             )
 
         # =========================================================================
@@ -637,6 +665,19 @@ class ChatIntegrationService:
             last_intent=intent
         )
 
+        # Update Conversational Memory & State Service
+        cur_st = state_service.get_state(conv_id, user_id=user_id)
+        res_ctx = resolved_ctx if (resolved_ctx is not None and hasattr(resolved_ctx, 'turn_type')) else state_service.analyze_turn(message, cur_st)
+
+        conv_state = state_service.update_state(
+            conversation_id=conv_id,
+            user_message=message,
+            assistant_message=answer,
+            resolved_ctx=res_ctx,
+            decision_context=weather_summary,
+            safety_alerts=alerts
+        )
+
         # Database Persistence
         if db_session is not None:
             try:
@@ -700,6 +741,7 @@ class ChatIntegrationService:
             "forecast_count": forecast_count,
             "alerts": alerts,
             "source": source,
+            "conversation_state": conv_state.to_dict() if conv_state else None,
             "data_quality": {
                 "is_data_available": (data_status != "DATA_UNAVAILABLE"),
                 "data_status": data_status,

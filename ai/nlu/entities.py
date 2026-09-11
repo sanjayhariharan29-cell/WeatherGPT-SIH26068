@@ -37,6 +37,30 @@ KNOWN_LOCATIONS = {
     "तिरुचिरापल्ली": "Tiruchirappalli",
     "kanyakumari": "Kanyakumari",
     "கன்னியாகுமரி": "Kanyakumari",
+    "tirunelveli": "Tirunelveli",
+    "திருநெல்வேலி": "Tirunelveli",
+    "तिरुनेलवेली": "Tirunelveli",
+    "ooty": "Ooty",
+    "ஊட்டி": "Ooty",
+    "ऊटी": "Ooty",
+    "udagamandalam": "Ooty",
+    "vellore": "Vellore",
+    "வேலூர்": "Vellore",
+    "thanjavur": "Thanjavur",
+    "தஞ்சாவூர்": "Thanjavur",
+    "erode": "Erode",
+    "ஈரோடு": "Erode",
+    "dindigul": "Dindigul",
+    "திண்டுக்கல்": "Dindigul",
+    "kodaikanal": "Kodaikanal",
+    "கொடைக்கானல்": "Kodaikanal",
+    "cuddalore": "Cuddalore",
+    "கடலூர்": "Cuddalore",
+    "thoothukudi": "Thoothukudi",
+    "tuticorin": "Thoothukudi",
+    "தூத்துக்குடி": "Thoothukudi",
+    "tiruppur": "Tiruppur",
+    "திருப்பூர்": "Tiruppur",
     # Major Metros & States
     "delhi": "Delhi",
     "டெல்லி": "Delhi",
@@ -81,6 +105,19 @@ def extract_entities(text: str) -> ExtractedEntities:
             if loc_key in clean:
                 entities.location = canonical_name
                 break
+
+    # Fallback: Prepositional location extraction (e.g. "in Salem", "about Madurai", "near Coimbatore")
+    if not entities.location:
+        prep_match = re.search(r"\b(?:in|at|for|near|about|to)\s+([A-Za-z]+)\b", text)
+        if prep_match:
+            candidate = prep_match.group(1).strip()
+            excluded = {
+                "the", "a", "an", "today", "tomorrow", "yesterday", "now", "me", "you", "us",
+                "weather", "rain", "temperature", "temp", "morning", "afternoon", "evening",
+                "night", "there", "it", "here", "this", "that"
+            }
+            if candidate.lower() not in excluded and len(candidate) >= 3:
+                entities.location = candidate.capitalize()
 
     # 2. Relative Date Extraction
     year_match = re.search(r"\b(?:in|during|year)\s+(19\d\d|20[0-2]\d)\b", clean)
