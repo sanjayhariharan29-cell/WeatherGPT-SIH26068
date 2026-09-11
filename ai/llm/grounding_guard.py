@@ -59,6 +59,11 @@ def verify_grounding(response_text: str, context: GroundedContext) -> Tuple[bool
         invented_warning_phrases = [
             "official red alert",
             "official cyclone warning",
+            "cyclone warning",
+            "cyclone alert",
+            "flood warning",
+            "tsunami warning",
+            "warning has been issued",
             "imd red alert",
             "imd orange alert",
             "official evacuation order",
@@ -68,11 +73,13 @@ def verify_grounding(response_text: str, context: GroundedContext) -> Tuple[bool
             "சிவப்பு எச்சரிக்கை",
             "ரெட் அலர்ட்",
             "ஆரஞ்சு எச்சரிக்கை",
+            "புயல் எச்சரிக்கை",
             "அதிகாரப்பூர்வ வெளியேற்ற உத்தரவு",
             # Hindi
             "रेड अलर्ट",
             "लाल चेतावनी",
             "ऑरेंज चेतावनी",
+            "चक्रवात चेतावनी",
             "आधिकारिक निकासी आदेश",
         ]
         for phrase in invented_warning_phrases:

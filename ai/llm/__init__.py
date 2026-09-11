@@ -7,6 +7,8 @@ from ai.llm.prompts import SYSTEM_INSTRUCTION, build_grounded_prompt
 from ai.llm.provider import (
     BaseLLMProvider,
     GeminiLLMProvider,
+    GroqLLMProvider,
+    RoutingLLMProvider,
     MockLLMProvider,
     get_llm_provider,
 )
@@ -20,6 +22,8 @@ __all__ = [
     "build_grounded_prompt",
     "BaseLLMProvider",
     "GeminiLLMProvider",
+    "GroqLLMProvider",
+    "RoutingLLMProvider",
     "MockLLMProvider",
     "get_llm_provider"
 ]

@@ -17,7 +17,7 @@ except ImportError:
 
 @dataclass
 class LLMConfig:
-    """LLM generation settings."""
+    """LLM generation settings with strict secret protection."""
     provider: str = field(
         default_factory=lambda: os.getenv("WEATHERGPT_LLM_PROVIDER", "gemini")
     )
@@ -27,10 +27,31 @@ class LLMConfig:
     api_key: Optional[str] = field(
         default_factory=lambda: os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
     )
+    groq_api_key: Optional[str] = field(
+        default_factory=lambda: os.getenv("GROQ_API_KEY")
+    )
+    groq_model: str = field(
+        default_factory=lambda: os.getenv("WEATHERGPT_GROQ_MODEL", "llama-3.3-70b-versatile")
+    )
+    fallback_provider: Optional[str] = field(
+        default_factory=lambda: os.getenv("WEATHERGPT_FALLBACK_PROVIDER")
+    )
     temperature: float = 0.2
     timeout_seconds: float = 10.0
     max_output_tokens: int = 1024
     fallback_enabled: bool = True
+
+    def __repr__(self) -> str:
+        """Masks sensitive credentials from logs, stack traces, and debug string representations."""
+        masked_gemini = "***REDACTED***" if self.api_key else None
+        masked_groq = "***REDACTED***" if self.groq_api_key else None
+        return (
+            f"LLMConfig(provider={self.provider!r}, model_name={self.model_name!r}, "
+            f"api_key={masked_gemini!r}, groq_api_key={masked_groq!r}, "
+            f"groq_model={self.groq_model!r}, fallback_provider={self.fallback_provider!r}, "
+            f"temperature={self.temperature}, timeout_seconds={self.timeout_seconds}, "
+            f"fallback_enabled={self.fallback_enabled})"
+        )
 
 
 @dataclass

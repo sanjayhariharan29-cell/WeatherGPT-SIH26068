@@ -430,6 +430,7 @@ class GroundedResponse(BaseModel):
     sources: List[str] = Field(default_factory=list)
     used_grounded_context: bool = True
     is_fallback: bool = False
+    provider_used: Optional[str] = None
 
 
 class DegradedStateEnum(str, Enum):

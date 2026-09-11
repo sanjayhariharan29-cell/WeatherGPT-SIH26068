@@ -39,8 +39,6 @@ class GroundedLLMGenerator:
 
         if provider:
             self.provider = provider
-        elif self.config.llm.api_key:
-            self.provider = GeminiLLMProvider(self.config.llm)
         else:
             self.provider = get_llm_provider(self.config.llm)
         self.last_is_fallback: bool = False
@@ -85,7 +83,7 @@ class GroundedLLMGenerator:
             source=", ".join(reasoning.sources_used)
         )
 
-        # Attempt generation via configured provider
+        # Attempt generation via configured provider (with routing & fallback)
         if self.provider:
             try:
                 raw_response = self.provider.generate_text(
@@ -96,6 +94,7 @@ class GroundedLLMGenerator:
                     is_grounded, issues = verify_grounding(raw_response, context)
                     if is_grounded:
                         self.last_is_fallback = False
+                        provider_name = getattr(self.provider, "last_provider_used", None) or getattr(self.provider, "name", "llm")
                         return GroundedResponse(
                             answer=raw_response.strip(),
                             grounded_facts=[f"{k}: {v}" for k, v in context.observed_facts.items() if v != "UNAVAILABLE"],
@@ -103,7 +102,8 @@ class GroundedLLMGenerator:
                             uncertainties=reasoning.contradictions,
                             sources=reasoning.sources_used,
                             used_grounded_context=True,
-                            is_fallback=False
+                            is_fallback=False,
+                            provider_used=provider_name
                         )
             except Exception:
                 # Catch timeouts, connection errors, or simulated provider exceptions
@@ -121,7 +121,8 @@ class GroundedLLMGenerator:
             uncertainties=reasoning.contradictions,
             sources=reasoning.sources_used,
             used_grounded_context=True,
-            is_fallback=True
+            is_fallback=True,
+            provider_used="deterministic_fallback"
         )
 
     def generate(
@@ -258,17 +259,17 @@ class GroundedLLMGenerator:
 
             if target_lang == LanguageEnum.TA:
                 dec_ans = personal_dec.get("concise_answer_ta") if personal_dec else ""
-                if dec_ans and ("எச்சரிக்கை" in dec_ans or "alert" in dec_ans.lower()):
+                if dec_ans and alert.title in dec_ans:
                     return f"{user_prefix}{dec_ans}"
-                return f"⚠️ [அதிகாரப்பூர்வ IMD {sev} எச்சரிக்கை] {affected} பகுதியில் {alert.title} செயலில் உள்ளது. {dec_ans or precaution}"
+                return f"⚠️ [அதிகாரப்பூர்வ IMD {sev} எச்சரிக்கை: {alert.title}] {affected} பகுதியில் செயலில் உள்ளது. {dec_ans or precaution}"
             elif target_lang == LanguageEnum.HI:
                 dec_ans = personal_dec.get("concise_answer_hi") if personal_dec else ""
-                if dec_ans and ("चेतावनी" in dec_ans or "alert" in dec_ans.lower()):
+                if dec_ans and alert.title in dec_ans:
                     return f"{user_prefix}{dec_ans}"
-                return f"⚠️ [आधिकारिक IMD {sev} चेतावनी] {affected} में {alert.title} सक्रिय है। {dec_ans or precaution}"
+                return f"⚠️ [आधिकारिक IMD {sev} चेतावनी: {alert.title}] {affected} में सक्रिय है। {dec_ans or precaution}"
             else:
                 dec_ans = personal_dec.get("concise_answer") if personal_dec else ""
-                if dec_ans and ("warning" in dec_ans.lower() or "alert" in dec_ans.lower()):
+                if dec_ans and alert.title.lower() in dec_ans.lower():
                     return f"{user_prefix}{dec_ans}"
                 return f"An official IMD {sev} alert is active for {affected} ({alert.title}). {dec_ans or precaution}"
 
@@ -294,30 +295,38 @@ class GroundedLLMGenerator:
         # unless user asked a specific activity decision (college, bike, umbrella, sports, etc.)
         if is_rain_q and p_type in ("general_go", "outdoor_activity", None):
             rain_prob = float(weather.rain_probability if (weather and weather.rain_probability is not None) else 0.0)
+            temp_note = f" ({weather.temperature:.0f}°C)" if (weather and weather.temperature is not None) else ""
             if rain_prob >= 40.0:
                 if target_lang == LanguageEnum.TA:
-                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்புள்ளது ({rain_prob:.0f}% வாய்ப்பு). வெளியே செல்லும்போது குடை எடுத்துச் செல்லவும்."
+                    return f"{user_prefix}{loc}ல் இன்று{temp_note} மழை பெய்ய வாய்ப்புள்ளது ({rain_prob:.0f}% வாய்ப்பு). வெளியே செல்லும்போது குடை எடுத்துச் செல்லவும்."
                 elif target_lang == LanguageEnum.HI:
-                    return f"{user_prefix}{loc} में आज बारिश की संभावना है ({rain_prob:.0f}% संभावना)। बाहर जाते समय छाता साथ रखें।"
+                    return f"{user_prefix}{loc} में आज{temp_note} बारिश की संभावना है ({rain_prob:.0f}% संभावना)। बाहर जाते समय छाता साथ रखें।"
                 else:
-                    return f"{user_prefix}Rain is likely in {loc} today with a {rain_prob:.0f}% chance. I'd recommend carrying an umbrella."
+                    return f"{user_prefix}Rain is likely in {loc} today with a {rain_prob:.0f}% chance{temp_note}. I'd recommend carrying an umbrella."
             elif rain_prob >= 20.0:
                 if target_lang == LanguageEnum.TA:
-                    return f"{user_prefix}{loc}ல் காலையில் மழை வாய்ப்பு குறைவு, ஆனால் மாலையில் வாய்ப்பு சிறிது அதிகரிக்கலாம் ({rain_prob:.0f}%)."
+                    return f"{user_prefix}{loc}ல் காலையில் மழை வாய்ப்பு குறைவு{temp_note}, ஆனால் மாலையில் வாய்ப்பு சிறிது அதிகரிக்கலாம் ({rain_prob:.0f}%)."
                 elif target_lang == LanguageEnum.HI:
-                    return f"{user_prefix}{loc} में सुबह बारिश की संभावना कम है, लेकिन शाम को हल्की संभावना ({rain_prob:.0f}%) हो सकती है।"
+                    return f"{user_prefix}{loc} में सुबह बारिश की संभावना कम है{temp_note}, लेकिन शाम को हल्की संभावना ({rain_prob:.0f}%) हो सकती है।"
                 else:
-                    return f"{user_prefix}Rain is unlikely this morning in {loc}, but the chance increases later today ({rain_prob:.0f}% chance)."
+                    return f"{user_prefix}Rain is unlikely this morning in {loc}{temp_note}, but the chance increases later today ({rain_prob:.0f}% chance)."
             else:
                 if target_lang == LanguageEnum.TA:
-                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்பில்லை ({rain_prob:.0f}%). வானிலை தெளிவாக இருக்கும்."
+                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்பில்லை ({rain_prob:.0f}%){temp_note}. வானிலை தெளிவாக இருக்கும்."
                 elif target_lang == LanguageEnum.HI:
-                    return f"{user_prefix}{loc} में आज बारिश की संभावना नहीं है ({rain_prob:.0f}%)। मौसम साफ रहेगा।"
+                    return f"{user_prefix}{loc} में आज बारिश की संभावना नहीं है ({rain_prob:.0f}%){temp_note}। मौसम साफ रहेगा।"
                 else:
-                    return f"{user_prefix}Rain is unlikely in {loc} today with only a {rain_prob:.0f}% chance. Skies remain mostly clear."
+                    return f"{user_prefix}Rain is unlikely in {loc} today with only a {rain_prob:.0f}% chance{temp_note}. Skies remain mostly clear."
 
         if is_temp_q and p_type in ("general_go", "outdoor_activity", None):
-            temp_val = weather.temperature if (weather and weather.temperature is not None) else 25.0
+            if not weather or weather.temperature is None:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை தரவு கிடைக்கவில்லை (Unavailable)."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में वर्तमान तापमान डेटा उपलब्ध नहीं है (Unavailable)।"
+                else:
+                    return f"{user_prefix}Current temperature data for {loc} is currently unavailable."
+            temp_val = weather.temperature
             cond_raw = weather.weather_condition if weather else "Clear"
             if target_lang == LanguageEnum.TA:
                 cond_ta = translate_condition(cond_raw, LanguageEnum.TA)
@@ -330,17 +339,25 @@ class GroundedLLMGenerator:
 
         # If personal decision available for the activity
         if personal_dec:
+            is_general_q = ("weather" in user_text or "update" in user_text or p_type == "general_go")
+            temp_str = f" Currently {weather.temperature:.0f}°C." if (weather and weather.temperature is not None and is_general_q) else ""
             if target_lang == LanguageEnum.TA:
                 ans = personal_dec.get("concise_answer_ta") or personal_dec.get("concise_answer")
                 if ans:
+                    if is_general_q and weather and weather.temperature is not None and "°C" not in ans:
+                        ans = f"{ans} தற்போதைய வெப்பநிலை {weather.temperature:.0f}°C."
                     return f"{user_prefix}{ans}"
             elif target_lang == LanguageEnum.HI:
                 ans = personal_dec.get("concise_answer_hi") or personal_dec.get("concise_answer")
                 if ans:
+                    if is_general_q and weather and weather.temperature is not None and "°C" not in ans:
+                        ans = f"{ans} वर्तमान तापमान {weather.temperature:.0f}°C है।"
                     return f"{user_prefix}{ans}"
             else:
                 ans = personal_dec.get("concise_answer")
                 if ans:
+                    if temp_str and "°C" not in ans:
+                        ans = f"{ans}{temp_str}"
                     return f"{user_prefix}{ans}"
 
         # -----------------------------------------------------------------
@@ -373,10 +390,17 @@ class GroundedLLMGenerator:
         # 5. Missing Live Telemetry Case
         # -----------------------------------------------------------------
         if not weather or weather.temperature is None:
+            if is_temp_q or "temperature" in user_text:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை தரவு கிடைக்கவில்லை (Unavailable)."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में वर्तमान तापमान डेटा उपलब्ध नहीं है (Unavailable)।"
+                else:
+                    return f"{user_prefix}Current temperature data for {loc} is currently unavailable."
             if target_lang == LanguageEnum.TA:
-                return f"{user_prefix}{loc}க்கான நேரலை வானிலை தகவல் தற்போது கிடைக்கவில்லை. பயணத்திற்கு முன் அதிகாரப்பூர்வ IMD அறிக்கைகளைச் சரிபார்க்கவும்."
+                return f"{user_prefix}{loc}க்கான நேரலை வானிலை தகவல் தற்போது கிடைக்கவில்லை (Unavailable). பயணத்திற்கு முன் அதிகாரப்பூர்வ IMD அறிக்கைகளைச் சரிபார்க்கவும்."
             elif target_lang == LanguageEnum.HI:
-                return f"{user_prefix}{loc} के लिए लाइव मौसम डेटा उपलब्ध नहीं है। यात्रा से पहले आधिकारिक IMD बुलेटिन देखें।"
+                return f"{user_prefix}{loc} के लिए लाइव मौसम डेटा उपलब्ध नहीं है (Unavailable)। यात्रा से पहले आधिकारिक IMD बुलेटिन देखें।"
             else:
                 return f"{user_prefix}Live weather data for {loc} is currently unavailable. Please check official IMD bulletins before traveling."
 
