@@ -99,6 +99,10 @@ class ResolvedQueryContext(BaseModel):
     resolved_time: Optional[str] = Field(default=None, description="Resolved time-of-day context")
     resolved_departure_time: Optional[str] = Field(default=None, description="Resolved departure schedule time")
     resolved_return_time: Optional[str] = Field(default=None, description="Resolved return schedule time")
+    resolved_destination: Optional[str] = Field(default=None, description="Resolved destination location or venue")
+    resolved_transport_mode: Optional[str] = Field(default=None, description="Resolved transport mode (e.g. bike, car)")
+    resolved_trip_phase: Optional[str] = Field(default=None, description="Resolved trip phase (departure, return, round_trip)")
+    resolved_intent: Optional[str] = Field(default=None, description="Resolved intent string")
     resolved_persona: str = Field(default="general", description="Resolved persona")
     resolved_language: str = Field(default="en", description="Resolved target language")
     resolved_topic: Optional[str] = Field(default=None, description="Resolved meteorological topic")
@@ -127,11 +131,31 @@ class ConversationState(BaseModel):
     # Active Entities & Parameters
     active_entities: Dict[str, Any] = Field(default_factory=dict, description="Active meteorological & spatial entities")
     active_location: Optional[str] = Field(default=None, description="Resolved active primary location")
+    active_destination: Optional[str] = Field(default=None, description="Resolved active destination (e.g. college, office)")
     active_latitude: Optional[float] = Field(default=None)
     active_longitude: Optional[float] = Field(default=None)
     active_time: Optional[str] = Field(default=None, description="Active time of day or clock time (e.g. 5:00 PM)")
+    active_departure_time: Optional[str] = Field(default=None, description="Known or active departure time")
+    active_return_time: Optional[str] = Field(default=None, description="Known or active return time")
     active_date: Optional[str] = Field(default=None, description="Active calendar date or relative date (today, tomorrow)")
     active_activity: Optional[str] = Field(default=None, description="Active domain activity (commute, farming, fishing)")
+    active_transport_mode: Optional[str] = Field(default=None, description="Active transport mode (bike, car, walk)")
+    active_trip_phase: Optional[str] = Field(default=None, description="Active trip phase (departure, return, round_trip)")
+    active_topic: Optional[str] = Field(default=None, description="Active meteorological topic (rain, temperature, safety)")
+    active_vehicle_or_item: Optional[str] = Field(default=None, description="Active vehicle or item (bike, umbrella)")
+    user_schedule: Dict[str, str] = Field(
+        default_factory=lambda: {
+            "college_departure": "08:30",
+            "college_return": "17:00",
+            "office_departure": "09:00",
+            "office_return": "18:00",
+            "commute_departure": "09:00",
+            "commute_return": "18:00",
+            "travel_departure": "09:00",
+            "travel_return": "18:00"
+        },
+        description="Known or preferred user schedule anchors"
+    )
 
     # Historical Tracking
     previous_user_question: Optional[str] = Field(default=None, description="Exact text of previous user query")
@@ -169,18 +193,27 @@ class ConversationState(BaseModel):
         """Constructs a compact, strictly bounded context representation for LLM grounding.
 
         Prevents prompt bloat and historical hallucination by injecting only:
-        - Active location, time, date, activity
+        - Active location, destination, time, date, trip phase, transport, activity, topic
         - Active safety-critical alert (if any)
         - Last 1-2 turn questions and answers
         """
         parts = []
         if self.active_location:
             parts.append(f"Active Location: {self.active_location}")
-        if self.active_date or self.active_time:
-            time_str = f"{self.active_date or ''} {self.active_time or ''}".strip()
-            parts.append(f"Target Time: {time_str}")
+        if self.active_destination:
+            parts.append(f"Destination: {self.active_destination}")
+        if self.active_date:
+            parts.append(f"Target Date: {self.active_date}")
+        if self.active_time:
+            parts.append(f"Target Time: {self.active_time}")
+        if self.active_trip_phase:
+            parts.append(f"Trip Phase: {self.active_trip_phase}")
+        if self.active_transport_mode:
+            parts.append(f"Transport: {self.active_transport_mode}")
         if self.active_activity:
             parts.append(f"Activity: {self.active_activity}")
+        if self.active_topic:
+            parts.append(f"Weather Topic: {self.active_topic}")
         if self.persona and self.persona != "general":
             parts.append(f"User Persona: {self.persona}")
 

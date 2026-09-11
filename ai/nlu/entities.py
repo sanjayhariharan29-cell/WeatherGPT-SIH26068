@@ -118,7 +118,9 @@ def extract_entities(text: str) -> ExtractedEntities:
             excluded = {
                 "the", "a", "an", "today", "tomorrow", "yesterday", "now", "me", "you", "us",
                 "weather", "rain", "temperature", "temp", "morning", "afternoon", "evening",
-                "night", "there", "it", "here", "this", "that", "college", "school", "work", "office"
+                "night", "there", "it", "here", "this", "that", "college", "school", "work", "office",
+                "when", "how", "what", "where", "who", "which", "why", "my", "your", "our", "his", "her", "their",
+                "leave", "leaving", "come", "coming", "go", "going", "return", "trip", "bike", "car", "bus", "train", "drive"
             }
             if candidate.lower() not in excluded and len(candidate) >= 3:
                 entities.location = candidate.capitalize()
