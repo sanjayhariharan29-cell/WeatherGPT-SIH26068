@@ -24,6 +24,7 @@ from backend.schemas.weather import (
     WeatherUnitsSchema
 )
 from backend.db.models import WeatherRecord
+from backend.services.cache import provider_cache
 from ai.models import WeatherRecord as AIWeatherRecord, LocationInfo as AILocationInfo
 
 
@@ -374,7 +375,7 @@ class CurrentWeatherService:
             validation_status=val_class.value,
             validation_issues=val_issues,
             is_cached=getattr(lead_obs, "is_cached", False),
-            is_real_time=getattr(lead_obs, "is_real_time", not getattr(lead_obs, "is_cached", False)),
+            is_real_time=(fresh_class == FreshnessClassification.FRESH and not getattr(lead_obs, "is_cached", False)),
             cache_age_seconds=getattr(lead_obs, "cache_age_seconds", None),
             provider_status=provider_status,
             provider_diagnostics=primary_diag,

@@ -7,6 +7,7 @@ Inherits from BaseWeatherProvider.
 from datetime import datetime, timezone
 from typing import Dict, Any, List
 
+from backend.services.exceptions import ProviderUnavailableError
 from backend.services.base_provider import BaseWeatherProvider
 from backend.services.schemas import (
     NormalizedWeatherObservation,
@@ -35,20 +36,9 @@ class NasaPowerAdapter(BaseWeatherProvider):
         location_name: str = "Coimbatore"
     ) -> NormalizedWeatherObservation:
         """NASA POWER dataset is an archive and does not provide real-time current weather."""
-        now_utc = datetime.now(timezone.utc).isoformat()
-        return NormalizedWeatherObservation(
-            location_name=location_name,
-            latitude=latitude,
-            longitude=longitude,
-            temperature_c=27.8,
-            humidity_pct=75.0,
-            rain_probability_pct=50.0,
-            wind_speed_kmh=12.0,
-            condition="Historical Mean",
-            source=self.name,
-            authority_level=self.authority_level,
-            observed_at=now_utc,
-            retrieved_at=now_utc
+        raise ProviderUnavailableError(
+            "NASA POWER dataset is a historical solar and meteorological archive and does not provide live real-time weather observations.",
+            provider_name=self.name
         )
 
     async def get_forecast(

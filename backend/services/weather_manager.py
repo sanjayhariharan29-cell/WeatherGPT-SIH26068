@@ -182,13 +182,14 @@ class WeatherManager:
         longitude = lon if lon is not None else loc["longitude"]
 
         now_utc = datetime.now(timezone.utc).isoformat()
-        aqi_val = 54
-        pm2_5 = 18.4
-        pm10 = 38.2
-        no2 = 14.6
-        so2 = 6.8
-        o3 = 28.5
-        co = 410.0
+        aqi_val = None
+        pm2_5 = None
+        pm10 = None
+        no2 = None
+        so2 = None
+        o3 = None
+        co = None
+        is_available = False
 
         try:
             async with httpx.AsyncClient(timeout=3.0) as client:
@@ -202,19 +203,51 @@ class WeatherManager:
                     data = resp.json()
                     current = data.get("current", {})
                     if current:
-                        pm2_5 = float(current.get("pm2_5", pm2_5) or pm2_5)
-                        pm10 = float(current.get("pm10", pm10) or pm10)
-                        co = float(current.get("carbon_monoxide", co) or co)
-                        no2 = float(current.get("nitrogen_dioxide", no2) or no2)
-                        so2 = float(current.get("sulphur_dioxide", so2) or so2)
-                        o3 = float(current.get("ozone", o3) or o3)
+                        pm2_5 = float(current.get("pm2_5")) if current.get("pm2_5") is not None else None
+                        pm10 = float(current.get("pm10")) if current.get("pm10") is not None else None
+                        co = float(current.get("carbon_monoxide")) if current.get("carbon_monoxide") is not None else None
+                        no2 = float(current.get("nitrogen_dioxide")) if current.get("nitrogen_dioxide") is not None else None
+                        so2 = float(current.get("sulphur_dioxide")) if current.get("sulphur_dioxide") is not None else None
+                        o3 = float(current.get("ozone")) if current.get("ozone") is not None else None
                         raw_aqi = current.get("us_aqi")
                         if raw_aqi is not None:
                             aqi_val = int(raw_aqi)
+                            is_available = True
         except Exception:
-            pass
+            is_available = False
 
-        # Determine category and health recommendations
+        if not is_available or aqi_val is None:
+            return {
+                "location": loc.get("name", location_name),
+                "latitude": latitude,
+                "longitude": longitude,
+                "aqi": None,
+                "category": "Unavailable",
+                "primary_pollutant": None,
+                "pollutants": {
+                    "pm2_5": 0.0,
+                    "pm10": 0.0,
+                    "no2": 0.0,
+                    "so2": 0.0,
+                    "o3": 0.0,
+                    "co": 0.0
+                },
+                "recommendations": [
+                    "Air quality telemetry is currently unavailable from provider.",
+                    "Official CPCB monitoring station telemetry not configured."
+                ],
+                "source": "Air-quality model: Open-Meteo",
+                "source_type": "unavailable",
+                "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
+                "is_official_cpcb": False,
+                "is_available": False,
+                "status": "UNAVAILABLE",
+                "station": None,
+                "methodology": "Open-Meteo Atmospheric Chemistry Model (CAMS)",
+                "retrieved_at": now_utc
+            }
+
+        # Determine category and health recommendations based on verified observation
         if aqi_val <= 50:
             category = "Good"
             recs = [
@@ -258,28 +291,35 @@ class WeatherManager:
                 "Avoid all physical exertion outdoors."
             ]
 
+        p_pm25 = pm2_5 if pm2_5 is not None else 0.0
+        p_pm10 = pm10 if pm10 is not None else 0.0
         return {
             "location": loc.get("name", location_name),
             "latitude": latitude,
             "longitude": longitude,
             "aqi": aqi_val,
             "category": category,
-            "primary_pollutant": "PM2.5" if pm2_5 >= (pm10 / 2) else "PM10",
+            "primary_pollutant": "PM2.5" if p_pm25 >= (p_pm10 / 2) else "PM10",
             "pollutants": {
-                "pm2_5": round(pm2_5, 1),
-                "pm10": round(pm10, 1),
-                "no2": round(no2, 1),
-                "so2": round(so2, 1),
-                "o3": round(o3, 1),
-                "co": round(co, 1)
+                "pm2_5": round(p_pm25, 1),
+                "pm10": round(p_pm10, 1),
+                "no2": round(no2, 1) if no2 is not None else 0.0,
+                "so2": round(so2, 1) if so2 is not None else 0.0,
+                "o3": round(o3, 1) if o3 is not None else 0.0,
+                "co": round(co, 1) if co is not None else 0.0
             },
             "recommendations": recs,
             "source": "Air-quality model: Open-Meteo",
             "source_type": "modelled",
             "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
             "is_official_cpcb": False,
+            "is_available": True,
+            "status": "HEALTHY",
             "station": None,
             "methodology": "Open-Meteo Atmospheric Chemistry Model (CAMS)",
             "retrieved_at": now_utc
         }
+
+    # Backward compatibility alias
+    fetch_air_quality = get_air_quality
 

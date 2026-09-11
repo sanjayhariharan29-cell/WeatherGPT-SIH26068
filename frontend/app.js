@@ -2547,12 +2547,34 @@ function filterAlerts(filterCategory) {
 async function loadAirQuality(location) {
   try {
     const aqiData = await window.apiClient.getAirQuality(location);
-    if (!aqiData) return;
-
     const aqiValElem = document.getElementById("aqiVal");
     const aqiCatElem = document.getElementById("aqiCategory");
     const aqiDialElem = document.getElementById("aqiDial");
     const aqiSummaryElem = document.getElementById("aqiSummaryText");
+    const v25 = document.getElementById("valPm25");
+    const v10 = document.getElementById("valPm10");
+    const vNo2 = document.getElementById("valNo2");
+    const vSo2 = document.getElementById("valSo2");
+    const vO3 = document.getElementById("valO3");
+    const vCo = document.getElementById("valCo");
+
+    if (!aqiData || aqiData.aqi === null || aqiData.aqi === undefined || aqiData.is_available === false) {
+      if (aqiValElem) aqiValElem.textContent = "--";
+      if (aqiCatElem) {
+        aqiCatElem.textContent = "Unavailable";
+        aqiCatElem.style.background = "var(--bg-tertiary)";
+        aqiCatElem.style.color = "var(--text-muted)";
+      }
+      if (aqiDialElem) aqiDialElem.className = "aqi-dial";
+      if (aqiSummaryElem) aqiSummaryElem.textContent = "Air quality telemetry is currently unavailable for this location.";
+      if (v25) v25.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+      if (v10) v10.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+      if (vNo2) vNo2.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+      if (vSo2) vSo2.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+      if (vO3) vO3.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+      if (vCo) vCo.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+      return;
+    }
 
     if (aqiValElem) aqiValElem.textContent = aqiData.aqi;
     if (aqiCatElem) {
@@ -2606,13 +2628,6 @@ async function loadAirQuality(location) {
 
     if (aqiData.pollutants) {
       const p = aqiData.pollutants;
-      const v25 = document.getElementById("valPm25");
-      const v10 = document.getElementById("valPm10");
-      const vNo2 = document.getElementById("valNo2");
-      const vSo2 = document.getElementById("valSo2");
-      const vO3 = document.getElementById("valO3");
-      const vCo = document.getElementById("valCo");
-
       if (v25) v25.innerHTML = `${p.pm2_5} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
       if (v10) v10.innerHTML = `${p.pm10} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
       if (vNo2) vNo2.innerHTML = `${p.no2} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
@@ -2714,7 +2729,7 @@ function formatSourcesBadge(sourceStr, sourcesList) {
 
   if (badges.length === 0) {
     const deduped = Array.from(new Set(list.filter(Boolean)));
-    return deduped.length > 0 ? `Sources: ${deduped.join(" · ")}` : "Sources: IMD (Primary)";
+    return deduped.length > 0 ? `Sources: ${deduped.join(" · ")}` : "Sources: Telemetry Unavailable";
   }
   return `Sources: ${badges.join(" · ")}`;
 }
@@ -3867,9 +3882,9 @@ async function selectLocationAndFetchWeather(lat, lon, knownName = null, centerM
       lat: lat,
       lon: lon,
       weather: weather?.weather || null,
-      source: weather?.source || "Open-Meteo & IMD Telemetry",
-      sources: weather?.sources || ["Open-Meteo", "IMD"],
-      realtime_state: weather?.realtime_state || (weather ? "LIVE" : "OFFLINE"),
+      source: weather?.source || (weather ? "Open-Meteo Telemetry" : "Unavailable"),
+      sources: weather?.sources || (weather ? ["Open-Meteo"] : []),
+      realtime_state: weather?.realtime_state || (weather ? "LIVE" : "UNAVAILABLE"),
       is_stale: weather?.is_stale || false,
       provenance: weather?.provenance || null,
       updated_at: weather?.updated_at || new Date().toISOString(),
@@ -4850,19 +4865,19 @@ function renderMinuteRainTimeline(data) {
   if (headline && summary) {
     if (isRainingNow && peakRate > 3) {
       headline.textContent = "Heavy Rain Underway";
-      summary.textContent = `Precipitation peak at ~${peakRate.toFixed(1)} mm/hr. Doppler radar indicates easing in ~${Math.min(45, 60 - Math.round(peakRate * 5))} min.`;
+      summary.textContent = `Precipitation peak at ~${peakRate.toFixed(1)} mm/hr. Near-cast projection indicates easing in ~${Math.min(45, 60 - Math.round(peakRate * 5))} min.`;
     } else if (isRainingNow) {
       headline.textContent = "Light Rain Continuing";
       summary.textContent = `Precipitation steady at ~${peakRate.toFixed(1)} mm/hr over the next 30 minutes.`;
     } else if (rainProb > 45) {
       headline.textContent = "Rain Expected in ~18 Min";
-      summary.textContent = `IMD radar cells approaching from east. Peak rate ~${peakRate.toFixed(1)} mm/hr expected around +35 min.`;
+      summary.textContent = `Numerical model indicates shower onset around +18 min. Peak rate ~${peakRate.toFixed(1)} mm/hr projected around +35 min.`;
     } else if (rainProb > 20) {
       headline.textContent = "Low Chance of Light Drizzle";
       summary.textContent = "Overcast cloud ceiling with isolated micro-droplets possible after 35 min.";
     } else {
       headline.textContent = "Clear & Dry Next 60 Minutes";
-      summary.textContent = "No precipitation detected on regional Doppler radar cells.";
+      summary.textContent = "No precipitation projected across the current hour based on active model telemetry.";
     }
   }
 
@@ -4877,7 +4892,7 @@ function renderMinuteRainTimeline(data) {
       liveBadge.style.borderColor = "rgba(220, 38, 38, 0.4)";
       liveBadge.style.background = "#FEE2E2";
     } else {
-      liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">radar</span><span>IMD NOWCAST</span>`;
+      liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">insights</span><span>MODELLED NOWCAST PROJECTION</span>`;
       liveBadge.style.color = "#0369A1";
       liveBadge.style.borderColor = "rgba(2, 132, 199, 0.25)";
       liveBadge.style.background = "rgba(2, 132, 199, 0.1)";
@@ -5017,14 +5032,24 @@ function filterLifestyleCards(filter) {
 
 function renderLifestyleInsights(data, filter = currentLifestyleFilter) {
   const grid = document.getElementById("lifestyleCardsGrid");
-  if (!grid || !data) return;
+  if (!grid) return;
 
-  const temp = data.weather?.temperature || 28;
-  const humidity = data.weather?.humidity || 65;
-  const wind = data.weather?.wind_speed || 12;
-  const rainProb = Number(data.weather?.rain_probability) || 0;
-  const uv = Number(data.weather?.uv_index) || 4;
-  const cond = (data.weather?.condition || "").toLowerCase();
+  if (!data || !data.weather || data.weather.temperature === null || data.weather.temperature === undefined) {
+    grid.innerHTML = `
+      <div class="lifestyle-card empty" style="grid-column: 1 / -1; text-align:center; padding: 24px; color: var(--text-muted);">
+        <span class="material-symbols-rounded icon-lg" style="color: var(--text-muted); margin-bottom: 8px;">cloud_off</span>
+        <p style="font-size: 13px;">Lifestyle insights are unavailable due to degraded weather telemetry.</p>
+      </div>
+    `;
+    return;
+  }
+
+  const temp = Number(data.weather.temperature);
+  const humidity = Number(data.weather.humidity !== undefined ? data.weather.humidity : 50);
+  const wind = Number(data.weather.wind_speed !== undefined ? data.weather.wind_speed : 0);
+  const rainProb = Number(data.weather.rain_probability) || 0;
+  const uv = Number(data.weather.uv_index) || 3;
+  const cond = (data.weather.condition || "").toLowerCase();
 
   const hasHeavyAlert = Array.isArray(allCurrentAlerts) && allCurrentAlerts.some(a => 
     (a.severity || "").toLowerCase() === "high" || (a.severity || "").toLowerCase() === "warning"
@@ -5301,11 +5326,18 @@ function playAudioWeatherBriefing() {
   }
 
   const data = window.lastWeatherData;
-  const loc = data?.location?.name || "Coimbatore";
-  const temp = Math.round(data?.weather?.temperature || 28);
-  const cond = data?.weather?.condition || "Partly Cloudy";
-  const rain = data?.weather?.rain_probability || 20;
-  const wind = data?.weather?.wind_speed || 12;
+  const loc = data?.location?.name || "your location";
+
+  if (!data?.weather || data?.weather?.temperature === null || data?.weather?.temperature === undefined) {
+    let unavailableScript = `Weather telemetry is currently unavailable for ${loc}. Please check back once provider connections are restored.`;
+    speakCopilotText(unavailableScript, "briefing");
+    return;
+  }
+
+  const temp = Math.round(Number(data.weather.temperature));
+  const cond = data.weather.condition || "Clear";
+  const rain = Number(data.weather.rain_probability) || 0;
+  const wind = Number(data.weather.wind_speed) || 0;
 
   let briefingScript = `Good day! Here is your SkyZen meteorological briefing for ${loc}. `;
   briefingScript += `Currently ${temp} degrees Celsius with ${cond}. `;
@@ -5394,18 +5426,25 @@ function askCopilotPrompt(question) {
 
   const data = window.lastWeatherData;
   const loc = data?.location?.name || "your location";
-  const temp = Math.round(data?.weather?.temperature || 28);
-  const rainProb = Number(data?.weather?.rain_probability) || 0;
-  const wind = data?.weather?.wind_speed || 12;
-  const humidity = data?.weather?.humidity || 65;
-  const cond = (data?.weather?.condition || "").toLowerCase();
+
+  if (!data?.weather || data?.weather?.temperature === null || data?.weather?.temperature === undefined) {
+    body.textContent = `Live weather telemetry is currently unavailable for ${loc}. Cannot provide verified guidance without active observations.`;
+    lastCopilotAnswerText = body.textContent;
+    return;
+  }
+
+  const temp = Math.round(Number(data.weather.temperature));
+  const rainProb = Number(data.weather.rain_probability) || 0;
+  const wind = Number(data.weather.wind_speed) || 0;
+  const humidity = Number(data.weather.humidity) || 0;
+  const cond = (data.weather.condition || "").toLowerCase();
 
   let answer = "";
   const q = question.toLowerCase();
 
   if (q.includes("umbrella")) {
     if (rainProb > 40 || cond.includes("rain")) {
-      answer = `Yes, definitely carry an umbrella in ${loc}. The current rain chance is ${rainProb}% with ${cond}. IMD radar indicates scattered precipitation cells today.`;
+      answer = `Yes, definitely carry an umbrella in ${loc}. The current rain chance is ${rainProb}% with ${cond}. Active meteorological models indicate scattered precipitation cells today.`;
     } else {
       answer = `An umbrella is not strictly required right now in ${loc} (rain probability is only ${rainProb}% with ${cond}), but keep a compact one handy if you plan to stay out until evening.`;
     }

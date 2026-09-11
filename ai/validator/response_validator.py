@@ -573,6 +573,33 @@ class ResponseValidator:
                 issues.append(msg)
                 violation_categories.append(ValidationCategoryEnum.UNSUPPORTED_SOURCE.value)
 
+        # Enforce Rule 4: No Open-Meteo data labeled IMD
+        has_imd = any("imd" in s.lower() for s in reasoning.sources_used) or (weather and "imd" in (weather.source or "").lower())
+        if not has_imd:
+            false_imd_phrases = [
+                "imd observed", "imd reports current", "imd temperature",
+                "imd current weather", "according to imd observations",
+                "imd station recorded"
+            ]
+            if any(p in lower_text for p in false_imd_phrases):
+                msg = "Misleading Attribution: IMD cited for observations when IMD was not among active contributing sources."
+                violations.append(msg)
+                issues.append(msg)
+                violation_categories.append(ValidationCategoryEnum.UNSUPPORTED_SOURCE.value)
+
+        # Enforce Rule 5: No non-CPCB data labeled CPCB
+        has_cpcb = any("cpcb" in s.lower() for s in reasoning.sources_used) or (weather and "cpcb" in (weather.source or "").lower())
+        if not has_cpcb:
+            false_cpcb_phrases = [
+                "cpcb station reports", "cpcb ground monitoring recorded",
+                "official cpcb air quality", "cpcb recorded"
+            ]
+            if any(p in lower_text for p in false_cpcb_phrases):
+                msg = "Misleading Attribution: CPCB ground monitoring cited when air quality is modelled."
+                violations.append(msg)
+                issues.append(msg)
+                violation_categories.append(ValidationCategoryEnum.UNSUPPORTED_SOURCE.value)
+
         # ---------------------------------------------------------
         # 7. Temporal Scope Validation
         # ---------------------------------------------------------

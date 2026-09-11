@@ -142,6 +142,26 @@ class NormalizedForecastItem(BaseModel):
     def wind_speed(self) -> float:
         return self.wind_speed_kmh
 
+    @property
+    def date(self) -> str:
+        return self.forecast_for or self.forecast_time
+
+    @property
+    def temperature_max(self) -> float:
+        return self.temp_max_c if self.temp_max_c is not None else self.temperature_c
+
+    @property
+    def temperature_min(self) -> float:
+        return self.temp_min_c if self.temp_min_c is not None else self.temperature_c
+
+    @property
+    def precipitation_probability(self) -> float:
+        return self.rain_probability_pct
+
+    @property
+    def wind_speed_max(self) -> float:
+        return self.wind_speed_kmh
+
     def __getitem__(self, item: str) -> Any:
         if hasattr(self, item):
             return getattr(self, item)

@@ -239,15 +239,17 @@ class AirQualityResponse(BaseModel):
     location: str = Field(description="Location name")
     latitude: float
     longitude: float
-    aqi: int = Field(description="Normalized Air Quality Index (0-500)")
-    category: str = Field(description="AQI Category: Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, Hazardous")
-    primary_pollutant: str = Field(default="PM2.5", description="Dominant ambient pollutant")
-    pollutants: AirQualityPollutantsSchema
+    aqi: Optional[int] = Field(default=None, description="Normalized Air Quality Index (0-500)")
+    category: str = Field(default="Unavailable", description="AQI Category: Good, Moderate, Unhealthy for Sensitive Groups, Unhealthy, Very Unhealthy, Hazardous, Unavailable")
+    primary_pollutant: Optional[str] = Field(default=None, description="Dominant ambient pollutant")
+    pollutants: Optional[AirQualityPollutantsSchema] = Field(default=None, description="Pollutants breakdown")
     recommendations: List[str] = Field(default_factory=list, description="Health & outdoor activity recommendations")
     source: str = Field(default="Air-quality model: Open-Meteo", description="Source provider attribution")
-    source_type: str = Field(default="modelled", description="Classification: official_cpcb, modelled, secondary")
+    source_type: str = Field(default="modelled", description="Classification: official_cpcb, modelled, secondary, unavailable")
     cpcb_status: str = Field(default="CPCB OFFICIAL API ACCESS NOT CONFIGURED", description="Status of official CPCB monitoring station access")
     is_official_cpcb: bool = Field(default=False, description="True only if sourced from official CPCB monitoring stations")
+    is_available: bool = Field(default=True, description="True if air quality data was successfully retrieved")
+    status: Optional[str] = Field(default="HEALTHY", description="Operational status: HEALTHY, DEGRADED, UNAVAILABLE")
     station: Optional[str] = Field(default=None, description="Monitoring station name if official ground observation")
     methodology: Optional[str] = Field(default="Open-Meteo Atmospheric Chemistry Model (CAMS)", description="Calculation or telemetry methodology")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")

@@ -691,7 +691,8 @@ def build_why_this_answer(
 
     # 4. Source agreement factor
     agreement_val = reasoning.source_agreement.value if hasattr(reasoning.source_agreement, "value") else str(reasoning.source_agreement)
-    sources_str = ", ".join(reasoning.sources_used) if reasoning.sources_used else "IMD"
+    actual_sources = reasoning.sources_used or ([weather.source] if (weather and getattr(weather, "source", None)) else ["Weather Telemetry"])
+    sources_str = ", ".join(actual_sources)
     if agreement_val in ("high", "consistent"):
         primary_factors.append(f"High multi-source consensus across {sources_str}")
     elif agreement_val == "low":
@@ -728,7 +729,7 @@ def build_why_this_answer(
         "decision_type": personal_decision.get("decision_type") if personal_decision else "weather_guidance",
         "primary_factors": primary_factors,
         "evidence": ev_dict,
-        "sources": reasoning.sources_used or ["IMD"],
+        "sources": actual_sources,
         "data_freshness": reasoning.freshness.value if hasattr(reasoning.freshness, "value") else str(reasoning.freshness),
         "data_age_minutes": reasoning.data_age_minutes,
         "consistency_score": reasoning.consistency_score,

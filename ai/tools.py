@@ -356,17 +356,31 @@ class WeatherTools:
         loc_name = loc_res["name"]
 
         try:
-            aq_data = await self.weather_mgr.fetch_air_quality(latitude, longitude, loc_name)
+            aq_data = await self.weather_mgr.get_air_quality(latitude, longitude, loc_name)
             is_cpcb = bool(aq_data.get("is_official_cpcb"))
             provider_name = "CPCB (Central Pollution Control Board)" if is_cpcb else "Open-Meteo Air Quality Model"
             authority = "OFFICIAL_GOVERNMENT" if is_cpcb else "SECONDARY_INDEPENDENT"
             note = None if is_cpcb else "CPCB station telemetry unconfigured. Telemetry sourced from Open-Meteo atmospheric dispersion model."
 
+            if not aq_data.get("is_available", True) or aq_data.get("aqi") is None:
+                return {
+                    "status": "UNAVAILABLE",
+                    "location": loc_name,
+                    "aqi": None,
+                    "category": "Unavailable",
+                    "dominant_pollutant": None,
+                    "pollutants": {},
+                    "provider": provider_name,
+                    "authority": authority,
+                    "note": note,
+                    "observed_at": aq_data.get("retrieved_at", datetime.now(timezone.utc).isoformat())
+                }
+
             return {
                 "status": "SUCCESS",
                 "location": loc_name,
-                "aqi": aq_data.get("aqi", 65),
-                "category": aq_data.get("category", "Moderate"),
+                "aqi": aq_data.get("aqi"),
+                "category": aq_data.get("category", "Unavailable"),
                 "dominant_pollutant": aq_data.get("primary_pollutant", "PM2.5"),
                 "pollutants": aq_data.get("pollutants", {}),
                 "provider": provider_name,

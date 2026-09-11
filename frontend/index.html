@@ -591,13 +591,13 @@
               <div class="minute-pulse-indicator" id="minutePulseIndicator"></div>
               <div>
                 <h3 class="minute-rain-title" id="minuteRainHeadline">Next 60 Minutes Precipitation</h3>
-                <p class="minute-rain-summary" id="minuteRainSummary">Analyzing Doppler radar nowcast...</p>
+                <p class="minute-rain-summary" id="minuteRainSummary">Analyzing precipitation projection...</p>
               </div>
             </div>
             <div class="minute-rain-badges">
               <span class="nowcast-live-badge" id="nowcastLiveBadge">
-                <span class="material-symbols-rounded icon-sm">radar</span>
-                <span>IMD NOWCAST</span>
+                <span class="material-symbols-rounded icon-sm">insights</span>
+                <span>MODELLED NOWCAST</span>
               </span>
             </div>
           </div>
@@ -659,7 +659,7 @@
               <span class="material-symbols-rounded" style="color:var(--primary-blue);">calendar_today</span>
               <span data-i18n="dashboard.daily_7day">7-Day Forecast</span>
             </h3>
-            <span class="section-subtitle" data-i18n="dashboard.imd_model">IMD Numerical Model</span>
+            <span class="section-subtitle" id="dailyForecastSourceBadge" data-i18n="dashboard.daily_source">Open-Meteo Multi-Day Consensus</span>
           </div>
           <div id="dailyForecastList" class="daily-forecast-list" role="list">
             <!-- Dynamically populated -->
@@ -797,7 +797,7 @@
                   <span class="material-symbols-rounded icon-sm">verified_user</span>
                   <span>SkyZen Decision Engine</span>
                 </span>
-                <span class="msg-tag">IMD Grounded</span>
+                <span class="msg-tag">Telemetry Grounded</span>
               </div>
               <p>Vanakkam! I am <strong>SkyZen</strong>, your AI weather decision assistant. Ask me questions about your travel, college, outdoor plans, or farming in <strong>English, Tamil (தமிழ்), or Tanglish</strong>!</p>
               <div class="ai-reasoning-box">
@@ -806,7 +806,7 @@
                   <span class="confidence-desc">Verified real-time multi-source weather telemetry</span>
                 </div>
                 <div class="source-attribution-row">
-                  <span>Sources: IMD (Primary) · Open-Meteo (Secondary)</span>
+                  <span>Sources: Multi-Source Telemetry Engine</span>
                   <span class="verified-tag">LIVE VERIFIED</span>
                 </div>
               </div>
@@ -1135,11 +1135,11 @@
             <div class="map-card-provenance">
               <div class="prov-row">
                 <span class="prov-label">Weather Source:</span>
-                <span id="mapWeatherSource" class="prov-val">Open-Meteo & IMD Telemetry</span>
+                <span id="mapWeatherSource" class="prov-val">--</span>
               </div>
               <div class="prov-row">
                 <span class="prov-label">Air Quality:</span>
-                <span id="mapAqiSource" class="prov-val">Modelled Air Quality (Open-Meteo)</span>
+                <span id="mapAqiSource" class="prov-val">--</span>
               </div>
             </div>
 
@@ -1197,16 +1197,16 @@
 
           <div class="aqi-gauge-card">
             <div class="aqi-dial" id="aqiDial">
-              <span class="aqi-number" id="aqiVal">52</span>
+              <span class="aqi-number" id="aqiVal">--</span>
               <span class="aqi-label">AQI</span>
             </div>
             <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
-              <span class="badge" id="aqiCategory" style="background:var(--success-green-bg); color:#166534; font-size:14px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill); width:fit-content;">Moderate</span>
-              <p style="font-size:13px; color:var(--text-secondary);" id="aqiSummaryText">Air quality is acceptable for most outdoor activities. Sensitive individuals should consider reducing prolonged heavy exertion.</p>
+              <span class="badge" id="aqiCategory" style="background:var(--bg-tertiary); color:var(--text-muted); font-size:14px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill); width:fit-content;">Pending Telemetry</span>
+              <p style="font-size:13px; color:var(--text-secondary);" id="aqiSummaryText">Loading verified ambient air quality telemetry...</p>
               <div id="aqiSourceContainer" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:flex; flex-direction:column; gap:2px;">
-                <div><span id="aqiSourceLabel">Air Quality Model:</span> <strong id="aqiSourceText">Open-Meteo (Modelled)</strong></div>
-                <div id="aqiCpcbStatus" style="color:var(--text-secondary); font-size:10px;">CPCB Ground Monitoring API Not Configured</div>
-                <div id="aqiTimestamp" style="color:var(--text-muted); font-size:10px;">Updated: Just now</div>
+                <div><span id="aqiSourceLabel">Air Quality Model:</span> <strong id="aqiSourceText">--</strong></div>
+                <div id="aqiCpcbStatus" style="color:var(--text-secondary); font-size:10px;">CPCB Ground Monitoring Station API: Not Configured</div>
+                <div id="aqiTimestamp" style="color:var(--text-muted); font-size:10px;">Updated: --</div>
               </div>
             </div>
           </div>
@@ -1215,27 +1215,27 @@
           <div class="pollutants-grid" id="pollutantsGrid">
             <div class="pollutant-card">
               <span class="pollutant-name">PM2.5 (Fine Particles)</span>
-              <span class="pollutant-val" id="valPm25">18.4 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valPm25">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name">PM10 (Respirable)</span>
-              <span class="pollutant-val" id="valPm10">38.2 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valPm10">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name">NO₂ (Nitrogen Dioxide)</span>
-              <span class="pollutant-val" id="valNo2">14.6 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valNo2">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name">SO₂ (Sulfur Dioxide)</span>
-              <span class="pollutant-val" id="valSo2">6.8 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valSo2">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name">O₃ (Ozone)</span>
-              <span class="pollutant-val" id="valO3">28.5 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valO3">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name">CO (Carbon Monoxide)</span>
-              <span class="pollutant-val" id="valCo">410 <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valCo">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
             </div>
           </div>
 
