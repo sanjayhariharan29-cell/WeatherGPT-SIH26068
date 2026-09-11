@@ -16,6 +16,30 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
 
     clean = text.lower().strip()
 
+    # 0. Pure Greetings (No Weather Query)
+    if clean in ["hello", "hi", "hey", "vanakkam", "வணக்கம்", "namaste", "नमस्ते", "good morning", "good evening", "good afternoon", "halo", "ola"]:
+        return IntentEnum.GREETING, 0.98
+
+    # 0a. Ambiguous / Clarification Needed ("weather there?", "how is it there?")
+    if re.search(r"\b(weather\s+there|how\s+is\s+it\s+there|kaisa\s+hai\s+wahan|anga\s+epdi\s+iruku)\b", clean) and not any(c in clean for c in ["chennai", "coimbatore", "delhi", "bangalore", "madurai", "mumbai"]):
+        return IntentEnum.CLARIFICATION_NEEDED, 0.95
+
+    # 0b. Why / Explanation Inquiries
+    if clean in ["why", "why?", "yen", "yen?", "kyun", "kyun?"] or any(k in clean for k in ["why umbrella", "why is confidence", "why confidence low", "why disagree", "why are sources", "why the warning", "reason for"]):
+        return IntentEnum.WEATHER_EXPLANATION, 0.96
+
+    # 0c. Location Comparison
+    if any(k in clean for k in ["compare", "cooler", "warmer", "hotter", "which is cooler", "which is warmer", "which is hotter", "versus", " vs "]):
+        return IntentEnum.LOCATION_COMPARISON, 0.94
+
+    # 0d. Air Quality (AQI)
+    if any(k in clean for k in ["aqi", "air quality", "air-quality", "pollution", "pm2.5", "pm10", "smog", "காற்றின் தரம்", "hawa ki quality"]):
+        return IntentEnum.AIR_QUALITY, 0.94
+
+    # 0e. Time-Specific Schedule Forecast ("at 5 PM", "when I leave college", "during commute", "between 4 and 6 PM")
+    if any(k in clean for k in ["leave college", "leaving college", "during my commute", "at college", "office time", "when i leave"]) or bool(re.search(r"\b(?:at|around|between|by)\s+\d{1,2}\s*(?:am|pm|a\.m\.|p\.m\.|:\d{2})", clean)):
+        return IntentEnum.TIME_SPECIFIC_FORECAST, 0.93
+
     # 1. Cyclone & Emergency Storm
     if any(k in clean for k in [
         "cyclone", "புயல்", "puyal", "storm alert", "super cyclone",
@@ -26,7 +50,7 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
     # 2. Warnings & Alerts
     if any(k in clean for k in [
         "warning", "alert", "எச்சரிக்கை", "danger", "red alert", "orange alert",
-        "चेतावनी", "khatra", "khatre ki ghanti"
+        "चेतावनी", "khatra", "khatre ki ghanti", "imd warning", "imd alert"
     ]):
         return IntentEnum.WEATHER_ALERT, 0.92
 

@@ -82,6 +82,11 @@ class IntentEnum(str, Enum):
     FORECAST_COMPARISON = "forecast_comparison"
     WEATHER_EXPLANATION = "weather_explanation"
     CYCLONE_INQUIRY = "cyclone_inquiry"
+    AIR_QUALITY = "air_quality"
+    TIME_SPECIFIC_FORECAST = "time_specific_forecast"
+    LOCATION_COMPARISON = "location_comparison"
+    GREETING = "greeting"
+    CLARIFICATION_NEEDED = "clarification_needed"
     GENERAL_WEATHER_QUESTION = "general_weather_question"
 
 

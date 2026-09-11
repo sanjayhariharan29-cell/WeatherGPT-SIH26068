@@ -59,7 +59,11 @@
         </div>
 
         <div class="auth-view-actions">
-          <button id="welcomeLoginBtn" class="auth-primary-btn" aria-label="Sign In to SkyZen">
+          <button id="welcomeDemoBtn" class="auth-primary-btn" style="background: linear-gradient(135deg, #1d4ed8, #0284c7); margin-bottom: 10px; font-weight: 600; box-shadow: 0 4px 14px rgba(37,99,235,0.35);" aria-label="Launch Presentation Demo">
+            <span class="material-symbols-rounded icon-sm">play_circle</span>
+            <span>Launch Presentation Demo</span>
+          </button>
+          <button id="welcomeLoginBtn" class="auth-secondary-btn" aria-label="Sign In to SkyZen">
             <span class="material-symbols-rounded icon-sm">login</span>
             <span data-i18n="auth.welcome.signin">Sign In</span>
           </button>
@@ -113,6 +117,10 @@
           <button type="submit" id="loginSubmitBtn" class="auth-primary-btn" aria-label="Sign In">
             <span class="material-symbols-rounded icon-sm">login</span>
             <span id="loginSubmitText">Sign In</span>
+          </button>
+          <button type="button" id="loginDemoBtn" class="auth-secondary-btn" style="margin-top: 10px; border: 1.5px solid #3b82f6; color: #2563eb; font-weight: 500;" aria-label="Quick Demo Sign In">
+            <span class="material-symbols-rounded icon-sm">rocket_launch</span>
+            <span>1-Click Demo Sign In</span>
           </button>
         </form>
 
@@ -436,44 +444,6 @@
         </button>
       </div>
     </header>
-
-    <!-- Desktop Horizontal Navigation Bar -->
-    <nav class="desktop-nav-bar" role="navigation" aria-label="Desktop Dashboard Navigation">
-      <div class="desktop-nav-inner">
-        <button class="nav-item active" data-screen="home" aria-label="Home Dashboard" aria-selected="true">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
-          <span data-i18n="nav.home">Dashboard</span>
-        </button>
-        <button class="nav-item" data-screen="map" aria-label="Live Radar & Geospatial Map" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
-          <span>Live Radar Map</span>
-        </button>
-        <button class="nav-item" data-screen="alerts" aria-label="Official IMD Warnings" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
-          <span data-i18n="nav.alerts">IMD Warnings</span>
-        </button>
-        <button class="nav-item" data-screen="weather" aria-label="7-Day & Hourly Forecast" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">calendar_month</span>
-          <span>Forecast & Trends</span>
-        </button>
-        <button class="nav-item" data-screen="chat" aria-label="AI Meteorologist Copilot" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">psychology</span>
-          <span data-i18n="nav.ai">AI Meteorologist</span>
-        </button>
-        <button class="nav-item" data-screen="air-quality" aria-label="Air Quality Index" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">air</span>
-          <span>Air Quality (AQI)</span>
-        </button>
-        <button class="nav-item" data-screen="locations" aria-label="Multi-District Weather Radar" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">location_on</span>
-          <span>Saved Districts</span>
-        </button>
-        <button class="nav-item" data-screen="settings" aria-label="Settings & Configuration" aria-selected="false">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
-          <span>Settings</span>
-        </button>
-      </div>
-    </nav>
 
     <!-- Official Warning Priority Banner (Top Priority Visual Component) -->
     <div id="alertBanner" class="alert-banner hidden" role="region" aria-label="Official Warning Banner" aria-live="assertive">
@@ -1627,28 +1597,42 @@
 
     </main>
 
-    <!-- Mobile Bottom Navigation Bar (5-Item WCAG Standard) -->
-    <nav class="mobile-bottom-nav" role="navigation" aria-label="Mobile Navigation">
-      <button class="nav-item active" data-screen="home" aria-label="Home Screen" aria-selected="true">
-        <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
-        <span data-i18n="nav.home">Home</span>
-      </button>
-      <button class="nav-item" data-screen="chat" aria-label="Chat Screen" aria-selected="false">
-        <span class="material-symbols-rounded nav-icon" aria-hidden="true">chat</span>
-        <span data-i18n="nav.ai">AI</span>
-      </button>
-      <button class="nav-item" data-screen="map" aria-label="Geospatial Weather Map Screen" aria-selected="false">
-        <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
-        <span data-i18n="nav.map">Map</span>
-      </button>
-      <button class="nav-item" data-screen="alerts" aria-label="Alerts Screen" aria-selected="false">
-        <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
-        <span data-i18n="nav.alerts">Alerts</span>
-      </button>
-      <button class="nav-item" data-screen="more" aria-label="More Options Screen" aria-selected="false">
-        <span class="material-symbols-rounded nav-icon" aria-hidden="true">more_horiz</span>
-        <span data-i18n="nav.more">More</span>
-      </button>
+    <!-- Unified Bottom Navigation Bar (Desktop & Mobile 8-Item Cockpit) -->
+    <nav class="app-bottom-nav" id="appBottomNav" role="navigation" aria-label="SkyZen Dashboard Navigation">
+      <div class="bottom-nav-inner">
+        <button class="nav-item active" data-screen="home" aria-label="Home Dashboard" aria-selected="true" title="Home Dashboard">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">home</span>
+          <span class="nav-label" data-i18n="nav.home">Home</span>
+        </button>
+        <button class="nav-item" data-screen="map" aria-label="Live Radar & Geospatial Map" aria-selected="false" title="Live Radar Map">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">map</span>
+          <span class="nav-label">Radar</span>
+        </button>
+        <button class="nav-item" data-screen="alerts" aria-label="Official IMD Warnings" aria-selected="false" title="IMD Alerts & Warnings">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">warning</span>
+          <span class="nav-label" data-i18n="nav.alerts">Alerts</span>
+        </button>
+        <button class="nav-item" data-screen="weather" aria-label="7-Day & Hourly Forecast" aria-selected="false" title="Forecast & Trends">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">calendar_month</span>
+          <span class="nav-label">Forecast</span>
+        </button>
+        <button class="nav-item" data-screen="chat" aria-label="AI Meteorologist Assistant" aria-selected="false" title="SkyZen AI Assistant">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">psychology</span>
+          <span class="nav-label" data-i18n="nav.ai">AI</span>
+        </button>
+        <button class="nav-item" data-screen="air-quality" aria-label="Air Quality Index" aria-selected="false" title="Air Quality (AQI)">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">air</span>
+          <span class="nav-label">AQI</span>
+        </button>
+        <button class="nav-item" data-screen="locations" aria-label="Multi-District Weather Radar" aria-selected="false" title="Saved Districts">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">location_on</span>
+          <span class="nav-label">Districts</span>
+        </button>
+        <button class="nav-item" data-screen="settings" aria-label="Settings & Configuration" aria-selected="false" title="Settings">
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">settings</span>
+          <span class="nav-label">Settings</span>
+        </button>
+      </div>
     </nav>
 
     <!-- Floating SkyZen AI Copilot Action Button -->

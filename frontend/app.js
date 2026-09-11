@@ -843,10 +843,59 @@ async function restoreSessionOrShowAuth() {
   hideSplashScreen();
 }
 
+async function executeDemoLogin() {
+  const splashStatusText = document.getElementById("splashStatusText");
+  try {
+    if (splashStatusText) splashStatusText.textContent = "Launching presentation session...";
+    const res = await window.apiClient.demoLogin();
+    if (res && res.user) {
+      currentUser = res.user;
+      hideAuthPortal();
+      updateProfileUI(res.user);
+      if (res.user.language) {
+        currentLanguage = res.user.language;
+        if (window.I18N) window.I18N.setLanguage(res.user.language, true);
+      }
+      navigateToScreen("home");
+      loadCurrentWeather();
+      loadSavedLocationsList();
+      if (window.notificationManager) {
+        window.notificationManager.init();
+      }
+      showMobileNotice(`Presentation Mode: Welcome, ${res.user.name || "Sanjay"}!`, "info");
+      return;
+    }
+  } catch (err) {
+    console.warn("Demo login endpoint fallback:", err.message);
+  }
+
+  // Direct fallback with verified account
+  try {
+    const res = await window.apiClient.login("sanjayhariharan29@gmail.com", "SkyZen2026!");
+    if (res && res.user) {
+      currentUser = res.user;
+      hideAuthPortal();
+      updateProfileUI(res.user);
+      navigateToScreen("home");
+      loadCurrentWeather();
+      loadSavedLocationsList();
+      if (window.notificationManager) {
+        window.notificationManager.init();
+      }
+      showMobileNotice(`Presentation Mode: Welcome, ${res.user.name || "Sanjay"}!`, "info");
+    }
+  } catch (err) {
+    console.error("Demo login error:", err);
+    showAuthView("login");
+  }
+}
+
 function setupAuthPortalEngine() {
   // Navigation within Auth Views
+  const welcomeDemoBtn = document.getElementById("welcomeDemoBtn");
   const welcomeLoginBtn = document.getElementById("welcomeLoginBtn");
   const welcomeSignupBtn = document.getElementById("welcomeSignupBtn");
+  const loginDemoBtn = document.getElementById("loginDemoBtn");
   const loginBackBtn = document.getElementById("loginBackBtn");
   const signupBackBtn = document.getElementById("signupBackBtn");
   const verifyBackBtn = document.getElementById("verifyBackBtn");
@@ -864,6 +913,8 @@ function setupAuthPortalEngine() {
   const profileSignOutBtn = document.getElementById("profileSignOutBtn");
   const profileOpenAuthBtn = document.getElementById("profileOpenAuthBtn");
 
+  if (welcomeDemoBtn) welcomeDemoBtn.addEventListener("click", executeDemoLogin);
+  if (loginDemoBtn) loginDemoBtn.addEventListener("click", executeDemoLogin);
   if (welcomeLoginBtn) welcomeLoginBtn.addEventListener("click", () => showAuthView("login"));
   if (welcomeSignupBtn) welcomeSignupBtn.addEventListener("click", () => showAuthView("signup"));
   if (loginBackBtn) loginBackBtn.addEventListener("click", () => showAuthView("welcome"));

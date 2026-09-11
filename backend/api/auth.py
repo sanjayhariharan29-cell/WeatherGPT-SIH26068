@@ -157,6 +157,39 @@ async def login_user(req: LoginRequest, db: Session = Depends(get_db)):
     }
 
 
+@router.post("/demo")
+async def demo_login(db: Session = Depends(get_db)):
+    """Instant presentation demo access with pre-configured verified account."""
+    user = db.query(User).filter(User.email == "sanjayhariharan29@gmail.com").first()
+    if not user:
+        user = db.query(User).filter(User.is_verified == True).first()
+    if not user:
+        raise HTTPException(status_code=404, detail="No demo user found")
+    
+    access_token = create_access_token(data={
+        "sub": user.id,
+        "email": user.email,
+        "role": user.role
+    })
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "user": {
+            "id": user.id,
+            "name": user.name,
+            "full_name": user.name,
+            "email": user.email,
+            "language": user.language or "en",
+            "preferred_language": user.language or "en",
+            "persona": user.persona or "general",
+            "role": user.role,
+            "is_verified": bool(user.is_verified),
+            "onboarding_completed": bool(user.onboarding_completed)
+        }
+    }
+
+
 @router.post("/verify-email")
 async def verify_email(req: VerifyEmailRequest, db: Session = Depends(get_db)):
     """Validates real server-side email verification token and marks account as verified."""

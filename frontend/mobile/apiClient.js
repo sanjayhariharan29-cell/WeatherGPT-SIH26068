@@ -159,6 +159,17 @@ class WeatherGPTApiClient {
     return res;
   }
 
+  async demoLogin() {
+    const res = await this.request("/auth/demo", {
+      method: "POST",
+      body: JSON.stringify({})
+    });
+    if (res && res.access_token) {
+      this.setToken(res.access_token);
+    }
+    return res;
+  }
+
   async verifyEmail(token) {
     return await this.request("/auth/verify-email", {
       method: "POST",

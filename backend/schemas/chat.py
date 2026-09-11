@@ -76,6 +76,7 @@ class ChatResponse(BaseModel):
     request_id: Optional[str] = Field(default=None, description="Unique correlation UUID")
     conversation_id: str = Field(description="Session or conversation UUID")
     answer: str = Field(description="Grounded natural language response")
+    tts_text: Optional[str] = Field(default=None, description="Clean speech-optimized text for TTS voice synthesis")
     language: str = Field(description="Detected or resolved response language")
     intent: str = Field(description="Classified NLU intent")
     location: str = Field(description="Resolved location name")
