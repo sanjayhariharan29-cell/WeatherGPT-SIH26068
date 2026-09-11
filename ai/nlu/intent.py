@@ -123,7 +123,7 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
             "safe", "rough", "wave", "waves", "seetram", "alert", "warning", "khatra", "சீற்றம்", "அலை", "खतरा"
         ]):
             return IntentEnum.MARINE_SAFETY, 0.94
-        if any(k in clean for k in ["pogalama", "polama", "go", "ja sakte", "செல்லலாமா", "போகலாமா", "போலாமா", "venture", "fishermen", "fisherman"]):
+        if any(k in clean for k in ["pogalama", "polama", "go", "ja sakte", "ja sakta", "செல்லலாமா", "போகலாமா", "போலாமா", "venture", "fishermen", "fisherman", "जा सकते", "जा सकता", "जाना"]):
             return IntentEnum.FISHING_DECISION, 0.93
 
     # 1g. Farming / Agriculture Decision ("Can I spray pesticide?")

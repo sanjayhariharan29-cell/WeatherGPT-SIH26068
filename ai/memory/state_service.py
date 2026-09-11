@@ -21,6 +21,11 @@ from ai.memory.models import (
 )
 from ai.nlu import parse_query
 from ai.models import IntentEnum
+from ai.clarification import (
+    clarification_engine,
+    MissingInformationType,
+    MissingInformation,
+)
 
 
 # Correction markers
@@ -325,6 +330,7 @@ class ConversationStateService:
         is_ambiguous = False
         ambiguity_reason: Optional[str] = None
         clarification = ClarificationState()
+        resolved_intent: Optional[str] = None
 
         # Parse NLU
         nlu = parse_query(clean_msg)
@@ -406,14 +412,30 @@ class ConversationStateService:
         if is_corr and extracted_loc:
             resolved_location = extracted_loc
         elif was_clarification_pending:
+            pending_clar = current_state.clarification_state
             if extracted_loc:
                 resolved_location = extracted_loc
-            elif len(clean_msg.split()) <= 3 and not any(k in lower_msg for k in ["rain", "wind", "temp"]):
-                resolved_location = clean_msg.title()
-            elif explicit_location:
-                resolved_location = explicit_location
             else:
-                resolved_location = current_state.active_location
+                # Strip leading conversational prepositions: "near Rameswaram.", "in Rameswaram", "to Chennai"
+                cand = re.sub(r"^(?:near|in|at|to|around|for)\s+", "", clean_msg, flags=re.IGNORECASE).rstrip(".,!?")
+                if len(cand.split()) <= 4 and not any(k in cand.lower() for k in ["rain", "wind", "temp", "safe", "weather"]):
+                    resolved_location = cand.strip().title()
+                elif explicit_location:
+                    resolved_location = explicit_location
+                else:
+                    resolved_location = current_state.active_location or "Coimbatore"
+
+            # Resume original domain intent & context from pending clarification
+            if pending_clar.pending_intent:
+                resolved_intent = pending_clar.pending_intent
+            if pending_clar.context_snapshot:
+                if "activity" in pending_clar.context_snapshot and not extracted_act:
+                    extracted_act = pending_clar.context_snapshot["activity"]
+                if "persona" in pending_clar.context_snapshot and not explicit_persona:
+                    explicit_persona = pending_clar.context_snapshot["persona"]
+
+            is_ambiguous = False
+            clarification = ClarificationState(needed=False)
         elif explicit_location and explicit_location.lower() != "coimbatore":
             resolved_location = explicit_location
         elif extracted_loc:
@@ -423,10 +445,16 @@ class ConversationStateService:
             if len(unique_recent) > 1 and not current_state.active_location:
                 is_ambiguous = True
                 ambiguity_reason = "Multiple locations discussed recently without a single active anchor."
+                prompt_text = clarification_engine.get_prompt(
+                    MissingInformationType.AMBIGUOUS_LOCATION,
+                    language=explicit_language or current_state.preferred_language or "en",
+                    options=unique_recent[:2]
+                )
                 clarification = ClarificationState(
                     needed=True,
+                    missing_type=MissingInformationType.AMBIGUOUS_LOCATION.value,
                     field="location",
-                    prompt=f"Which location did you mean: {' or '.join(unique_recent[:2])}?",
+                    prompt=prompt_text,
                     options=unique_recent[:3],
                     pending_query=clean_msg
                 )
@@ -438,10 +466,15 @@ class ConversationStateService:
             else:
                 is_ambiguous = True
                 ambiguity_reason = "Spatial reference used without prior location in conversation state."
+                prompt_text = clarification_engine.get_prompt(
+                    MissingInformationType.MISSING_LOCATION,
+                    language=explicit_language or current_state.preferred_language or "en"
+                )
                 clarification = ClarificationState(
                     needed=True,
+                    missing_type=MissingInformationType.MISSING_LOCATION.value,
                     field="location",
-                    prompt="Which district or city would you like the weather forecast for?",
+                    prompt=prompt_text,
                     pending_query=clean_msg
                 )
                 turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
@@ -454,15 +487,47 @@ class ConversationStateService:
         else:
             resolved_location = None
 
-        if not resolved_location and nlu.intent != IntentEnum.GREETING:
+        # Check clarification requirement via IntelligentClarificationEngine
+        missing_info = None
+        if not was_clarification_pending and nlu.intent != IntentEnum.GREETING and not is_corr:
+            missing_info = clarification_engine.evaluate_clarification_needed(
+                query=clean_msg,
+                nlu_result=nlu,
+                current_state=current_state,
+                explicit_location=resolved_location if resolved_location and resolved_location != "Unspecified" else None,
+                language=explicit_language or current_state.preferred_language or "en"
+            )
+
+        if missing_info:
             is_ambiguous = True
-            ambiguity_reason = "No target location specified in query or active conversation context."
+            ambiguity_reason = missing_info.reason
             turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
             clarification = ClarificationState(
                 needed=True,
+                missing_type=missing_info.missing_type.value,
+                field=missing_info.field,
+                prompt=missing_info.prompt,
+                options=missing_info.options,
+                pending_query=missing_info.original_query or clean_msg,
+                pending_intent=missing_info.intent_to_resume,
+                context_snapshot=missing_info.context_snapshot
+            )
+            resolved_location = resolved_location or "Unspecified"
+        elif not resolved_location and nlu.intent != IntentEnum.GREETING:
+            is_ambiguous = True
+            ambiguity_reason = "No target location specified in query or active conversation context."
+            turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
+            prompt_text = clarification_engine.get_prompt(
+                MissingInformationType.MISSING_LOCATION,
+                language=explicit_language or current_state.preferred_language or "en"
+            )
+            clarification = ClarificationState(
+                needed=True,
+                missing_type=MissingInformationType.MISSING_LOCATION.value,
                 field="location",
-                prompt="Which district or city would you like the weather forecast for?",
-                pending_query=clean_msg
+                prompt=prompt_text,
+                pending_query=clean_msg,
+                pending_intent=nlu.intent.value
             )
             resolved_location = "Unspecified"
 
@@ -559,39 +624,42 @@ class ConversationStateService:
 
         # 9. Transport Mode & Pronoun "it" Resolution
         resolved_transport_mode = extracted_transport
-        resolved_intent: Optional[str] = None
-
-        if resolved_transport_mode:
-            resolved_intent = IntentEnum.BIKE_TRAVEL.value if resolved_transport_mode == "bike" else current_state.current_intent
-        elif has_pronoun_it:
-            # Resolve antecedent for "it" from prior transport or vehicle/item in state
+        if not resolved_transport_mode and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION):
             if current_state.active_transport_mode:
                 resolved_transport_mode = current_state.active_transport_mode
-                resolved_intent = IntentEnum.BIKE_TRAVEL.value if resolved_transport_mode == "bike" else current_state.current_intent
                 inherited_fields.append("transport_mode")
-            elif current_state.active_vehicle_or_item == "bike":
-                resolved_transport_mode = "bike"
+
+        if not resolved_intent:
+            if resolved_transport_mode == "bike":
                 resolved_intent = IntentEnum.BIKE_TRAVEL.value
-                inherited_fields.append("transport_mode")
-            elif current_state.active_vehicle_or_item == "umbrella" or (current_state.active_topic and "umbrella" in current_state.active_topic):
-                resolved_activity = "umbrella"
-                resolved_intent = IntentEnum.UMBRELLA_DECISION.value
-                inherited_fields.append("activity")
-            else:
-                # Genuinely ambiguous: no vehicle or item antecedent exists
-                is_ambiguous = True
-                ambiguity_reason = "Pronoun 'it' referenced without a prior vehicle or item in conversation context."
-                clarification = ClarificationState(
-                    needed=True,
-                    field="vehicle_or_item",
-                    prompt="Are you asking about taking your bike or carrying an umbrella?",
-                    options=["bike", "umbrella"],
-                    pending_query=clean_msg
-                )
-                turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
-        elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION) and current_state.active_transport_mode:
-            resolved_transport_mode = current_state.active_transport_mode
-            inherited_fields.append("transport_mode")
+            elif resolved_transport_mode:
+                resolved_intent = current_state.current_intent
+            elif has_pronoun_it:
+                # Resolve antecedent for "it" from prior transport or vehicle/item in state
+                if current_state.active_transport_mode:
+                    resolved_transport_mode = current_state.active_transport_mode
+                    resolved_intent = IntentEnum.BIKE_TRAVEL.value if resolved_transport_mode == "bike" else current_state.current_intent
+                    inherited_fields.append("transport_mode")
+                elif current_state.active_vehicle_or_item == "bike":
+                    resolved_transport_mode = "bike"
+                    resolved_intent = IntentEnum.BIKE_TRAVEL.value
+                    inherited_fields.append("transport_mode")
+                elif current_state.active_vehicle_or_item == "umbrella" or (current_state.active_topic and "umbrella" in current_state.active_topic):
+                    resolved_activity = "umbrella"
+                    resolved_intent = IntentEnum.UMBRELLA_DECISION.value
+                    inherited_fields.append("activity")
+                else:
+                    # Genuinely ambiguous: no vehicle or item antecedent exists
+                    is_ambiguous = True
+                    ambiguity_reason = "Pronoun 'it' referenced without a prior vehicle or item in conversation context."
+                    clarification = ClarificationState(
+                        needed=True,
+                        field="vehicle_or_item",
+                        prompt="Are you asking about taking your bike or carrying an umbrella?",
+                        options=["bike", "umbrella"],
+                        pending_query=clean_msg
+                    )
+                    turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
 
         # 10. Weather Topic Resolution
         resolved_topic: Optional[str] = None
@@ -634,7 +702,9 @@ class ConversationStateService:
 
         # 13. Build Disambiguated / Enriched Grounded Query
         resolved_message = clean_msg
-        if has_loc_ref and resolved_location and resolved_location != "Unspecified":
+        if was_clarification_pending and current_state.clarification_state.pending_query:
+            resolved_message = f"{current_state.clarification_state.pending_query} (Location: {resolved_location})"
+        elif has_loc_ref and resolved_location and resolved_location != "Unspecified":
             for pat in LOCATION_REFERENCE_PATTERNS:
                 resolved_message = re.sub(pat, resolved_location, resolved_message, flags=re.IGNORECASE)
 

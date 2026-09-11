@@ -120,7 +120,8 @@ def extract_entities(text: str) -> ExtractedEntities:
                 "weather", "rain", "temperature", "temp", "morning", "afternoon", "evening",
                 "night", "there", "it", "here", "this", "that", "college", "school", "work", "office",
                 "when", "how", "what", "where", "who", "which", "why", "my", "your", "our", "his", "her", "their",
-                "leave", "leaving", "come", "coming", "go", "going", "return", "trip", "bike", "car", "bus", "train", "drive"
+                "leave", "leaving", "come", "coming", "go", "going", "return", "trip", "bike", "car", "bus", "train", "drive",
+                "sea", "ocean", "beach", "coast", "lake", "river"
             }
             if candidate.lower() not in excluded and len(candidate) >= 3:
                 entities.location = candidate.capitalize()

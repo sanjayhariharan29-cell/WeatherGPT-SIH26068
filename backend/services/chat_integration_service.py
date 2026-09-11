@@ -98,7 +98,7 @@ class ChatIntegrationService:
 
         cur_state = state_service.get_state(conv_id, user_id=user_id)
         ctx = memory_manager.get_context(conv_id)
-        explicit_loc = location_name if location_name and location_name.lower() != "coimbatore" else None
+        explicit_loc = location_name if location_name and location_name.lower() != "unspecified" else None
 
         # Turn transition analysis via ConversationStateService
         turn_analysis = state_service.analyze_turn(
@@ -177,28 +177,33 @@ class ChatIntegrationService:
         has_context_loc = bool((cur_state and cur_state.active_location) or (ctx and ctx.location))
         is_there_query = any(k in lower_msg for k in ["weather there", "how is it there", "what's the weather there", "there?"])
         is_ambiguous_no_loc = (turn_analysis.turn_type == TurnTypeEnum.AMBIGUOUS_REQUEST and not location_name and not has_context_loc)
+        is_clarification_needed = bool(turn_analysis.clarification and turn_analysis.clarification.needed) or (
+            (pre_nlu.intent == IntentEnum.CLARIFICATION_NEEDED or is_there_query or is_ambiguous_no_loc)
+            and not has_context_loc and not explicit_loc
+        )
 
-        if (pre_nlu.intent == IntentEnum.CLARIFICATION_NEEDED or is_there_query or is_ambiguous_no_loc) and not has_context_loc and not explicit_loc:
+        if is_clarification_needed:
             if turn_analysis.clarification and turn_analysis.clarification.prompt:
                 clar_text = turn_analysis.clarification.prompt
                 ret_lang = norm_lang
             elif norm_lang in ("ta", "tanglish", "tamil"):
-                clar_text = "எந்த இடத்தின் வானிலை விவரம் உங்களுக்கு தேவைப்படுகிறது? தயவுசெய்து உங்கள் மாவட்டம் அல்லது நகரத்தின் பெயரை குறிப்பிடவும் (உதாரணமாக: கோயம்புத்தூர், சென்னை, மதுரை)."
+                clar_text = "நீங்கள் எங்கு செல்ல திட்டமிட்டுள்ளீர்கள்? உங்கள் மாவட்டம் அல்லது நகரத்தை குறிப்பிடவும்."
                 ret_lang = "ta"
             elif norm_lang in ("hi", "hinglish", "hindi"):
-                clar_text = "आप किस स्थान का मौसम जानना चाहते हैं? कृपया अपने जिले या शहर का नाम बताएं (जैसे: कोयंबटूर, चेन्नई, मदुरै)।"
+                clar_text = "आप कहाँ जाने की योजना बना रहे हैं? कृपया अपने जिले या शहर का नाम बताएं।"
                 ret_lang = "hi"
             else:
-                clar_text = "Which location would you like the weather for? Please specify your city or district name (e.g., Coimbatore, Chennai, Madurai)."
+                clar_text = "Where are you planning to go? Please specify your district or city."
                 ret_lang = "en"
 
-            turn_analysis.clarification = ClarificationState(
-                needed=True,
-                field="location",
-                prompt=clar_text,
-                pending_query=message
-            )
-            turn_analysis.turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
+            if not (turn_analysis.clarification and turn_analysis.clarification.needed):
+                turn_analysis.clarification = ClarificationState(
+                    needed=True,
+                    field="location",
+                    prompt=clar_text,
+                    pending_query=message
+                )
+                turn_analysis.turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
 
             return self._finalize_chat_turn(
                 message=message,

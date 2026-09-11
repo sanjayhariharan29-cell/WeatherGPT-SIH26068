@@ -25,10 +25,13 @@ class TurnTypeEnum(str, Enum):
 class ClarificationState(BaseModel):
     """State tracking for required conversational clarifications."""
     needed: bool = False
-    field: Optional[str] = None          # e.g. "location", "date", "reference"
-    prompt: Optional[str] = None         # e.g. "Which district or city are you asking about?"
+    missing_type: Optional[str] = None          # e.g. "insufficient_marine_area", "missing_location"
+    field: Optional[str] = None                 # e.g. "location", "date", "marine_area"
+    prompt: Optional[str] = None                # e.g. "Which area are you planning to fish in?"
     options: List[str] = Field(default_factory=list) # e.g. ["Chennai", "Coimbatore"]
-    pending_query: Optional[str] = None # original user query needing disambiguation
+    pending_query: Optional[str] = None        # original user query needing disambiguation
+    pending_intent: Optional[str] = None       # original domain intent to resume (e.g. "fishing_decision")
+    context_snapshot: Dict[str, Any] = Field(default_factory=dict) # captured context snapshot
 
 
 class ConversationTurn(BaseModel):
