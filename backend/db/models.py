@@ -90,6 +90,11 @@ class UserPreference(Base):
     preferred_units = Column(String(20), default="metric")
     persona = Column(String(50), default="student")
     notification_enabled = Column(Boolean, default=True)
+    last_known_location = Column(String(100), nullable=True)
+    last_latitude = Column(Float, nullable=True)
+    last_longitude = Column(Float, nullable=True)
+    last_location_source = Column(String(50), default="manual")
+    last_location_updated_at = Column(DateTime(timezone=True), nullable=True)
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     user = relationship("User", back_populates="preferences")

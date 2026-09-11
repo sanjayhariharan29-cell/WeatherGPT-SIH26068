@@ -133,6 +133,11 @@ class ProfileResponse(BaseModel):
     is_verified: bool = False
     onboarding_completed: bool = False
     notification_enabled: bool = True
+    last_known_location: Optional[str] = None
+    last_latitude: Optional[float] = None
+    last_longitude: Optional[float] = None
+    last_location_source: Optional[str] = None
+    last_location_updated_at: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -147,6 +152,11 @@ class ProfileUpdateRequest(BaseModel):
     preferred_language: Optional[str] = Field(None, max_length=20, description="Preferred language alias")
     notification_enabled: Optional[bool] = Field(None, description="Basic notification alert preference")
     onboarding_completed: Optional[bool] = Field(None, description="Onboarding completion flag")
+    last_known_location: Optional[str] = Field(None, max_length=100, description="Last known location name")
+    last_latitude: Optional[float] = Field(None, ge=-90.0, le=90.0, description="Last known latitude")
+    last_longitude: Optional[float] = Field(None, ge=-180.0, le=180.0, description="Last known longitude")
+    last_location_source: Optional[str] = Field(None, max_length=50, description="Location source")
+    last_location_updated_at: Optional[str] = Field(None, description="ISO timestamp of last known location")
 
     @model_validator(mode="before")
     @classmethod
@@ -224,6 +234,11 @@ class UserUpdateRequest(BaseModel):
     role: Optional[str] = Field(None, max_length=50)
     onboarding_completed: Optional[bool] = None
     notification_enabled: Optional[bool] = None
+    last_known_location: Optional[str] = Field(None, max_length=100)
+    last_latitude: Optional[float] = Field(None, ge=-90.0, le=90.0)
+    last_longitude: Optional[float] = Field(None, ge=-180.0, le=180.0)
+    last_location_source: Optional[str] = Field(None, max_length=50)
+    last_location_updated_at: Optional[str] = None
 
     @model_validator(mode="before")
     @classmethod
@@ -243,6 +258,11 @@ class UserPreferenceSchema(BaseModel):
     preferred_units: str = Field(default="metric", max_length=20)
     persona: str = Field(default="student", max_length=50)
     notification_enabled: bool = Field(default=True)
+    last_known_location: Optional[str] = None
+    last_latitude: Optional[float] = None
+    last_longitude: Optional[float] = None
+    last_location_source: Optional[str] = "manual"
+    last_location_updated_at: Optional[str] = None
 
     model_config = ConfigDict(from_attributes=True)
 

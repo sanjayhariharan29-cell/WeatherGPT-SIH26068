@@ -41,6 +41,7 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initApp() {
+  loadLastKnownLocation();
   setupNavigation();
   setupNetworkMonitoring();
   setupAuthPortalEngine();
@@ -239,7 +240,10 @@ function getWeatherMaterialIcon(conditionStr) {
 function setupEventListeners() {
   const locSelect = document.getElementById("locationSelect");
   if (locSelect) {
-    locSelect.addEventListener("change", () => loadCurrentWeather(true));
+    locSelect.addEventListener("change", (e) => {
+      setManualLocation(e.target.value);
+      loadCurrentWeather(true);
+    });
   }
 
   const personaSelect = document.getElementById("personaSelect");
@@ -249,7 +253,7 @@ function setupEventListeners() {
 
   const geoBtn = document.getElementById("geoBtn");
   if (geoBtn) {
-    geoBtn.addEventListener("click", handleDeviceGeolocation);
+    geoBtn.addEventListener("click", () => refreshForegroundLocation("user_click"));
   }
 
   const refreshBtn = document.getElementById("refreshBtn");
@@ -445,6 +449,25 @@ function setupEventListeners() {
       if (e.key === "Enter") handleSaveCustom();
     });
   }
+
+  // Foreground Resume / Window Focus Auto-Refresh
+  // One-shot foreground trigger (strictly zero continuous background polling)
+  const handleForegroundWakeup = () => {
+    if (document.hidden) return;
+    const now = Date.now();
+    if (now - lastForegroundRefreshTime >= FOREGROUND_REFRESH_THROTTLE_MS) {
+      lastForegroundRefreshTime = now;
+      console.info("[Location] Foreground resume detected. Refreshing current location...");
+      refreshForegroundLocation("foreground_resume");
+    }
+  };
+
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden) {
+      handleForegroundWakeup();
+    }
+  });
+  window.addEventListener("focus", handleForegroundWakeup);
 }
 
 function addAndSelectLocation(cityName, stateName, lat, lon) {
@@ -482,64 +505,296 @@ function addAndSelectLocation(cityName, stateName, lat, lon) {
   showMobileNotice(`Switched to location: ${cityName}`, "info", 2500);
 }
 
-// Device Geolocation
-function handleDeviceGeolocation() {
-  const geoBtn = document.getElementById("geoBtn");
-  if (!navigator.geolocation) {
-    showMobileNotice("Geolocation is not supported by your browser.", "warning");
+// ============================================================================
+// SKYZEN AUTOMATIC FOREGROUND CURRENT-LOCATION INTELLIGENCE
+// Source of truth: Live GPS. Saved locations remain optional.
+// No continuous background tracking; foreground one-shot triggers only.
+// ============================================================================
+
+const LOCATION_STATE_TYPES = {
+  LIVE_GPS: "CURRENT_LIVE_LOCATION",
+  LAST_KNOWN: "LAST_KNOWN_LOCATION",
+  MANUAL: "MANUAL_LOCATION"
+};
+
+const STALE_LOCATION_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour staleness threshold
+const FOREGROUND_REFRESH_THROTTLE_MS = 30000; // 30 seconds throttle to prevent battery drain
+let lastForegroundRefreshTime = 0;
+let isLocating = false;
+
+let currentLocationState = {
+  type: LOCATION_STATE_TYPES.LIVE_GPS,
+  name: "Coimbatore",
+  latitude: 11.0168,
+  longitude: 76.9558,
+  accuracy: null,
+  timestamp: new Date().toISOString(),
+  isStale: false
+};
+
+function getLocationState() {
+  return { ...currentLocationState };
+}
+
+function setLocationState(type, name, lat = null, lon = null, accuracy = null, timestamp = null) {
+  const ts = timestamp || new Date().toISOString();
+  let isStale = false;
+  if (type === LOCATION_STATE_TYPES.LAST_KNOWN) {
+    const age = Date.now() - new Date(ts).getTime();
+    isStale = isNaN(age) ? false : age > STALE_LOCATION_THRESHOLD_MS;
+  }
+
+  currentLocationState = {
+    type,
+    name: name || "Coimbatore",
+    latitude: lat !== null && lat !== undefined ? Number(lat) : null,
+    longitude: lon !== null && lon !== undefined ? Number(lon) : null,
+    accuracy: accuracy !== null && accuracy !== undefined ? Number(accuracy) : null,
+    timestamp: ts,
+    isStale
+  };
+
+  updateLocationUI();
+
+  if (type === LOCATION_STATE_TYPES.LIVE_GPS || type === LOCATION_STATE_TYPES.LAST_KNOWN) {
+    persistLastKnownLocation(currentLocationState);
+  }
+}
+
+function setManualLocation(cityName) {
+  setLocationState(
+    LOCATION_STATE_TYPES.MANUAL,
+    cityName,
+    null,
+    null,
+    null,
+    new Date().toISOString()
+  );
+  showMobileNotice(`Switched location: ${cityName} (Manual)`, "info", 2000);
+}
+
+function updateLocationUI() {
+  const state = currentLocationState;
+  const nameElem = document.getElementById("currentLocationName");
+  const badgeElem = document.getElementById("locationStateBadge");
+  const badgeText = document.getElementById("locationStateText");
+
+  if (nameElem) {
+    if (!nameElem.textContent || !nameElem.textContent.toLowerCase().includes(state.name.toLowerCase())) {
+      nameElem.textContent = state.name;
+    }
+  }
+
+  if (badgeElem && badgeText) {
+    badgeElem.className = "location-state-badge";
+    if (state.type === LOCATION_STATE_TYPES.LIVE_GPS) {
+      badgeElem.classList.add("live");
+      badgeText.textContent = "CURRENT LIVE LOCATION";
+      badgeElem.title = `Current Live GPS (Accuracy: ${state.accuracy ? Math.round(state.accuracy) + 'm' : 'Standard'})`;
+    } else if (state.type === LOCATION_STATE_TYPES.LAST_KNOWN) {
+      if (state.isStale) {
+        badgeElem.classList.add("last-known-stale");
+        const minutesAgo = Math.round((Date.now() - new Date(state.timestamp).getTime()) / 60000);
+        badgeText.textContent = `LAST KNOWN (STALE, ${minutesAgo}m ago)`;
+        badgeElem.title = "Stale last-known location (older than 1 hour)";
+      } else {
+        badgeElem.classList.add("last-known");
+        badgeText.textContent = "LAST KNOWN LOCATION";
+        badgeElem.title = "Last known location from recent session";
+      }
+    } else {
+      badgeElem.classList.add("manual");
+      badgeText.textContent = "MANUAL LOCATION";
+      badgeElem.title = "Manually selected location";
+    }
+  }
+}
+
+function persistLastKnownLocation(state) {
+  try {
+    const payload = {
+      name: state.name,
+      latitude: state.latitude,
+      longitude: state.longitude,
+      accuracy: state.accuracy,
+      timestamp: state.timestamp,
+      source: state.type
+    };
+    localStorage.setItem("skyzen_last_known_location", JSON.stringify(payload));
+
+    if (isAppAuthenticated() && window.apiClient) {
+      window.apiClient.updatePreferences({
+        last_known_location: state.name,
+        last_latitude: state.latitude,
+        last_longitude: state.longitude,
+        last_location_source: state.type
+      }).catch(err => console.debug("Last-known location profile sync:", err.message));
+    }
+  } catch (e) {
+    console.debug("Failed to persist last known location:", e);
+  }
+}
+
+function loadLastKnownLocation() {
+  try {
+    const stored = localStorage.getItem("skyzen_last_known_location");
+    if (stored) {
+      const parsed = JSON.parse(stored);
+      if (parsed && parsed.name) {
+        setLocationState(
+          LOCATION_STATE_TYPES.LAST_KNOWN,
+          parsed.name,
+          parsed.latitude,
+          parsed.longitude,
+          parsed.accuracy,
+          parsed.timestamp
+        );
+        return true;
+      }
+    }
+    if (currentUser && currentUser.last_known_location) {
+      setLocationState(
+        LOCATION_STATE_TYPES.LAST_KNOWN,
+        currentUser.last_known_location,
+        currentUser.last_latitude,
+        currentUser.last_longitude,
+        null,
+        currentUser.last_location_updated_at || new Date().toISOString()
+      );
+      return true;
+    }
+  } catch (e) {
+    console.debug("Failed to load last known location:", e);
+  }
+  return false;
+}
+
+async function refreshForegroundLocation(triggerReason = "manual") {
+  if (isLocating) return;
+
+  // Offline guard: do not attempt network geocoding when offline
+  if (!navigator.onLine) {
+    console.info("[Location] Device offline. Falling back to last known location.");
+    loadLastKnownLocation();
     return;
   }
 
-  if (geoBtn) {
+  // Check geolocation API support
+  if (!navigator.geolocation) {
+    console.warn("[Location] Geolocation not supported in browser.");
+    loadLastKnownLocation();
+    return;
+  }
+
+  const geoBtn = document.getElementById("geoBtn");
+  if (geoBtn && triggerReason === "user_click") {
     geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span>Locating...</span>';
   }
 
+  isLocating = true;
+
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
+      isLocating = false;
+      if (geoBtn) {
+        geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span data-i18n="btn.gps">GPS</span>';
+      }
+
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const accuracy = pos.coords.accuracy;
-      userGpsLocation = { lat, lon, accuracy };
 
+      let resolvedName = null;
       try {
         const locDetail = await window.apiClient.reverseGeocode(lat, lon, accuracy);
-        const resolvedName = locDetail?.name || locDetail?.district || "Current Location";
+        resolvedName = locDetail?.name || locDetail?.district || null;
+      } catch (err) {
+        console.warn("[Location] Reverse-geocoding failed:", err.message);
+      }
 
-        const locSelect = document.getElementById("locationSelect");
-        if (locSelect) {
-          let found = false;
-          for (let i = 0; i < locSelect.options.length; i++) {
-            if (locSelect.options[i].value.toLowerCase() === resolvedName.toLowerCase()) {
-              locSelect.selectedIndex = i;
-              found = true;
-              break;
-            }
-          }
-          if (!found) {
-            const newOpt = document.createElement("option");
-            newOpt.value = resolvedName;
-            newOpt.textContent = `${resolvedName} (GPS)`;
-            locSelect.insertBefore(newOpt, locSelect.firstChild);
-            locSelect.selectedIndex = 0;
+      // Anti-fabrication policy: Never invent a location name if geocoding fails!
+      if (!resolvedName) {
+        resolvedName = `Location (${lat.toFixed(2)}°, ${lon.toFixed(2)}°)`;
+      }
+
+      // Detect location switch (e.g. user moved from Coimbatore to Chennai)
+      const previousLocation = currentLocationState.name;
+      const isNewLocation = previousLocation.toLowerCase() !== resolvedName.toLowerCase();
+
+      // Update locationSelect dropdown to reflect the current live city
+      const locSelect = document.getElementById("locationSelect");
+      if (locSelect) {
+        let foundIndex = -1;
+        for (let i = 0; i < locSelect.options.length; i++) {
+          if (locSelect.options[i].value.toLowerCase() === resolvedName.toLowerCase()) {
+            foundIndex = i;
+            break;
           }
         }
-
-        showMobileNotice(`Location identified: ${resolvedName}`, "info", 3500);
-        await loadCurrentWeather(true);
-      } catch (e) {
-        showMobileNotice(`Coordinates acquired: ${lat.toFixed(2)}°, ${lon.toFixed(2)}°`, "info", 3000);
-        await loadCurrentWeather(true);
-      } finally {
-        if (geoBtn) geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span>GPS</span>';
+        if (foundIndex >= 0) {
+          locSelect.selectedIndex = foundIndex;
+        } else {
+          const opt = document.createElement("option");
+          opt.value = resolvedName;
+          opt.textContent = `${resolvedName} (Live GPS)`;
+          locSelect.insertBefore(opt, locSelect.firstChild);
+          locSelect.selectedIndex = 0;
+        }
       }
+
+      setLocationState(
+        LOCATION_STATE_TYPES.LIVE_GPS,
+        resolvedName,
+        lat,
+        lon,
+        accuracy,
+        new Date().toISOString()
+      );
+
+      if (isNewLocation && previousLocation !== "--" && triggerReason !== "app_launch" && triggerReason !== "session_restore") {
+        showMobileNotice(`Switched location: ${resolvedName} (Live GPS)`, "info", 3500);
+      } else if (triggerReason === "user_click") {
+        showMobileNotice(`GPS acquired: ${resolvedName}`, "info", 3000);
+      }
+
+      // Fetch fresh weather for the new live GPS coordinates
+      await loadCurrentWeather(true);
     },
     (err) => {
-      if (geoBtn) geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span>GPS</span>';
-      if (err.code === 1) {
-        showMobileNotice("Location permission denied. Please enable device GPS permissions or choose a city from the list.", "warning", 5000);
-      } else {
-        showMobileNotice("Unable to retrieve device GPS coordinates. Please select manually.", "warning", 4000);
+      isLocating = false;
+      if (geoBtn) {
+        geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span data-i18n="btn.gps">GPS</span>';
       }
+
+      console.warn(`[Location] Geolocation error (${err.code}):`, err.message);
+
+      const hadLastKnown = loadLastKnownLocation();
+
+      if (err.code === 1) {
+        // PERMISSION_DENIED
+        if (triggerReason === "user_click") {
+          showMobileNotice("Location permission denied. Please enable GPS permissions in browser settings.", "warning", 5000);
+        } else {
+          console.info("[Location] Permission denied/revoked on foreground check. Using fallback.");
+        }
+      } else if (err.code === 2) {
+        // POSITION_UNAVAILABLE
+        if (triggerReason === "user_click") {
+          showMobileNotice("GPS signal unavailable. Please ensure location is enabled on device.", "warning", 4000);
+        }
+      } else if (err.code === 3) {
+        // TIMEOUT
+        if (triggerReason === "user_click") {
+          showMobileNotice("GPS request timed out. Using last known location.", "warning", 3500);
+        }
+      }
+
+      if (!hadLastKnown && currentLocationState.type !== LOCATION_STATE_TYPES.MANUAL) {
+        // Default to Coimbatore as MoES reference station
+        setLocationState(LOCATION_STATE_TYPES.MANUAL, "Coimbatore", 11.0168, 76.9558);
+      }
+
+      loadCurrentWeather(false);
     },
     { enableHighAccuracy: true, timeout: 8000, maximumAge: 60000 }
   );
@@ -824,6 +1079,7 @@ async function restoreSessionOrShowAuth() {
         hideAuthPortal();
         updateProfileUI(user);
         hideSplashScreen();
+        refreshForegroundLocation("session_restore");
         loadCurrentWeather();
         loadSavedLocationsList();
         if (window.notificationManager) {
@@ -857,6 +1113,7 @@ async function executeDemoLogin() {
         if (window.I18N) window.I18N.setLanguage(res.user.language, true);
       }
       navigateToScreen("home");
+      refreshForegroundLocation("demo_login");
       loadCurrentWeather();
       loadSavedLocationsList();
       if (window.notificationManager) {
@@ -877,6 +1134,7 @@ async function executeDemoLogin() {
       hideAuthPortal();
       updateProfileUI(res.user);
       navigateToScreen("home");
+      refreshForegroundLocation("demo_login");
       loadCurrentWeather();
       loadSavedLocationsList();
       if (window.notificationManager) {
@@ -1019,6 +1277,7 @@ function setupAuthPortalEngine() {
             if (window.I18N) window.I18N.setLanguage(res.user.language, true);
           }
           navigateToScreen("home");
+          refreshForegroundLocation("login_success");
           loadCurrentWeather();
           loadSavedLocationsList();
           if (window.notificationManager) {
@@ -1148,6 +1407,9 @@ function setupAuthPortalEngine() {
           hideAuthPortal();
           updateProfileUI(currentUser);
           navigateToScreen("home");
+          refreshForegroundLocation("verification_success");
+          loadCurrentWeather();
+          loadSavedLocationsList();
           showMobileNotice("Email verified successfully! Welcome to SkyZen.", "info");
         } else {
           showAuthView("login");
@@ -1321,6 +1583,7 @@ function setupAuthPortalEngine() {
         hideAuthPortal();
         updateProfileUI(currentUser);
         navigateToScreen("home");
+        refreshForegroundLocation("onboarding_complete");
         loadCurrentWeather();
         loadSavedLocationsList();
         showMobileNotice(`Welcome to SkyZen, ${fullName}! Profile setup complete.`, "success");
@@ -1516,7 +1779,19 @@ async function loadCurrentWeather(showLoader = false) {
   lastWeatherRefreshTime = now;
   isFetchingWeather = true;
 
-  const location = document.getElementById("locationSelect")?.value || "Coimbatore";
+  const locSelect = document.getElementById("locationSelect");
+  const location = locSelect?.value || "Coimbatore";
+
+  // Resolve live GPS / last-known coordinates if they match or correspond to current state
+  let lat = null;
+  let lon = null;
+  if (currentLocationState && currentLocationState.latitude !== null && currentLocationState.longitude !== null) {
+    if (currentLocationState.type !== LOCATION_STATE_TYPES.MANUAL || currentLocationState.name.toLowerCase() === location.toLowerCase()) {
+      lat = currentLocationState.latitude;
+      lon = currentLocationState.longitude;
+    }
+  }
+
   const refreshBtn = document.getElementById("refreshBtn");
   const skeleton = document.getElementById("dashboardSkeleton");
   const errorCard = document.getElementById("dashboardErrorCard");
@@ -1530,7 +1805,7 @@ async function loadCurrentWeather(showLoader = false) {
   }
 
   try {
-    const data = await window.apiClient.getCurrentWeather(location);
+    const data = await window.apiClient.getCurrentWeather(location, lat, lon);
     data.cached = false;
     data.cached_at = null;
 
@@ -1545,6 +1820,7 @@ async function loadCurrentWeather(showLoader = false) {
     if (cardContainer) cardContainer.classList.remove("hidden");
 
     renderWeatherCard(data);
+    updateLocationUI();
     await loadForecast(location);
     await loadAlerts(location);
     await loadAirQuality(location);
@@ -1570,6 +1846,7 @@ async function loadCurrentWeather(showLoader = false) {
         if (cardContainer) cardContainer.classList.remove("hidden");
 
         renderWeatherCard(cachedData);
+        updateLocationUI();
         await loadForecast(location);
         await loadAlerts(location);
         await loadAirQuality(location);
@@ -2475,8 +2752,19 @@ async function handleUserSend(isVoice = false) {
   const text = input ? input.value.trim() : "";
   if (!text) return;
 
-  const location = document.getElementById("locationSelect")?.value || "Coimbatore";
+  const locSelect = document.getElementById("locationSelect");
+  const location = locSelect?.value || "Coimbatore";
   const persona = document.getElementById("personaSelect")?.value || "student";
+
+  // Build structured location payload with live GPS coordinates, accuracy, and staleness metadata
+  const locationPayload = {
+    name: location,
+    latitude: currentLocationState?.latitude ?? null,
+    longitude: currentLocationState?.longitude ?? null,
+    source_type: currentLocationState?.type ?? LOCATION_STATE_TYPES.MANUAL,
+    accuracy: currentLocationState?.accuracy ?? null,
+    is_stale: Boolean(currentLocationState?.isStale)
+  };
 
   // Lock UI to prevent duplicate submission
   isSendingChatMessage = true;
@@ -2492,7 +2780,7 @@ async function handleUserSend(isVoice = false) {
     const data = await window.apiClient.sendChatMessage(
       text,
       persona,
-      location,
+      locationPayload,
       currentChatConversationId,
       currentLanguage
     );

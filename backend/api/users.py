@@ -24,7 +24,8 @@ async def get_user_profile(
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Access denied: Cannot view another user's profile"
             )
-        notif = current_user.preferences.notification_enabled if current_user.preferences else True
+        pref = current_user.preferences
+        notif = pref.notification_enabled if pref else True
         return {
             "id": current_user.id,
             "name": current_user.name,
@@ -36,7 +37,12 @@ async def get_user_profile(
             "role": current_user.role,
             "is_verified": bool(current_user.is_verified),
             "onboarding_completed": bool(current_user.onboarding_completed),
-            "notification_enabled": bool(notif)
+            "notification_enabled": bool(notif),
+            "last_known_location": pref.last_known_location if pref else None,
+            "last_latitude": pref.last_latitude if pref else None,
+            "last_longitude": pref.last_longitude if pref else None,
+            "last_location_source": pref.last_location_source if pref else None,
+            "last_location_updated_at": pref.last_location_updated_at.isoformat() if (pref and pref.last_location_updated_at) else None
         }
 
     # Reject unauthenticated access to specific registered profiles (Prevent IDOR / Account Enumeration)
@@ -57,7 +63,12 @@ async def get_user_profile(
         "role": "guest",
         "is_verified": False,
         "onboarding_completed": True,
-        "notification_enabled": True
+        "notification_enabled": True,
+        "last_known_location": None,
+        "last_latitude": None,
+        "last_longitude": None,
+        "last_location_source": None,
+        "last_location_updated_at": None
     }
 
 @router.put("/me")
@@ -86,36 +97,58 @@ async def update_user_profile(
             current_user.preferences.persona = req.persona
     if req.onboarding_completed is not None:
         current_user.onboarding_completed = req.onboarding_completed
+    
+    if not current_user.preferences:
+        pref = UserPreference(
+            user_id=current_user.id,
+            persona=current_user.persona,
+            notification_enabled=req.notification_enabled if req.notification_enabled is not None else True
+        )
+        db.add(pref)
+        current_user.preferences = pref
+
     if req.notification_enabled is not None:
-        if not current_user.preferences:
-            pref = UserPreference(
-                user_id=current_user.id,
-                persona=current_user.persona,
-                notification_enabled=req.notification_enabled
-            )
-            db.add(pref)
-        else:
-            current_user.preferences.notification_enabled = req.notification_enabled
+        current_user.preferences.notification_enabled = req.notification_enabled
+
+    if req.last_known_location is not None:
+        current_user.preferences.last_known_location = req.last_known_location
+    if req.last_latitude is not None:
+        current_user.preferences.last_latitude = req.last_latitude
+    if req.last_longitude is not None:
+        current_user.preferences.last_longitude = req.last_longitude
+    if req.last_location_source is not None:
+        current_user.preferences.last_location_source = req.last_location_source
+    if req.last_known_location is not None or req.last_latitude is not None:
+        from backend.db.models import utc_now
+        current_user.preferences.last_location_updated_at = utc_now()
     
     db.commit()
     db.refresh(current_user)
 
-    notif = current_user.preferences.notification_enabled if current_user.preferences else True
+    pref = current_user.preferences
+    notif = pref.notification_enabled if pref else True
+    user_dict = {
+        "id": current_user.id,
+        "name": current_user.name,
+        "full_name": current_user.name,
+        "email": current_user.email,
+        "language": current_user.language,
+        "preferred_language": current_user.language,
+        "persona": current_user.persona,
+        "role": current_user.role,
+        "is_verified": bool(current_user.is_verified),
+        "onboarding_completed": bool(current_user.onboarding_completed),
+        "notification_enabled": bool(notif),
+        "last_known_location": pref.last_known_location if pref else None,
+        "last_latitude": pref.last_latitude if pref else None,
+        "last_longitude": pref.last_longitude if pref else None,
+        "last_location_source": pref.last_location_source if pref else None,
+        "last_location_updated_at": pref.last_location_updated_at.isoformat() if (pref and pref.last_location_updated_at) else None
+    }
     return {
         "message": "Profile updated successfully",
-        "user": {
-            "id": current_user.id,
-            "name": current_user.name,
-            "full_name": current_user.name,
-            "email": current_user.email,
-            "language": current_user.language,
-            "preferred_language": current_user.language,
-            "persona": current_user.persona,
-            "role": current_user.role,
-            "is_verified": bool(current_user.is_verified),
-            "onboarding_completed": bool(current_user.onboarding_completed),
-            "notification_enabled": bool(notif)
-        }
+        "user": user_dict,
+        **user_dict
     }
 
 @router.get("/preferences")
@@ -140,7 +173,12 @@ async def get_user_preferences(
         "user_id": pref.user_id,
         "preferred_units": pref.preferred_units,
         "persona": pref.persona,
-        "notification_enabled": pref.notification_enabled
+        "notification_enabled": pref.notification_enabled,
+        "last_known_location": pref.last_known_location,
+        "last_latitude": pref.last_latitude,
+        "last_longitude": pref.last_longitude,
+        "last_location_source": pref.last_location_source,
+        "last_location_updated_at": pref.last_location_updated_at.isoformat() if pref.last_location_updated_at else None
     }
 
 @router.put("/preferences")
@@ -158,14 +196,33 @@ async def update_user_preferences(
     pref.preferred_units = req.preferred_units
     pref.persona = req.persona
     pref.notification_enabled = req.notification_enabled
+    if req.last_known_location is not None:
+        pref.last_known_location = req.last_known_location
+    if req.last_latitude is not None:
+        pref.last_latitude = req.last_latitude
+    if req.last_longitude is not None:
+        pref.last_longitude = req.last_longitude
+    if req.last_location_source is not None:
+        pref.last_location_source = req.last_location_source
+    if req.last_known_location is not None or req.last_latitude is not None:
+        from backend.db.models import utc_now
+        pref.last_location_updated_at = utc_now()
+        
     db.commit()
 
+    pref_dict = {
+        "user_id": current_user.id,
+        "preferred_units": pref.preferred_units,
+        "persona": pref.persona,
+        "notification_enabled": pref.notification_enabled,
+        "last_known_location": pref.last_known_location,
+        "last_latitude": pref.last_latitude,
+        "last_longitude": pref.last_longitude,
+        "last_location_source": pref.last_location_source,
+        "last_location_updated_at": pref.last_location_updated_at.isoformat() if pref.last_location_updated_at else None
+    }
     return {
         "message": "Preferences updated successfully",
-        "preferences": {
-            "user_id": current_user.id,
-            "preferred_units": pref.preferred_units,
-            "persona": pref.persona,
-            "notification_enabled": pref.notification_enabled
-        }
+        "preferences": pref_dict,
+        **pref_dict
     }

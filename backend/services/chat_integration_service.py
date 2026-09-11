@@ -304,17 +304,29 @@ class ChatIntegrationService:
                     now_dt=now_dt
                 )
 
-        # Resolve primary location coordinates
+        # Resolve primary location coordinates (GPS coordinates are authoritative source of truth)
         target_loc_name = resolved.resolved_location
         if not lat and not lon and (not location_name or location_name.lower() == "coimbatore"):
             nlu_loc = pre_nlu.entities.location
             if nlu_loc:
                 target_loc_name = nlu_loc
 
-        loc = await self.weather_mgr.geocoding.resolve_location(target_loc_name)
-        resolved_lat = lat if lat is not None else loc["latitude"]
-        resolved_lon = lon if lon is not None else loc["longitude"]
-        resolved_name = loc["name"]
+        if lat is not None and lon is not None:
+            try:
+                geo_res = await self.weather_mgr.geocoding.reverse_geocode(lat, lon)
+                resolved_lat = lat
+                resolved_lon = lon
+                resolved_name = target_loc_name if (pre_nlu.entities.location and pre_nlu.entities.location.lower() not in ("coimbatore", "here", "current location")) else geo_res["name"]
+            except Exception:
+                loc = await self.weather_mgr.geocoding.resolve_location(target_loc_name)
+                resolved_lat = lat
+                resolved_lon = lon
+                resolved_name = loc["name"]
+        else:
+            loc = await self.weather_mgr.geocoding.resolve_location(target_loc_name)
+            resolved_lat = loc["latitude"]
+            resolved_lon = loc["longitude"]
+            resolved_name = loc["name"]
 
         # =========================================================================
         # FAST PATH 4: AIR QUALITY (Requirement 9: CPCB vs Open-Meteo Authority)

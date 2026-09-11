@@ -549,6 +549,83 @@ body {
   flex-wrap: wrap;
 }
 
+.location-state-badge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: var(--radius-pill);
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.25s ease;
+}
+
+.location-state-badge .state-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+/* CURRENT LIVE LOCATION: Emerald / Pulse */
+.location-state-badge.live {
+  background: rgba(16, 185, 129, 0.15);
+  color: #059669;
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.location-state-badge.live .state-dot {
+  background: #10b981;
+  box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  animation: statePulse 2s infinite;
+}
+
+/* LAST KNOWN LOCATION: Amber / Gold */
+.location-state-badge.last-known {
+  background: rgba(245, 158, 11, 0.14);
+  color: #d97706;
+  border: 1px solid rgba(245, 158, 11, 0.35);
+}
+.location-state-badge.last-known .state-dot {
+  background: #f59e0b;
+}
+
+/* STALE LAST KNOWN: Orange-Red / Warning */
+.location-state-badge.last-known-stale {
+  background: rgba(239, 68, 68, 0.14);
+  color: #dc2626;
+  border: 1px solid rgba(239, 68, 68, 0.35);
+}
+.location-state-badge.last-known-stale .state-dot {
+  background: #ef4444;
+}
+
+/* MANUAL LOCATION: Blue / Neutral */
+.location-state-badge.manual {
+  background: rgba(59, 130, 246, 0.12);
+  color: #2563eb;
+  border: 1px solid rgba(59, 130, 246, 0.3);
+}
+.location-state-badge.manual .state-dot {
+  background: #3b82f6;
+}
+
+@keyframes statePulse {
+  0% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.7);
+  }
+  70% {
+    transform: scale(1);
+    box-shadow: 0 0 0 5px rgba(16, 185, 129, 0);
+  }
+  100% {
+    transform: scale(0.95);
+    box-shadow: 0 0 0 0 rgba(16, 185, 129, 0);
+  }
+}
+
 .source-tag {
   font-size: 11px;
   font-weight: 600;
