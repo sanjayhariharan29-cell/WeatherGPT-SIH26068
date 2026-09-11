@@ -68,7 +68,7 @@ class WeatherGPTPipeline:
         resolved_context_summary = context_summary
         resolved_mem_location = None
         turn_analysis = None
-        if not resolved_context_summary and conversation_id and conversation_id != "default":
+        if conversation_id and conversation_id != "default":
             try:
                 from ai.memory import memory_manager, ContextResolver, state_service
                 if ContextResolver.is_reset_query(message):
@@ -76,7 +76,8 @@ class WeatherGPTPipeline:
                     state_service.reset_state(conversation_id)
                 cur_state = state_service.get_state(conversation_id)
                 turn_analysis = state_service.analyze_turn(message, cur_state)
-                resolved_context_summary = turn_analysis.context_summary
+                if not resolved_context_summary:
+                    resolved_context_summary = turn_analysis.context_summary
                 if turn_analysis.resolved_location and turn_analysis.resolved_location != "Unspecified":
                     resolved_mem_location = turn_analysis.resolved_location
                 else:
@@ -105,6 +106,14 @@ class WeatherGPTPipeline:
                 nlu.entities.return_time = turn_analysis.resolved_return_time
             if turn_analysis.resolved_location and (not nlu.entities.location or nlu.entities.location == "Unspecified"):
                 nlu.entities.location = turn_analysis.resolved_location
+            if turn_analysis.resolved_date and not getattr(nlu.entities, "date", None):
+                nlu.entities.date = turn_analysis.resolved_date
+            if turn_analysis.resolved_time and not getattr(nlu.entities, "time", None):
+                nlu.entities.time = turn_analysis.resolved_time
+            if turn_analysis.resolved_activity and not getattr(nlu.entities, "activity", None):
+                nlu.entities.activity = turn_analysis.resolved_activity
+            if turn_analysis.resolved_transport_mode and not getattr(nlu.entities, "transport_mode", None):
+                nlu.entities.transport_mode = turn_analysis.resolved_transport_mode
             if turn_analysis.resolved_intent:
                 from ai.models import IntentEnum
                 try:
@@ -246,6 +255,8 @@ class WeatherGPTPipeline:
                     _call_llm,
                     timeout_seconds=timeout_sec
                 )
+                if getattr(self.llm, "last_is_fallback", False):
+                    llm_fallback_triggered = True
             except Exception as llm_err:
                 llm_fallback_triggered = True
                 llm_breaker.record_failure(llm_err)

@@ -424,6 +424,12 @@ class PersonalDecisionEngine:
             else (ev.transit_departure_prob if ev.transit_departure_prob is not None else ev.rain_probability)
         )
 
+        # Resolve date label if available
+        period = time_win if time_win and time_win.lower() not in ("today", "now", "unspecified") else "today"
+        date_phrase_en = f"on {period}" if period not in ("today", "tomorrow") else period
+        date_phrase_ta = f"{period} அன்று" if period not in ("today", "tomorrow") else ("நாளை" if period == "tomorrow" else "இன்று")
+        date_phrase_hi = f"{period} को" if period not in ("today", "tomorrow") else ("कल" if period == "tomorrow" else "आज")
+
         if not ev.data_available or not reasoning.data_complete:
             verdict = DecisionVerdictEnum.NOT_RECOMMENDED
             action = f"Weather data is currently unavailable for {loc}. Cannot verify two-wheeler safety."
@@ -445,9 +451,9 @@ class PersonalDecisionEngine:
             reason_str = "high winds and severe rain" if (wind_high and active_rain >= 40.0) else ("high crosswinds (>35 km/h)" if wind_high else "rain and slick road hazards")
             action = f"Avoid taking your two-wheeler in {loc}. Hazardous riding conditions expected ({reason_str}); opt for a four-wheeler or public transit."
             primary = f"Two-wheeler safety risk: {reason_str}"
-            ans_en = f"Avoid taking your bike today in {loc}. {reason_str.capitalize()} create hazardous riding conditions and slippery roads. A closed vehicle or public transit is recommended."
-            ans_ta = f"இன்று {loc}ல் பைக் எடுப்பதை தவிர்க்கவும். பலத்த காற்று மற்றும் மழை காரணமாக சாலைகளில் வழுக்கும் தன்மை ஏற்படும்; பொதுப்போக்குவரத்து அல்லது நான்கு சக்கர வாகனத்தை பயன்படுத்துவது சிறந்தது."
-            ans_hi = f"आज {loc} में बाइक ले जाने से बचें। तेज हवाओं और बारिश के कारण सड़कें फिसलन भरी हो सकती हैं। सार्वजनिक परिवहन या चार पहिया वाहन का उपयोग करें।"
+            ans_en = f"Avoid taking your bike {date_phrase_en} in {loc}. {reason_str.capitalize()} create hazardous riding conditions and slippery roads. A closed vehicle or public transit is recommended."
+            ans_ta = f"{date_phrase_ta} {loc}ல் பைக் எடுப்பதை தவிர்க்கவும். பலத்த காற்று மற்றும் மழை காரணமாக சாலைகளில் வழுக்கும் தன்மை ஏற்படும்; பொதுப்போக்குவரத்து அல்லது நான்கு சக்கர வாகனத்தை பயன்படுத்துவது சிறந்தது."
+            ans_hi = f"{date_phrase_hi} {loc} में बाइक ले जाने से बचें। तेज हवाओं और बारिश के कारण सड़कें फिसलन भरी हो सकती हैं। सार्वजनिक परिवहन या चार पहिया वाहन का उपयोग करें।"
             precautions = ["Opt for bus, train, or four-wheeler", "Avoid open two-wheeler transit during heavy gusts", "Wear high-visibility raincoat if riding is unavoidable"]
         elif return_worse and is_return_inquiry:
             verdict = DecisionVerdictEnum.CAUTION
@@ -467,11 +473,11 @@ class PersonalDecisionEngine:
             precautions = ["Wear helmet and carry raincoat", "Reduce speed on curves and wet roads", "Check tire traction before setting off"]
         else:
             verdict = DecisionVerdictEnum.RECOMMENDED
-            action = f"Yes, safe to ride your bike today in {loc}. Winds and road conditions are clear."
+            action = f"Yes, safe to ride your bike {date_phrase_en} in {loc}. Winds and road conditions are clear."
             primary = f"Dry roads and favorable winds ({ev.wind_speed_kmh:.0f} km/h)"
-            ans_en = f"Yes, you can safely take your bike today in {loc}. Road conditions are dry and winds are calm ({ev.wind_speed_kmh:.0f} km/h)."
-            ans_ta = f"ஆம், இன்று {loc}ல் தாராளமாக பைக் எடுத்துச் செல்லலாம். வானிலை தெளிவாகவும் சாலைகள் உலர்ந்த நிலையிலும் உள்ளன."
-            ans_hi = f"हाँ, आज {loc} में सुरक्षित रूप से बाइक ले जा सकते हैं। सड़कें सूखी हैं और मौसम पूरी तरह साफ है।"
+            ans_en = f"Yes, you can safely take your bike {date_phrase_en} in {loc}. Road conditions are dry and winds are calm ({ev.wind_speed_kmh:.0f} km/h)."
+            ans_ta = f"ஆம், {date_phrase_ta} {loc}ல் தாராளமாக பைக் எடுத்துச் செல்லலாம். வானிலை தெளிவாகவும் சாலைகள் உலர்ந்த நிலையிலும் உள்ளன."
+            ans_hi = f"हाँ, {date_phrase_hi} {loc} में सुरक्षित रूप से बाइक ले जा सकते हैं। सड़कें सूखी हैं और मौसम पूरी तरह साफ है।"
             precautions = ["Standard helmet and safe riding guidelines"]
 
         return PersonalDecisionResult(

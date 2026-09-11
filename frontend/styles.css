@@ -1468,6 +1468,56 @@ body {
   color: #1E293B;
 }
 
+/* "Why this answer?" Transparency Drawer */
+.why-answer-wrapper {
+  margin-top: 6px;
+  width: 100%;
+}
+
+.why-answer-toggle-btn {
+  background: #F1F5F9;
+  border: 1px solid #E2E8F0;
+  border-radius: var(--radius-pill);
+  padding: 4px 10px;
+  font-size: 11px;
+  font-weight: 500;
+  color: #475569;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  transition: all 0.2s ease;
+}
+
+.why-answer-toggle-btn:hover {
+  background: #E2E8F0;
+  color: var(--primary-blue);
+  border-color: #CBD5E1;
+}
+
+.why-toggle-chevron {
+  transition: transform 0.2s ease;
+  font-size: 16px !important;
+}
+
+.why-answer-drawer {
+  margin-top: 6px;
+  animation: fadeInDrawer 0.2s ease forwards;
+}
+
+@keyframes fadeInDrawer {
+  from { opacity: 0; transform: translateY(-4px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.trace-freshness-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  font-size: 10.5px;
+  color: #64748B;
+}
+
 
 /* Inline Warning Badge for AI Chat Text */
 .inline-warning-badge {

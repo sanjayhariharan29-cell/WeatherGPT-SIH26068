@@ -112,6 +112,10 @@ class AlertService:
                 raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
             except ProviderError:
                 raw_alerts = []
+                verification_status = "UNVERIFIED"
+                system_state_val = "DEGRADED"
+                imd_state_val = "UNAVAILABLE"
+                source_label = f"{self.primary.name} Official (Degraded)"
         elif not is_live_configured:
             # Honest representation: Live authorized IMD credentials are not configured in this environment
             raw_alerts = []

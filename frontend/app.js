@@ -26,6 +26,16 @@ window.onLanguageChanged = function(lang) {
   if (window.I18N) {
     window.I18N.applyTranslations();
   }
+  const langText = document.getElementById("chatLangText");
+  if (langText) {
+    if (lang === "en") langText.textContent = "English";
+    else if (lang === "ta") langText.textContent = "தமிழ்";
+    else if (lang === "hi") langText.textContent = "हिंदी";
+  }
+  const langSelect = document.getElementById("langSelect");
+  if (langSelect && langSelect.value !== lang) {
+    langSelect.value = lang;
+  }
   if (window.lastWeatherData) {
     renderWeatherCard(window.lastWeatherData);
   }
@@ -3208,10 +3218,21 @@ function appendBotMessage(data) {
     : (formattedSources || "IMD · Open-Meteo");
 
   const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
+  const whyId = `why_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
   const tempVal = trace.temperature?.current_c != null ? `${trace.temperature.current_c}°C` : (data.weather_summary?.temperature != null ? `${data.weather_summary.temperature}°C` : "--");
   const windVal = trace.wind?.speed_kmh != null ? `${trace.wind.speed_kmh} km/h` : (data.weather_summary?.wind_speed != null ? `${data.weather_summary.wind_speed} km/h` : "--");
   const rainVal = trace.rainfall_indicators?.probability_percent != null ? `${trace.rainfall_indicators.probability_percent}%` : (data.weather_summary?.rain_probability != null ? `${data.weather_summary.rain_probability}%` : "--");
   const freshnessVal = trace.data_freshness ? String(trace.data_freshness).toUpperCase() : "FRESH";
+
+  const currentLang = String(data.language || currentLanguage || "en").toLowerCase();
+  let whyLabel = "Why this answer?";
+  if (currentLang.startsWith("ta")) {
+    whyLabel = "ஏன் இந்த பதில்?";
+  } else if (currentLang.startsWith("hi")) {
+    whyLabel = "यह उत्तर क्यों?";
+  } else if (window.I18N) {
+    whyLabel = window.I18N.t("chat.why_answer", "Why this answer?");
+  }
 
   bubble.innerHTML = `
     <div class="msg-author">
@@ -3227,59 +3248,66 @@ function appendBotMessage(data) {
         <span class="msg-tag">${safeIntent}</span>
       </div>
     </div>
-    <p>${safeAnswer}</p>
+    <p class="bot-answer-text">${safeAnswer}</p>
     ${warningsHtml}
-    <div class="ai-reasoning-box">
-      <div class="trace-header">
-        <div class="verified-tag">
-          <span class="material-symbols-rounded icon-xs">verified</span>
-          <span>LIVE VERIFIED</span>
-        </div>
-        <div class="confidence-badge ${confClass}">
-          <span class="material-symbols-rounded icon-xs">speed</span>
-          <span>Forecast Consistency: ${escapeHTML(confidenceIndicator)}</span>
-        </div>
-      </div>
-      <div class="trace-why-section">
-        <div class="trace-why-title">
-          <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">help_outline</span>
-          <span>Why SkyZen recommends this:</span>
-        </div>
-        <ul class="trace-points-list">
-          ${pointsHtml}
-        </ul>
-      </div>
-      <div class="trace-footer">
-        <div class="trace-sources">
-          <span class="material-symbols-rounded icon-xs" style="color:var(--primary-blue);">sensors</span>
-          <span>Sources: ${escapeHTML(sourcesList)}</span>
-        </div>
-        <button class="trace-toggle-btn" onclick="toggleTraceFactors('${traceId}')" aria-label="Inspect factors">
-          <span class="material-symbols-rounded icon-xs">tune</span>
-          <span>Factors</span>
-        </button>
-      </div>
-      <div id="${traceId}" class="trace-details-drawer" style="display:none;">
-        <div class="trace-factors-grid">
-          <div class="trace-factor-item">
-            <span class="material-symbols-rounded icon-xs">thermostat</span>
-            <span class="factor-label">Temp:</span>
-            <span class="factor-val">${escapeHTML(String(tempVal))}</span>
+    <div class="why-answer-wrapper">
+      <button class="why-answer-toggle-btn" onclick="toggleWhyAnswer('${whyId}')" aria-expanded="false" aria-controls="${whyId}">
+        <span class="material-symbols-rounded icon-xs">help_outline</span>
+        <span>${escapeHTML(whyLabel)}</span>
+        <span class="material-symbols-rounded icon-xs why-toggle-chevron">expand_more</span>
+      </button>
+      <div id="${whyId}" class="why-answer-drawer" style="display:none;">
+        <div class="ai-reasoning-box">
+          <div class="trace-header">
+            <div class="verified-tag">
+              <span class="material-symbols-rounded icon-xs">verified</span>
+              <span>LIVE VERIFIED</span>
+            </div>
+            <div class="confidence-badge ${confClass}">
+              <span class="material-symbols-rounded icon-xs">speed</span>
+              <span>Forecast Consistency: ${escapeHTML(confidenceIndicator)}</span>
+            </div>
           </div>
-          <div class="trace-factor-item">
-            <span class="material-symbols-rounded icon-xs">air</span>
-            <span class="factor-label">Wind:</span>
-            <span class="factor-val">${escapeHTML(String(windVal))}</span>
+          <div class="trace-why-section">
+            <div class="trace-why-title">
+              <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">psychology</span>
+              <span>Key Meteorological Factors:</span>
+            </div>
+            <ul class="trace-points-list">
+              ${pointsHtml}
+            </ul>
           </div>
-          <div class="trace-factor-item">
-            <span class="material-symbols-rounded icon-xs">water_drop</span>
-            <span class="factor-label">Rain:</span>
-            <span class="factor-val">${escapeHTML(String(rainVal))}</span>
+          <div class="trace-footer">
+            <div class="trace-sources">
+              <span class="material-symbols-rounded icon-xs" style="color:var(--primary-blue);">sensors</span>
+              <span>Sources: ${escapeHTML(sourcesList)}</span>
+            </div>
+            <div class="trace-freshness-tag">
+              <span class="material-symbols-rounded icon-xs">update</span>
+              <span>Data: ${escapeHTML(freshnessVal)}</span>
+            </div>
           </div>
-          <div class="trace-factor-item">
-            <span class="material-symbols-rounded icon-xs">update</span>
-            <span class="factor-label">Data:</span>
-            <span class="factor-val">${escapeHTML(freshnessVal)}</span>
+          <div class="trace-factors-grid" style="margin-top:6px;">
+            <div class="trace-factor-item">
+              <span class="material-symbols-rounded icon-xs">thermostat</span>
+              <span class="factor-label">Temp:</span>
+              <span class="factor-val">${escapeHTML(String(tempVal))}</span>
+            </div>
+            <div class="trace-factor-item">
+              <span class="material-symbols-rounded icon-xs">air</span>
+              <span class="factor-label">Wind:</span>
+              <span class="factor-val">${escapeHTML(String(windVal))}</span>
+            </div>
+            <div class="trace-factor-item">
+              <span class="material-symbols-rounded icon-xs">water_drop</span>
+              <span class="factor-label">Rain:</span>
+              <span class="factor-val">${escapeHTML(String(rainVal))}</span>
+            </div>
+            <div class="trace-factor-item">
+              <span class="material-symbols-rounded icon-xs">verified</span>
+              <span class="factor-label">Status:</span>
+              <span class="factor-val">${escapeHTML(data.alerts && data.alerts.length > 0 ? "Warning Active" : "No Warning")}</span>
+            </div>
           </div>
         </div>
       </div>
@@ -3289,6 +3317,21 @@ function appendBotMessage(data) {
   history.appendChild(bubble);
   history.scrollTop = history.scrollHeight;
 }
+
+window.toggleWhyAnswer = function(id) {
+  const drawer = document.getElementById(id);
+  if (!drawer) return;
+  const isHidden = drawer.style.display === "none" || !drawer.style.display;
+  drawer.style.display = isHidden ? "block" : "none";
+  const btn = drawer.previousElementSibling;
+  if (btn) {
+    btn.setAttribute("aria-expanded", isHidden ? "true" : "false");
+    const chevron = btn.querySelector(".why-toggle-chevron");
+    if (chevron) {
+      chevron.textContent = isHidden ? "expand_less" : "expand_more";
+    }
+  }
+};
 
 window.toggleTraceFactors = function(id) {
   const elem = document.getElementById(id);

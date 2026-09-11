@@ -372,9 +372,9 @@
             <div class="auth-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">language</span>
               <select id="onboardingLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
-                <option value="en">English</option>
-                <option value="ta">தமிழ் (Tamil)</option>
-                <option value="hi">हिन्दी (Hindi)</option>
+                <option value="en" data-i18n="settings.language.en">English (English)</option>
+                <option value="ta" data-i18n="settings.language.ta">தமிழ் (Tamil)</option>
+                <option value="hi" data-i18n="settings.language.hi">हिन्दी (Hindi)</option>
               </select>
             </div>
           </div>
@@ -466,12 +466,12 @@
             <span class="material-symbols-rounded">near_me</span>
           </div>
           <div class="loc-prompt-info">
-            <h4 class="loc-prompt-title">Personal Weather &amp; Warning Intelligence</h4>
-            <p class="loc-prompt-text">Allow SkyZen to use your location for local weather and alerts.</p>
+            <h4 class="loc-prompt-title" data-i18n="location.prompt_title">Personal Weather &amp; Warning Intelligence</h4>
+            <p class="loc-prompt-text" data-i18n="location.prompt_text">Allow SkyZen to use your location for local weather and alerts.</p>
           </div>
           <div class="loc-prompt-actions">
-            <button id="locPromptAllowBtn" class="loc-btn primary">Allow Location</button>
-            <button id="locPromptDismissBtn" class="loc-btn secondary">Not Now</button>
+            <button id="locPromptAllowBtn" class="loc-btn primary" data-i18n="location.prompt_allow">Allow Location</button>
+            <button id="locPromptDismissBtn" class="loc-btn secondary" data-i18n="location.prompt_dismiss">Not Now</button>
           </div>
         </div>
       </div>
@@ -858,7 +858,7 @@
                 <span class="material-symbols-rounded" style="color:var(--primary-blue);">smart_toy</span>
                 <span data-i18n="chat.title">SkyZen AI Assistant</span>
               </h3>
-              <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;">
+              <p style="font-size:12px; color:var(--text-secondary); margin-top:2px;" data-i18n="chat.subtitle">
                 WeatherGPT Decision Assistant • Grounded on Official IMD Telemetry
               </p>
             </div>
@@ -884,31 +884,44 @@
                 <span class="msg-tag">Telemetry Grounded</span>
               </div>
               <p>Vanakkam! I am <strong>SkyZen</strong>, your AI weather decision assistant. Ask me questions about your travel, college, outdoor plans, or farming in <strong>English, Tamil (தமிழ்), or Tanglish</strong>!</p>
-              <div class="ai-reasoning-box">
-                <div class="confidence-row">
-                  <span class="confidence-badge">Confidence: High</span>
-                  <span class="confidence-desc">Verified real-time multi-source weather telemetry</span>
-                </div>
-                <div class="source-attribution-row">
-                  <span>Sources: Multi-Source Telemetry Engine</span>
-                  <span class="verified-tag">LIVE VERIFIED</span>
+              <div class="why-answer-wrapper">
+                <button class="why-answer-toggle-btn" onclick="toggleWhyAnswer('initial_why_drawer')" aria-expanded="false" aria-controls="initial_why_drawer">
+                  <span class="material-symbols-rounded icon-xs">help_outline</span>
+                  <span data-i18n="chat.why_answer">Why this answer?</span>
+                  <span class="material-symbols-rounded icon-xs why-toggle-chevron">expand_more</span>
+                </button>
+                <div id="initial_why_drawer" class="why-answer-drawer" style="display:none;">
+                  <div class="ai-reasoning-box">
+                    <div class="confidence-row">
+                      <span class="confidence-badge">Confidence: High</span>
+                      <span class="confidence-desc">Verified real-time multi-source weather telemetry</span>
+                    </div>
+                    <div class="source-attribution-row">
+                      <span>Sources: Multi-Source Telemetry Engine</span>
+                      <span class="verified-tag">LIVE VERIFIED</span>
+                    </div>
+                  </div>
                 </div>
               </div>
             </div>
           </div>
 
           <div class="chips-scroll" style="margin-top:6px;">
-            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Will it rain when I go to college today?')">
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Will it rain tomorrow?')">
+              <span class="material-symbols-rounded icon-sm">cloud</span>
+              <span data-i18n="chat.chip_rain">Will it rain tomorrow?</span>
+            </button>
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Can I go to college today?')">
               <span class="material-symbols-rounded icon-sm">school</span>
-              <span>College rain timing?</span>
+              <span data-i18n="chat.chip_college">College today?</span>
             </button>
-            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Is it safe to travel to Ooty this weekend?')">
-              <span class="material-symbols-rounded icon-sm">travel_explore</span>
-              <span>Weekend travel advisory?</span>
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Should I take my bike?')">
+              <span class="material-symbols-rounded icon-sm">two_wheeler</span>
+              <span data-i18n="chat.chip_bike">Take my bike?</span>
             </button>
-            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Should I carry an umbrella today?')">
+            <button class="chip-btn" style="background:#F1F5F9; color:var(--text-primary); border-color:#E2E8F0;" onclick="sendQuickQuery('Do I need an umbrella?')">
               <span class="material-symbols-rounded icon-sm">umbrella</span>
-              <span>Umbrella needed?</span>
+              <span data-i18n="chat.chip_umbrella">Need umbrella?</span>
             </button>
           </div>
 
@@ -1235,7 +1248,7 @@
               </button>
               <button id="mapSetAsHomeBtn" class="map-action-btn secondary" title="Set as Home Dashboard Location">
                 <span class="material-symbols-rounded icon-sm">home_pin</span>
-                <span>Set as Home</span>
+                <span data-i18n="map.set_home">Set as Home</span>
               </button>
               <button id="mapSaveLocBtn" class="map-action-btn secondary" title="Save This Location">
                 <span class="material-symbols-rounded icon-sm">bookmark_add</span>
@@ -1547,9 +1560,9 @@
                     <div class="auth-input-wrapper">
                       <span class="material-symbols-rounded auth-input-icon">language</span>
                       <select id="profileEditLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;">
-                        <option value="en">English</option>
-                        <option value="ta">தமிழ் (Tamil)</option>
-                        <option value="hi">हिन्दी (Hindi)</option>
+                        <option value="en" data-i18n="settings.language.en">English (English)</option>
+                        <option value="ta" data-i18n="settings.language.ta">தமிழ் (Tamil)</option>
+                        <option value="hi" data-i18n="settings.language.hi">हिन्दी (Hindi)</option>
                       </select>
                     </div>
                   </div>
@@ -1627,11 +1640,11 @@
             </div>
 
             <div class="auth-form-group">
-              <label for="langSelect" data-i18n="settings.language">Display Language / மொழி</label>
+              <label for="langSelect" data-i18n="settings.language">Language / மொழி</label>
               <select id="langSelect" class="styled-select" aria-label="Language">
-                <option value="en" data-i18n="settings.language.en">English</option>
+                <option value="en" data-i18n="settings.language.en">English (English)</option>
                 <option value="ta" data-i18n="settings.language.ta">தமிழ் (Tamil)</option>
-                <option value="hi" data-i18n="settings.language.hi">हिंदी (Hindi)</option>
+                <option value="hi" data-i18n="settings.language.hi">हिन्दी (Hindi)</option>
               </select>
             </div>
 
