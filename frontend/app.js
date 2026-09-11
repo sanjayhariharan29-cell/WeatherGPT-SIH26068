@@ -2354,7 +2354,25 @@ async function loadAlerts(location) {
     const data = await window.apiClient.getAlerts(location);
     if (disasterList) disasterList.innerHTML = "";
 
-    if (data.status === "UNVERIFIED" || data.imd_state === "UNAVAILABLE") {
+    if (data.status === "UNCONFIGURED" || data.imd_state === "NOT_CONFIGURED") {
+      if (titleElem) titleElem.textContent = "IMD official warning service not configured";
+      if (descElem) descElem.textContent = "Live official disaster warning access from India Meteorological Department (IMD) is not configured in this environment. Please consult official IMD bulletins directly.";
+      if (badgeText) {
+        badgeText.textContent = "IMD NOT CONFIGURED";
+      }
+      if (badge) badge.className = "alert-badge moderate";
+      if (timeElem) timeElem.textContent = "Status: Not Configured";
+      if (sourceElem) sourceElem.textContent = "Authoritative Source: IMD (Not Configured)";
+      banner.classList.remove("hidden");
+      if (disasterList) {
+        disasterList.innerHTML = "<p style='font-size:13px; color:var(--alert-amber);'>IMD official warning service is not configured with live credentials in this environment. Please check official IMD channels directly.</p>";
+      }
+      const alertBadge = document.getElementById("headerAlertBadge");
+      if (alertBadge) {
+        alertBadge.textContent = "!";
+        alertBadge.classList.remove("hidden");
+      }
+    } else if (data.status === "UNVERIFIED" || data.imd_state === "UNAVAILABLE") {
       if (titleElem) titleElem.textContent = "IMD official warning data unavailable";
       if (descElem) descElem.textContent = "Official disaster warning data from India Meteorological Department (IMD) is currently unavailable. Please check official emergency radio and IMD broadcast channels.";
       if (badgeText) {
@@ -2376,12 +2394,17 @@ async function loadAlerts(location) {
       allCurrentAlerts = data.alerts;
       const heroAlert = data.alerts[0];
       const severityStr = (heroAlert.severity || "warning").toUpperCase();
-      const isImdLive = (heroAlert.source || "").toUpperCase().includes("IMD") && heroAlert.is_official === true && heroAlert.state !== "FIXTURE";
+      const isImdLive = (heroAlert.source || "").toUpperCase().includes("IMD") && heroAlert.is_official === true && heroAlert.state !== "FIXTURE" && data.imd_state === "LIVE";
+      const isFixture = data.imd_state === "FIXTURE" || heroAlert.state === "FIXTURE";
 
       if (titleElem) titleElem.textContent = heroAlert.title || "Weather Warning";
       if (descElem) descElem.textContent = heroAlert.description || "No description provided.";
       if (badgeText) {
-        badgeText.textContent = isImdLive ? `OFFICIAL IMD WARNING (${severityStr})` : `WEATHER WARNING (${severityStr})`;
+        if (isFixture) {
+          badgeText.textContent = `OFFICIAL IMD WARNING [TEST FIXTURE] (${severityStr})`;
+        } else {
+          badgeText.textContent = isImdLive ? `OFFICIAL IMD WARNING (${severityStr})` : `WEATHER WARNING (${severityStr})`;
+        }
       }
       if (badge) badge.className = `alert-badge ${heroAlert.severity || 'high'}`;
       if (timeElem) {
@@ -2389,7 +2412,8 @@ async function loadAlerts(location) {
         timeElem.textContent = expStr;
       }
       if (sourceElem) {
-        sourceElem.textContent = `Authoritative Source: India Meteorological Department (${heroAlert.source || 'IMD'})`;
+        const fixtureTag = isFixture ? " (Test Fixture)" : "";
+        sourceElem.textContent = `Authoritative Source: India Meteorological Department (${heroAlert.source || 'IMD'}${fixtureTag})`;
       }
 
       banner.classList.remove("hidden");

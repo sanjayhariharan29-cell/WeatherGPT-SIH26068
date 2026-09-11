@@ -172,8 +172,8 @@ class AlertResponse(BaseModel):
     alerts: List[AlertItemSchema] = Field(default_factory=list, description="Official severe weather alerts")
     active_count: int = Field(default=0, description="Count of currently active alerts")
     source: str = Field(default="IMD Official", description="Source authority attribution")
-    status: str = Field(default="VERIFIED", description="Alert status: VERIFIED or UNVERIFIED")
-    imd_state: str = Field(default="LIVE", description="IMD provider state: LIVE, STALE, FAILED, UNAVAILABLE, FIXTURE")
+    status: str = Field(default="VERIFIED", description="Alert status: VERIFIED, UNVERIFIED, UNCONFIGURED")
+    imd_state: str = Field(default="LIVE", description="IMD provider state: LIVE, STALE, FAILED, UNAVAILABLE, FIXTURE, NOT_CONFIGURED")
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
     system_state: Optional[str] = Field(default="ONLINE", description="System state: ONLINE, DEGRADED, OFFLINE, DATA_STALE, SERVICE_UNAVAILABLE")
 

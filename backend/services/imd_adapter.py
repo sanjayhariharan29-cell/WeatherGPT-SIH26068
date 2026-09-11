@@ -105,7 +105,7 @@ class IMDAdapter(BaseWeatherProvider):
     @property
     def is_live_configured(self) -> bool:
         """Checks if genuine live official IMD credentials / endpoint access are configured."""
-        return bool(settings.IMD_API_KEY and settings.IMD_API_KEY.strip())
+        return bool((settings.IMD_API_KEY and settings.IMD_API_KEY.strip()) or (settings.IMD_AUTH_HEADER and settings.IMD_AUTH_HEADER.strip()))
 
     @staticmethod
     def generate_alert_fingerprint(source: str, alert_type: str, area: str, issued_at: str) -> str:
@@ -502,7 +502,18 @@ class IMDAdapter(BaseWeatherProvider):
             from backend.services.imd_fixtures import get_test_fixture_alerts
             fixture_items = get_test_fixture_alerts(location_name)
             if fixture_items:
+                for item in fixture_items:
+                    item.state = "FIXTURE"
                 return fixture_items
+            return []
+
+        # In production/live mode: Verify genuine live official IMD credentials/access
+        if not self.is_live_configured:
+            raise ProviderUnavailableError(
+                "Live official IMD access is not configured in this environment.",
+                provider_name=self.name,
+                diagnostics={"mode": self.mode, "live_configured": False}
+            )
 
         # Resolve location or coordinates to canonical IMD district
         matched_district = resolve_imd_district(
@@ -530,15 +541,15 @@ class IMDAdapter(BaseWeatherProvider):
                     if exp.tzinfo is None:
                         exp = exp.replace(tzinfo=timezone.utc)
                     if exp >= now:
-                        # Update state to STALE if cached for longer than 60s
                         item.state = "LIVE"
                         valid_cached.append(item)
                 except Exception:
                     pass
             return valid_cached
 
-        # In production mode: Query real IMD GeoServer/Mausam warning endpoints
+        # Query real IMD GeoServer/Mausam warning endpoints
         all_official_alerts: List[NormalizedAlertItem] = []
+        query_errors = []
 
         try:
             # 1. Fetch District-Wise Warnings (Days 1 to 5)
@@ -546,6 +557,7 @@ class IMDAdapter(BaseWeatherProvider):
             all_official_alerts.extend(warnings)
         except Exception as e:
             logger.warning(f"Official IMD district warnings query error for {matched_district}: {e}")
+            query_errors.append(e)
 
         try:
             # 2. Fetch District-Wise Nowcasts (3-hour high urgency)
@@ -553,6 +565,14 @@ class IMDAdapter(BaseWeatherProvider):
             all_official_alerts.extend(nowcasts)
         except Exception as e:
             logger.warning(f"Official IMD nowcast query error for {matched_district}: {e}")
+            query_errors.append(e)
+
+        if len(query_errors) == 2 and not all_official_alerts:
+            raise ProviderUnavailableError(
+                f"Official IMD warning and nowcast endpoints both failed for {matched_district}: {query_errors[0]}",
+                provider_name=self.name,
+                diagnostics={"district": matched_district, "errors": [str(e) for e in query_errors]}
+            )
 
         if all_official_alerts:
             provider_cache.set(cache_key, all_official_alerts, ttl=settings.IMD_CACHE_TTL_SECONDS)

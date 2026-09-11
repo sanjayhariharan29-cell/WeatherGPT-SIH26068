@@ -143,12 +143,14 @@ class ResponseValidator:
                 violation_categories.append(ValidationCategoryEnum.MISSING_WARNING.value)
 
             # 1c. Severity Downgrade Check
-            if active_alert.severity in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
+            if active_alert.severity in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME, RiskLevelEnum.MEDIUM):
                 downgrade_phrases = [
                     "minor warning", "low risk", "low severity", "minimal risk", "yellow alert",
-                    "minor alert", "negligible threat", "mild weather",
+                    "minor alert", "negligible threat", "mild weather", "downgraded from red",
+                    "downgraded to", "severity reduced", "lowered severity", "threat reduced to low",
+                    "threat is low", "only a minor threat", "only a minor risk", "no longer serious",
                     "குறைந்த ஆபத்து", "சிறிய எச்சரிக்கை",
-                    "मामूली खतरा", "कम जोखिम", "हल्का खतरा"
+                    "मामूली खतरा", "कम जोखिम", "हल्का खतरा", "खतरा कम हो गया"
                 ]
                 if any(p in lower_text for p in downgrade_phrases):
                     msg = f"Severity Downgrade: Active alert '{active_alert.title}' ({active_alert.severity.value}) was downgraded to low/minor severity in response."
@@ -193,19 +195,54 @@ class ResponseValidator:
                 issues.append(msg)
                 violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
 
-            # 1h. Warning Area Tampering / Omission Check (Phase 2 Requirement)
+            # 1h. Warning Area Tampering / Omission Check
             # Response cannot claim an affected location is unaffected or shift the warning area.
             area_tampering_patterns = [
                 r"\b(?:not\s+under\s+(?:any\s+)?warning|outside\s+(?:the\s+)?warning\s+zone|outside\s+the\s+affected\s+area)\b",
                 r"\b(?:warning\s+does\s+not\s+apply\s+to|no\s+threat\s+to\s+your\s+area|safe\s+from\s+(?:the\s+)?(?:storm|cyclone|warning|alert))\b",
-                r"\b(?:warning\s+is\s+only\s+for\s+other\s+(?:districts|areas)|your\s+location\s+is\s+spared)\b",
+                r"\b(?:warning\s+is\s+only\s+for\s+other\s+(?:districts|areas)|your\s+location\s+is\s+spared|warning\s+has\s+shifted\s+away|shifted\s+to\s+another\s+district)\b",
+                r"\b(?:area\s+(?:has\s+been\s+changed|was\s+moved|has\s+moved))\b",
             ]
             for pat in area_tampering_patterns:
                 if re.search(pat, lower_text):
-                    msg = f"Warning Area Tampering: Response claims location is unaffected despite official IMD warning for '{active_alert.title}'."
+                    msg = f"Warning Area Tampering: Response claims location is unaffected or shifted despite official IMD warning for '{active_alert.title}'."
                     violations.append(msg)
                     issues.append(msg)
                     violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
+                    break
+
+            # 1k. Warning Timing Alteration Check
+            # Response must not claim an active warning starts later, ended early, or had its validity altered.
+            timing_alteration_patterns = [
+                r"\b(?:warning|alert)\s+(?:does\s+not\s+start\s+until|starts?\s+(?:tomorrow|later\s+tonight|at\s+midnight|next\s+week))\b",
+                r"\b(?:warning|alert)\s+(?:has\s+already\s+ended|ended\s+early|expired\s+early|is\s+already\s+over|is\s+over\s+now)\b",
+                r"\b(?:warning|alert)\s+(?:timing\s+(?:was\s+changed|shifted|delayed|postponed)|validity\s+(?:delayed|postponed|shifted))\b",
+                r"\b(?:not\s+in\s+effect\s+yet|not\s+active\s+yet)\b",
+            ]
+            for pat in timing_alteration_patterns:
+                if re.search(pat, lower_text):
+                    msg = f"Warning Timing Alteration: Response attempts to alter the official validity timing of active alert '{active_alert.title}'."
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.TIMING_ALTERATION.value)
+                    violation_categories.append(ValidationCategoryEnum.WARNING_CONTRADICTION.value)
+                    break
+
+            # 1m. Unauthorized Emergency Instructions Check
+            # Response must never invent martial law, military evacuation, curfews, or unauthorized extreme orders.
+            invented_instruction_patterns = [
+                r"\b(?:military\s+evacuation|army\s+(?:evacuation|has\s+taken\s+over)|martial\s+law|shoot\s+on\s+sight)\b",
+                r"\b(?:imd|meteorological\s+department)\s+(?:has\s+)?(?:ordered|declared|imposed)\s+(?:a\s+)?(?:curfew|military|lockdown|state\s+of\s+emergency)\b",
+                r"\b(?:24-hour\s+curfew|mandatory\s+curfew|citywide\s+curfew)\b",
+                r"\b(?:evacuate\s+immediately\s+to\s+military\s+bunkers?)\b",
+            ]
+            for pat in invented_instruction_patterns:
+                if re.search(pat, lower_text):
+                    msg = "Unauthorized Emergency Instructions: Response invents extreme emergency directives (e.g. curfew, military evacuation, martial law) not issued by IMD."
+                    violations.append(msg)
+                    issues.append(msg)
+                    violation_categories.append(ValidationCategoryEnum.UNAUTHORIZED_INSTRUCTION.value)
+                    violation_categories.append(ValidationCategoryEnum.UNAUTHORIZED_DECLARATION.value)
                     break
 
             # 1j. Safety Instruction Contradiction / Hazard Encouragement (Phase 2 Requirement)

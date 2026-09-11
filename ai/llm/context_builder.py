@@ -452,6 +452,11 @@ def build_grounded_context(
         "MANDATORY: If an official warning is active, prioritize it at the VERY TOP: (1) Warning status, (2) Affected area, (3) Critical safety instruction, (4) Explanation. No conversational filler or pleasantries before active warnings!",
         "",
         "STRICT NEGATIVE CONSTRAINTS (GROUNDED SAFETY INVARIANTS):",
+        "- The AI must NEVER cancel an active official IMD warning.",
+        "- The AI must NEVER reduce the severity of an active official IMD warning (e.g., claiming Red is Yellow or minor).",
+        "- The AI must NEVER change, shift, or claim exemption from the affected area of an active official IMD warning.",
+        "- The AI must NEVER alter or falsify the timing or validity window of an official IMD warning (e.g., claiming it starts later or ended early).",
+        "- The AI must NEVER invent emergency instructions (e.g., military evacuation, curfew, martial law, or unauthorized extreme orders).",
         "- The LLM must NOT invent weather values (temperatures, rainfall, wind speeds, humidity, or AQI).",
         "- The LLM must NOT invent warnings or alerts when none are active.",
         "- The LLM must NOT override deterministic decisions (verdicts, recommended actions, or directives).",
@@ -461,8 +466,6 @@ def build_grounded_context(
         "- The LLM must NOT fabricate source identity or claim non-authoritative data sources.",
         "================================================================="
     ])
-
-    formatted_prompt = "\n".join(lines)
 
     formatted_prompt = "\n".join(lines)
 

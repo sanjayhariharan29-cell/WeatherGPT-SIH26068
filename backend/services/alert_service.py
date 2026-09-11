@@ -97,24 +97,30 @@ class AlertService:
         longitude = lon if lon is not None else loc["longitude"]
         resolved_name = loc["name"]
 
-        source_label = f"{self.primary.name} Official"
-        verification_status = "VERIFIED"
-        system_state_val = "ONLINE"
         now_utc = datetime.now(timezone.utc)
         now_utc_str = now_utc.isoformat()
 
-        imd_state_val = "LIVE"
+        is_test_mode = (getattr(self.primary, "mode", None) == "test")
+        is_live_configured = getattr(self.primary, "is_live_configured", False)
 
-        try:
-            raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
-        except ProviderError:
+        if is_test_mode:
+            source_label = f"{self.primary.name} Official (Test Fixture)"
+            verification_status = "VERIFIED"
+            system_state_val = "ONLINE"
+            imd_state_val = "FIXTURE"
+            try:
+                raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
+            except ProviderError:
+                raw_alerts = []
+        elif not is_live_configured:
+            # Honest representation: Live authorized IMD credentials are not configured in this environment
             raw_alerts = []
-            source_label = f"{self.primary.name} Official (Degraded)"
-            verification_status = "UNVERIFIED"
+            source_label = f"{self.primary.name} Official (Not Configured)"
+            verification_status = "UNCONFIGURED"
             system_state_val = "DEGRADED"
-            imd_state_val = "UNAVAILABLE"
+            imd_state_val = "NOT_CONFIGURED"
 
-            # Check for unexpired persisted alerts in DB to maintain safety awareness during outages
+            # Check for unexpired persisted alerts in DB to maintain safety awareness during unconfigured state
             if db_session is not None:
                 try:
                     persisted_alerts = db_session.query(DBAlert).filter(
@@ -142,6 +148,49 @@ class AlertService:
                                 ))
                 except Exception:
                     pass
+        else:
+            # Live configured mode: query genuine official IMD endpoints
+            try:
+                raw_alerts = await self.primary.get_official_alerts(latitude, longitude, resolved_name)
+                source_label = f"{self.primary.name} Official"
+                verification_status = "VERIFIED"
+                system_state_val = "ONLINE"
+                imd_state_val = "LIVE"
+            except ProviderError:
+                raw_alerts = []
+                source_label = f"{self.primary.name} Official (Unavailable)"
+                verification_status = "UNVERIFIED"
+                system_state_val = "DEGRADED"
+                imd_state_val = "UNAVAILABLE"
+
+                # Check for unexpired persisted alerts in DB to maintain safety awareness during outages
+                if db_session is not None:
+                    try:
+                        persisted_alerts = db_session.query(DBAlert).filter(
+                            DBAlert.location_name == resolved_name
+                        ).all()
+                        for pa in persisted_alerts:
+                            # Only include unexpired alerts; never reactivate expired alerts
+                            if pa.expires_at:
+                                pa_exp = pa.expires_at if pa.expires_at.tzinfo else pa.expires_at.replace(tzinfo=timezone.utc)
+                                if pa_exp > now_utc:
+                                    raw_alerts.append(NormalizedAlertItem(
+                                        alert_id=getattr(pa, "alert_id", None) or f"cached_{pa.id}",
+                                        alert_type=pa.alert_type,
+                                        severity=pa.severity,
+                                        title=pa.title,
+                                        description=pa.description,
+                                        instructions=getattr(pa, "instructions", None),
+                                        area=getattr(pa, "area", None) or resolved_name,
+                                        source=f"{pa.source} (Persisted)",
+                                        product_type="district_warning",
+                                        state="STALE",
+                                        issued_at=pa.issued_at.isoformat() if pa.issued_at else now_utc_str,
+                                        expires_at=pa.expires_at.isoformat() if pa.expires_at else now_utc_str,
+                                        retrieved_at=now_utc_str
+                                    ))
+                    except Exception:
+                        pass
 
         from backend.services.alert_engine import normalize_and_validate_imd_alert
 
