@@ -193,8 +193,187 @@ class ConversationStateService:
         self._states: Dict[str, ConversationState] = {}
         self._lock = threading.RLock()
 
-    def get_state(self, conversation_id: str, user_id: Optional[str] = None) -> ConversationState:
-        """Retrieves active conversation state, or creates a new one if missing or expired."""
+    def hydrate_from_db(
+        self,
+        conversation_id: str,
+        db_session: Optional[Any] = None,
+        user_id: Optional[str] = None
+    ) -> Optional[ConversationState]:
+        """Hydrates conversation state from database history upon application restart or user login.
+
+        Survives restarts by reconstructing the bounded state and active entities from the
+        persisted Message and Conversation database models without storing raw weather facts.
+        """
+        if not conversation_id or conversation_id == "default":
+            return None
+
+        # Check local in-memory states first
+        with self._lock:
+            if conversation_id in self._states:
+                state = self._states[conversation_id]
+                if not state.is_expired():
+                    return state
+
+        session_created = False
+        session = db_session
+        if session is None:
+            try:
+                from backend.db.session import SessionLocal
+                session = SessionLocal()
+                session_created = True
+            except Exception as e:
+                logger.debug("Could not instantiate db session for hydration: %s", e)
+                return None
+
+        try:
+            from backend.db.models import Conversation, Message, User, UserPreference, SavedLocation
+            conv = session.query(Conversation).filter(Conversation.id == conversation_id).first()
+            if not conv:
+                return None
+
+            now = datetime.now(timezone.utc)
+            actual_user_id = conv.user_id or user_id
+            state = ConversationState(
+                conversation_id=conversation_id,
+                user_id=actual_user_id,
+                ttl_seconds=self.ttl_seconds,
+                created_at=conv.created_at or now,
+                updated_at=conv.updated_at or now
+            )
+
+            # Hydrate stable user preferences & profile
+            if actual_user_id:
+                try:
+                    user_record = session.query(User).filter(User.id == actual_user_id).first()
+                    if user_record:
+                        if user_record.language:
+                            state.preferred_language = user_record.language
+                        if user_record.persona:
+                            state.persona = user_record.persona
+                        if user_record.saved_locations and len(user_record.saved_locations) > 0:
+                            state.active_location = user_record.saved_locations[0].name
+                    pref_record = session.query(UserPreference).filter(UserPreference.user_id == actual_user_id).first()
+                    if pref_record:
+                        state.user_preferences["preferred_units"] = pref_record.preferred_units
+                        if pref_record.persona:
+                            state.persona = pref_record.persona
+                except Exception as e:
+                    logger.debug("Failed reading user preferences during hydration: %s", e)
+
+            # Retrieve chronological message history
+            db_messages = (
+                session.query(Message)
+                .filter(Message.conversation_id == conversation_id)
+                .order_by(Message.created_at.asc())
+                .all()
+            )
+
+            if not db_messages:
+                with self._lock:
+                    self._states[conversation_id] = state
+                return state
+
+            # Hydrate turns
+            for m in db_messages[-self.max_turns:]:
+                role = "user" if m.sender == "user" else "assistant"
+                turn = ConversationTurn(
+                    role=role,
+                    message=m.content,
+                    intent=m.intent,
+                    language=m.language,
+                    risk_level=m.risk_level,
+                    timestamp=m.created_at or now
+                )
+                state.turns.append(turn)
+
+            # Reconstruct active conversational dimensions deterministically across user queries
+            user_msgs = [m for m in db_messages if m.sender == "user"]
+            bot_msgs = [m for m in db_messages if m.sender == "bot"]
+
+            state.turn_index = len(user_msgs)
+            if user_msgs:
+                state.previous_user_question = user_msgs[-1].content
+
+            # Replay active dimension updates across the recent user messages
+            # to deterministically restore active location, date, time, activity, transport, etc.
+            replay_window = user_msgs[-5:] if len(user_msgs) > 5 else user_msgs
+            for u_msg in replay_window:
+                res_ctx = self.analyze_turn(
+                    message=u_msg.content,
+                    current_state=state,
+                    explicit_language=u_msg.language or state.preferred_language
+                )
+                # Apply resolved dimensions to state
+                if res_ctx.resolved_location and res_ctx.resolved_location != "Unspecified":
+                    state.active_location = res_ctx.resolved_location
+                if res_ctx.resolved_destination:
+                    state.active_destination = res_ctx.resolved_destination
+                if res_ctx.resolved_date:
+                    state.active_date = res_ctx.resolved_date
+                if res_ctx.resolved_time:
+                    state.active_time = res_ctx.resolved_time
+                if res_ctx.resolved_departure_time:
+                    state.active_departure_time = res_ctx.resolved_departure_time
+                if res_ctx.resolved_return_time:
+                    state.active_return_time = res_ctx.resolved_return_time
+                if res_ctx.resolved_trip_phase:
+                    state.active_trip_phase = res_ctx.resolved_trip_phase
+                if res_ctx.resolved_transport_mode:
+                    state.active_transport_mode = res_ctx.resolved_transport_mode
+                    state.active_vehicle_or_item = res_ctx.resolved_transport_mode
+                if res_ctx.resolved_activity:
+                    state.active_activity = res_ctx.resolved_activity
+                if res_ctx.resolved_topic:
+                    state.active_topic = res_ctx.resolved_topic
+                if res_ctx.resolved_intent:
+                    state.current_intent = res_ctx.resolved_intent
+
+            # Sync active_entities
+            state.active_entities.update({
+                k: v for k, v in [
+                    ("location", state.active_location),
+                    ("destination", state.active_destination),
+                    ("date", state.active_date),
+                    ("time", state.active_time),
+                    ("departure_time", state.active_departure_time),
+                    ("return_time", state.active_return_time),
+                    ("transport_mode", state.active_transport_mode),
+                    ("trip_phase", state.active_trip_phase),
+                    ("activity", state.active_activity),
+                    ("topic", state.active_topic),
+                ] if v is not None
+            })
+
+            # Hydrate previous decision from latest bot message if available
+            if bot_msgs:
+                latest_bot = bot_msgs[-1]
+                if latest_bot.intent:
+                    state.current_intent = state.current_intent or latest_bot.intent
+                summary = latest_bot.content.split(".")[0].strip() if latest_bot.content else None
+                state.previous_decision = summary
+                state.previous_resolved_decision_context = {
+                    "summary": summary,
+                    "risk_level": latest_bot.risk_level or "low"
+                }
+
+            with self._lock:
+                self._states[conversation_id] = state
+            logger.info("Hydrated conversation state %s from DB with %d turns", conversation_id, len(state.turns))
+            return state
+        except Exception as e:
+            logger.warning("Error during database hydration for conversation %s: %s", conversation_id, e)
+            return None
+        finally:
+            if session_created and session:
+                session.close()
+
+    def get_state(
+        self,
+        conversation_id: str,
+        user_id: Optional[str] = None,
+        db_session: Optional[Any] = None
+    ) -> ConversationState:
+        """Retrieves active conversation state, hydrates from database if missing, or creates new."""
         with self._lock:
             now = datetime.now(timezone.utc)
             if conversation_id in self._states:
@@ -207,6 +386,14 @@ class ConversationStateService:
                         state.user_id = user_id
                     return state
 
+        # If not in cache or expired, attempt hydration from DB
+        hydrated = self.hydrate_from_db(conversation_id, db_session=db_session, user_id=user_id)
+        if hydrated:
+            return hydrated
+
+        # Fresh fallback state
+        with self._lock:
+            now = datetime.now(timezone.utc)
             new_state = ConversationState(
                 conversation_id=conversation_id,
                 user_id=user_id,
@@ -535,14 +722,14 @@ class ConversationStateService:
 
         # 4. Date Resolution (Isolated dimension change)
         resolved_date = extracted_date
-        if not resolved_date and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION):
+        if not resolved_date and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE):
             if current_state.active_date:
                 resolved_date = current_state.active_date
                 inherited_fields.append("date")
 
         # 5. Activity Resolution (Preserves active activity unless explicitly updated)
         resolved_activity = extracted_act
-        if turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION):
+        if turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE):
             if current_state.active_activity and (not resolved_activity or (resolved_activity in ["travel", "commute", "bike travel", "bike"] and current_state.active_activity in ["office", "college"])):
                 resolved_activity = current_state.active_activity
                 inherited_fields.append("activity")
@@ -559,7 +746,7 @@ class ConversationStateService:
 
         # 6. Trip Phase Resolution
         resolved_trip_phase = extracted_trip_phase
-        if not resolved_trip_phase and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION):
+        if not resolved_trip_phase and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE):
             if current_state.active_trip_phase:
                 resolved_trip_phase = current_state.active_trip_phase
                 inherited_fields.append("trip_phase")
@@ -601,7 +788,7 @@ class ConversationStateService:
                 inherited_fields.append("return_time")
         elif extracted_time:
             resolved_time = extracted_time
-        elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION) and current_state.active_time:
+        elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE) and current_state.active_time:
             resolved_time = current_state.active_time
             inherited_fields.append("time")
 
@@ -624,7 +811,7 @@ class ConversationStateService:
 
         # 9. Transport Mode & Pronoun "it" Resolution
         resolved_transport_mode = extracted_transport
-        if not resolved_transport_mode and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION):
+        if not resolved_transport_mode and turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE):
             if current_state.active_transport_mode:
                 resolved_transport_mode = current_state.active_transport_mode
                 inherited_fields.append("transport_mode")
@@ -675,7 +862,7 @@ class ConversationStateService:
             resolved_topic = "warning"
         elif getattr(nlu.entities, 'weather_variable', None):
             resolved_topic = nlu.entities.weather_variable
-        elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION) and current_state.active_topic:
+        elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE) and current_state.active_topic:
             resolved_topic = current_state.active_topic
             inherited_fields.append("topic")
 
@@ -691,7 +878,7 @@ class ConversationStateService:
                 resolved_intent = IntentEnum.BIKE_TRAVEL.value
             elif resolved_activity == "college" and resolved_trip_phase == "departure":
                 resolved_intent = IntentEnum.COLLEGE_COMMUTE.value
-            elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION) and current_state.current_intent:
+            elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE) and current_state.current_intent:
                 resolved_intent = current_state.current_intent
             else:
                 resolved_intent = nlu.intent.value
@@ -812,9 +999,18 @@ class ConversationStateService:
             else:
                 state.clarification_state = ClarificationState(needed=False)
 
-            # Decision context
+            # Decision context (filtered to retain decision essence without raw transient telemetry)
             if decision_context:
-                state.previous_resolved_decision_context = decision_context
+                filtered_dec = {
+                    k: v for k, v in decision_context.items()
+                    if k in ("verdict", "can_travel", "action", "activity", "risk_level", "recommendation", "status", "summary")
+                }
+                state.previous_resolved_decision_context = filtered_dec or {"status": "completed"}
+                state.previous_decision = (
+                    filtered_dec.get("action")
+                    or filtered_dec.get("verdict")
+                    or filtered_dec.get("summary")
+                )
 
             # Safety-critical context preservation (preserve severe alerts across follow-ups)
             if safety_alerts and len(safety_alerts) > 0:
@@ -856,10 +1052,79 @@ class ConversationStateService:
             return state
 
     def reset_state(self, conversation_id: str) -> None:
-        """Explicitly purges conversation state."""
+        """Explicitly purges in-memory conversation state."""
         with self._lock:
             if conversation_id in self._states:
                 del self._states[conversation_id]
+
+    def get_bounded_context(
+        self,
+        conversation_id: str,
+        max_turns: int = 2,
+        query: Optional[str] = None,
+        user_id: Optional[str] = None,
+        db_session: Optional[Any] = None
+    ) -> str:
+        """Retrieves strictly bounded conversational context for LLM grounding."""
+        state = self.get_state(conversation_id, user_id=user_id, db_session=db_session)
+        return state.to_bounded_context(max_turns=max_turns)
+
+    def save_user_preference(
+        self,
+        user_id: str,
+        key: str,
+        value: Any,
+        db_session: Optional[Any] = None
+    ) -> None:
+        """Saves stable user preference to database and active memory states."""
+        if not user_id:
+            return
+
+        # Update in-memory states matching user_id
+        with self._lock:
+            for st in self._states.values():
+                if st.user_id == user_id:
+                    st.user_preferences[key] = value
+                    if key == "language":
+                        st.preferred_language = str(value)
+                    elif key == "persona":
+                        st.persona = str(value)
+
+        session_created = False
+        session = db_session
+        if session is None:
+            try:
+                from backend.db.session import SessionLocal
+                session = SessionLocal()
+                session_created = True
+            except Exception:
+                return
+
+        try:
+            from backend.db.models import User, UserPreference
+            user_rec = session.query(User).filter(User.id == user_id).first()
+            if user_rec:
+                if key == "language":
+                    user_rec.language = str(value)
+                elif key == "persona":
+                    user_rec.persona = str(value)
+
+            pref_rec = session.query(UserPreference).filter(UserPreference.user_id == user_id).first()
+            if pref_rec:
+                if key == "preferred_units":
+                    pref_rec.preferred_units = str(value)
+                elif key == "persona":
+                    pref_rec.persona = str(value)
+                elif key == "notification_enabled":
+                    pref_rec.notification_enabled = bool(value)
+            session.commit()
+        except Exception as e:
+            logger.warning("Could not persist user preference: %s", e)
+            if session:
+                session.rollback()
+        finally:
+            if session_created and session:
+                session.close()
 
 
 # Singleton default state service instance

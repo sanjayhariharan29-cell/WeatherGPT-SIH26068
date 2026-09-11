@@ -96,7 +96,7 @@ class ChatIntegrationService:
             except Exception:
                 pass
 
-        cur_state = state_service.get_state(conv_id, user_id=user_id)
+        cur_state = state_service.get_state(conv_id, user_id=user_id, db_session=db_session)
         ctx = memory_manager.get_context(conv_id)
         explicit_loc = location_name if location_name and location_name.lower() != "unspecified" else None
 
@@ -677,7 +677,7 @@ class ChatIntegrationService:
         )
 
         # Update Conversational Memory & State Service
-        cur_st = state_service.get_state(conv_id, user_id=user_id)
+        cur_st = state_service.get_state(conv_id, user_id=user_id, db_session=db_session)
         res_ctx = resolved_ctx if (resolved_ctx is not None and hasattr(resolved_ctx, 'turn_type')) else state_service.analyze_turn(message, cur_st)
 
         conv_state = state_service.update_state(

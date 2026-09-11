@@ -163,6 +163,7 @@ class ConversationState(BaseModel):
     # Historical Tracking
     previous_user_question: Optional[str] = Field(default=None, description="Exact text of previous user query")
     previous_resolved_decision_context: Optional[Dict[str, Any]] = Field(default=None, description="Decision summary from previous turn")
+    previous_decision: Optional[str] = Field(default=None, description="Concise summary of previous decision verdict/action")
     unresolved_references: List[str] = Field(default_factory=list, description="Unresolved pronouns or vague terms")
 
     # Clarification State
@@ -171,6 +172,7 @@ class ConversationState(BaseModel):
     # User Profile & Context IDs
     preferred_language: str = Field(default="en", description="Target language preference")
     persona: str = Field(default="general", description="Target user persona")
+    user_preferences: Dict[str, Any] = Field(default_factory=dict, description="Stable user preferences surviving across sessions")
     relevant_user_context_ids: List[str] = Field(default_factory=list, description="Context tags, e.g. saved locations, home district")
 
     # Safety Critical Context Preservation (Preserves severe alerts across turns)
@@ -197,8 +199,10 @@ class ConversationState(BaseModel):
 
         Prevents prompt bloat and historical hallucination by injecting only:
         - Active location, destination, time, date, trip phase, transport, activity, topic
+        - Previous decision verdict (if available)
+        - Pending clarification state (if any)
         - Active safety-critical alert (if any)
-        - Last 1-2 turn questions and answers
+        - Last 1-2 turn questions and answers (truncated)
         """
         parts = []
         if self.active_location:
@@ -219,6 +223,24 @@ class ConversationState(BaseModel):
             parts.append(f"Weather Topic: {self.active_topic}")
         if self.persona and self.persona != "general":
             parts.append(f"User Persona: {self.persona}")
+        if self.preferred_language and self.preferred_language != "en":
+            parts.append(f"Language: {self.preferred_language}")
+
+        # Previous decision summary (without temporary weather facts)
+        if self.previous_decision:
+            parts.append(f"Previous Decision: {self.previous_decision}")
+        elif self.previous_resolved_decision_context:
+            dec_act = (
+                self.previous_resolved_decision_context.get("action")
+                or self.previous_resolved_decision_context.get("verdict")
+                or self.previous_resolved_decision_context.get("summary")
+            )
+            if dec_act:
+                parts.append(f"Previous Decision: {dec_act}")
+
+        # Clarification state
+        if self.clarification_state and self.clarification_state.needed and self.clarification_state.field:
+            parts.append(f"Pending Clarification: {self.clarification_state.field}")
 
         # Safety critical persistence
         if self.safety_critical_context and self.safety_critical_context.get("has_active_warning"):
@@ -241,4 +263,5 @@ class ConversationState(BaseModel):
     def to_dict(self) -> Dict[str, Any]:
         """Dictionary serialization for API responses."""
         return self.model_dump()
+
 
