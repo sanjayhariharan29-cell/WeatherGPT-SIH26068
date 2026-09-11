@@ -408,6 +408,20 @@ class DecisionEngine:
         # ---------------- PERSONA-SPECIFIC LOGIC ----------------
         schedule_decision = cls._evaluate_schedule_windows(nlu, forecast, weather, reasoning)
 
+        from ai.decision.personal_decision import PersonalDecisionEngine
+        raw_msg = (nlu.original_text if nlu else "")
+        personal_decision_res = PersonalDecisionEngine.evaluate(
+            nlu=nlu,
+            weather=weather,
+            forecast=forecast,
+            reasoning=reasoning,
+            target_language=target_language,
+            message=raw_msg,
+            schedule_decision=schedule_decision,
+        )
+        personal_decision_dict = personal_decision_res.to_dict()
+        evidence.append(f"Personal Decision: {personal_decision_res.verdict.value} - {personal_decision_res.recommended_action}")
+
         # ---------------- STUDENT PERSONA ----------------
         if resolved_persona == PersonaEnum.STUDENT:
             if warning_present:
@@ -1114,5 +1128,6 @@ class DecisionEngine:
             source_basis=source_basis,
             evidence=evidence,
             schedule_decision=schedule_decision,
+            personal_decision=personal_decision_dict,
             language=target_language,
         )

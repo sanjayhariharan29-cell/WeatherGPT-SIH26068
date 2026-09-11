@@ -316,6 +316,10 @@ class GroundedLLMGenerator:
                     f"{user_prefix}{loc}ல் தற்போதைய தரவு முழுமையாக கிடைக்கவில்லை (வெப்பநிலை: {temp_str}, மழை வாய்ப்பு: {rain_str})."
                 )
 
+            personal_dec = getattr(advisory, "personal_decision", None)
+            if personal_dec and personal_dec.get("concise_answer_ta"):
+                lines.append(f"\nநேரடி ஆலோசனை: {personal_dec['concise_answer_ta']}")
+
             lines.append(f"\nஆலோசனை: {advisory.advisory_text}")
 
             if advisory.key_precautions:
@@ -356,6 +360,10 @@ class GroundedLLMGenerator:
                 lines.append(
                     f"{user_prefix}{loc} में वर्तमान अवलोकन डेटा आंशिक रूप से अनुपलब्ध है (तापमान: {temp_str}, बारिश की संभावना: {rain_str})।"
                 )
+
+            personal_dec = getattr(advisory, "personal_decision", None)
+            if personal_dec and personal_dec.get("concise_answer_hi"):
+                lines.append(f"\nप्रत्यक्ष सलाह: {personal_dec['concise_answer_hi']}")
 
             lines.append(f"\nसलाह: {advisory.advisory_text}")
 
@@ -421,6 +429,10 @@ class GroundedLLMGenerator:
                     lines.append(f"- {commute_line}")
                     lines.append(f"- Recommendation: {user_prefix}{umbrella_rec.lower() if user_prefix else umbrella_rec}.")
                     lines.append(f"- Precipitation Risk: {dep_prob_val:.0f}% precipitation chance during transit window.")
+
+            personal_dec = getattr(advisory, "personal_decision", None)
+            if personal_dec and personal_dec.get("concise_answer"):
+                lines.append(f"\nDirect Recommendation: {personal_dec['concise_answer']}")
 
             lines.append(f"\nAdvisory: {advisory.advisory_text}")
 

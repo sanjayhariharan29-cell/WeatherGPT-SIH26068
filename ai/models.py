@@ -377,6 +377,7 @@ class DecisionAdvisory(BaseModel):
     source_basis: List[str] = Field(default_factory=list)
     evidence: List[str] = Field(default_factory=list)
     schedule_decision: Optional[Dict[str, Any]] = None
+    personal_decision: Optional[Dict[str, Any]] = None
     language: LanguageEnum = LanguageEnum.EN
 
 

@@ -57,7 +57,13 @@ from ai.reasoner import (
     evaluate_completeness,
     evaluate_source_agreement,
 )
-from ai.decision import DecisionEngine
+from ai.decision import (
+    DecisionEngine,
+    PersonalDecisionEngine,
+    DecisionTypeEnum,
+    DecisionVerdictEnum,
+    PersonalDecisionResult,
+)
 from ai.validator import ResponseValidator
 from ai.rag import SAFETY_KNOWLEDGE_CORPUS, retrieve_safety_guidance
 from ai.llm import (
@@ -125,6 +131,10 @@ __all__ = [
     "evaluate_completeness",
     # Decision
     "DecisionEngine",
+    "PersonalDecisionEngine",
+    "DecisionTypeEnum",
+    "DecisionVerdictEnum",
+    "PersonalDecisionResult",
     # Validator
     "ResponseValidator",
     # RAG

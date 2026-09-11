@@ -789,6 +789,7 @@ class WeatherGPTPipeline:
             "alerts": warnings_list,
             "hazards": hazards_list,
             "advisory": advisory_dict,
+            "personal_decision": getattr(advisory, "personal_decision", None),
             "source": ", ".join(reasoning.sources_used) if reasoning.sources_used else "None",
             "sources": reasoning.sources_used,
             "data_quality": data_quality_dict,

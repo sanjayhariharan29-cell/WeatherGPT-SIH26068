@@ -299,6 +299,18 @@ def build_grounded_context(
         for sg in safety_guidance:
             lines.append(f"• {sg}")
 
+    # Deterministic Personal Decision Directive
+    personal_dec = getattr(advisory, "personal_decision", None)
+    if personal_dec:
+        lines.append("")
+        lines.append("--- 6b. DETERMINISTIC PERSONAL ACTION DECISION ---")
+        lines.append(f"Target Decision: {personal_dec.get('decision_type')}")
+        lines.append(f"Verdict: {personal_dec.get('verdict')}")
+        lines.append(f"Recommended Action: {personal_dec.get('recommended_action')}")
+        lines.append(f"Primary Factor: {personal_dec.get('primary_factor')}")
+        lines.append(f"Direct Action Directive: {personal_dec.get('concise_answer')}")
+        lines.append("CRITICAL MANDATE: Address the user's personal decision (verdict and action) directly in the first sentence.")
+
     # 7. Static Meteorological Reference Knowledge (RAG Knowledge Base)
     ref_facts: List[Dict[str, Any]] = []
     if reference_knowledge:
