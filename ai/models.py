@@ -353,6 +353,7 @@ class WeatherReasoningResult(BaseModel):
     overall_risk: RiskLevelEnum
     uncertainty_note: Optional[str] = None
     sources_used: List[str] = Field(default_factory=list)
+    warnings_available: bool = True
 
 
 class DecisionAdvisory(BaseModel):

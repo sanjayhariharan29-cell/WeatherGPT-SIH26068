@@ -53,6 +53,7 @@ class WeatherGPTPipeline:
         """Runs the complete conversational pipeline from user text to validated answer."""
         t_start = time.perf_counter()
         forecast = forecast or []
+        raw_alerts = active_alerts
         active_alerts = active_alerts or []
         degraded_reasons: List[str] = []
         subsystems_degraded: List[str] = []
@@ -105,7 +106,7 @@ class WeatherGPTPipeline:
             primary_weather=weather,
             secondary_weather=secondary_weather,
             forecast=forecast,
-            active_alerts=active_alerts,
+            active_alerts=raw_alerts,
             secondary_forecast=secondary_forecast
         )
         t_reasoner = (time.perf_counter() - t1) * 1000
@@ -802,6 +803,7 @@ class WeatherGPTPipeline:
             "advisory": advisory_dict,
             "personal_decision": personal_dec_data,
             "why_this_answer": why_this_answer,
+            "reasoning": reasoning,
             "source": ", ".join(reasoning.sources_used) if reasoning.sources_used else "None",
             "sources": reasoning.sources_used,
             "data_quality": data_quality_dict,

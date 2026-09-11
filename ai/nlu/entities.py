@@ -61,6 +61,11 @@ KNOWN_LOCATIONS = {
     "தூத்துக்குடி": "Thoothukudi",
     "tiruppur": "Tiruppur",
     "திருப்பூர்": "Tiruppur",
+    "rameswaram": "Rameswaram",
+    "rameshwaram": "Rameswaram",
+    "ராமேஸ்வரம்": "Rameswaram",
+    "ராமேசுவரம்": "Rameswaram",
+    "रामेश्वरम": "Rameswaram",
     # Major Metros & States
     "delhi": "Delhi",
     "டெல்லி": "Delhi",

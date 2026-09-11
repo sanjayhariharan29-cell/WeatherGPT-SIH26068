@@ -37,7 +37,15 @@ class StructuredEvidence(BaseModel):
     rainfall_mm: float = 0.0
     wind_speed_kmh: float = 0.0
     weather_condition: str = "Clear"
+    humidity: Optional[float] = None
+    visibility_km: Optional[float] = None
     is_rain_expected: bool = False
+    data_freshness: str = "fresh"
+    data_age_minutes: int = 0
+    is_stale: bool = False
+    data_available: bool = True
+    warnings_available: bool = True
+    forecast_period: Optional[str] = None
     active_warnings: List[str] = Field(default_factory=list)
     hazards_detected: List[str] = Field(default_factory=list)
     transit_departure_prob: Optional[float] = None

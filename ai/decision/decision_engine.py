@@ -339,6 +339,19 @@ class DecisionEngine:
             timestamp_str = f"Data updated {reasoning.data_age_minutes}m ago ({reasoning.freshness.value})"
             source_str = f"Source: {', '.join(reasoning.sources_used) if reasoning.sources_used else 'Unknown'}"
 
+            from ai.decision.personal_decision import PersonalDecisionEngine
+            raw_msg = (nlu.original_text if nlu else "")
+            unavail_dec = PersonalDecisionEngine.evaluate(
+                nlu=nlu,
+                weather=weather,
+                forecast=forecast,
+                reasoning=reasoning,
+                target_language=target_language,
+                message=raw_msg,
+                schedule_decision=None,
+            )
+            unavail_dec_dict = unavail_dec.to_dict()
+
             return DecisionAdvisory(
                 persona=resolved_persona,
                 risk_level=risk,
@@ -357,6 +370,8 @@ class DecisionEngine:
                 action_guidance=precautions,
                 source_basis=source_basis,
                 evidence=evidence,
+                personal_decision=unavail_dec_dict,
+                language=target_language,
             )
 
         # 1. OFFICIAL WARNING OVERRIDE (HIGHEST PRIORITY)

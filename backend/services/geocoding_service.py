@@ -124,6 +124,36 @@ KNOWN_LOCATIONS: Dict[str, Dict[str, Any]] = {
         "timezone": "Asia/Kolkata",
         "source": "preset"
     },
+    "rameswaram": {
+        "name": "Rameswaram",
+        "district": "Ramanathapuram",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "latitude": 9.2845,
+        "longitude": 79.3126,
+        "timezone": "Asia/Kolkata",
+        "source": "preset"
+    },
+    "rameshwaram": {
+        "name": "Rameswaram",
+        "district": "Ramanathapuram",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "latitude": 9.2845,
+        "longitude": 79.3126,
+        "timezone": "Asia/Kolkata",
+        "source": "preset"
+    },
+    "ராமேஸ்வரம்": {
+        "name": "Rameswaram",
+        "district": "Ramanathapuram",
+        "state": "Tamil Nadu",
+        "country": "India",
+        "latitude": 9.2845,
+        "longitude": 79.3126,
+        "timezone": "Asia/Kolkata",
+        "source": "preset"
+    },
 }
 
 class GeocodingService:
@@ -147,6 +177,11 @@ class GeocodingService:
         cleaned = query.strip().lower()
         if cleaned in KNOWN_LOCATIONS:
             return KNOWN_LOCATIONS[cleaned]
+
+        # Check if any known location name is contained in the query (e.g. "Near Rameswaram, between India and Sri Lanka.")
+        for key, loc in KNOWN_LOCATIONS.items():
+            if key in cleaned or loc["name"].lower() in cleaned:
+                return loc
 
         for key, loc in KNOWN_LOCATIONS.items():
             if cleaned in key or cleaned in loc["name"].lower():

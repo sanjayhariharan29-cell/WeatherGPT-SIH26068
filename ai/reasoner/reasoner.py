@@ -45,12 +45,13 @@ class WeatherReasoner:
     ) -> WeatherReasoningResult:
         """Runs the complete meteorological reasoning pipeline with safety & completeness checks."""
         now = current_time or datetime.now(timezone.utc)
-        active_alerts = active_alerts or []
+        warnings_unavail = (active_alerts is None)
+        alerts_list = active_alerts or []
         forecast = forecast or []
 
         # Filter active alerts: expired warnings must NEVER be treated as currently active (Phase 14 Step 13)
         valid_active_alerts: List[OfficialAlert] = []
-        for alert in active_alerts:
+        for alert in alerts_list:
             exp = alert.expires_at
             ref = now
             if exp:
@@ -63,8 +64,8 @@ class WeatherReasoner:
             else:
                 valid_active_alerts.append(alert)
 
-        # 1. Handle Case Where Weather Data is Missing / Null
-        if not primary_weather:
+        # 1. Handle Case Where Weather Data is Missing / Null / Degraded
+        if not primary_weather or getattr(primary_weather, "source", "") in ("DATA_UNAVAILABLE", "UNAVAILABLE"):
             all_hazards = detect_hazards(
                 current_weather=None,
                 forecast=forecast,
@@ -74,7 +75,9 @@ class WeatherReasoner:
                 h for h in all_hazards if not h.is_official_warning and not h.hazard_type.startswith("OFFICIAL_WARNING_")
             ]
             loc_name = "Unknown"
-            if valid_active_alerts and valid_active_alerts[0].affected_locations:
+            if primary_weather and getattr(primary_weather, "location", None) and getattr(primary_weather.location, "name", None):
+                loc_name = primary_weather.location.name
+            elif valid_active_alerts and valid_active_alerts[0].affected_locations:
                 loc_name = valid_active_alerts[0].affected_locations[0]
 
             overall_risk = RiskLevelEnum.LOW
@@ -88,6 +91,9 @@ class WeatherReasoner:
                     overall_risk = RiskLevelEnum.MEDIUM
 
             sources_used = [valid_active_alerts[0].source] if valid_active_alerts else []
+            uncert = "Primary weather observation data is unavailable."
+            if warnings_unavail:
+                uncert += " Official warning information is currently unavailable."
 
             return WeatherReasoningResult(
                 evaluated_at=now,
@@ -115,8 +121,9 @@ class WeatherReasoner:
                 detected_hazards=all_hazards,
                 ai_detected_hazards=ai_detected_hazards,
                 overall_risk=overall_risk,
-                uncertainty_note="Primary weather observation data is unavailable.",
-                sources_used=sources_used
+                uncertainty_note=uncert,
+                sources_used=sources_used,
+                warnings_available=not warnings_unavail
             )
 
         # 2. Freshness Check
@@ -221,6 +228,8 @@ class WeatherReasoner:
             uncertainty_elements.append(f"Observation data is {age_mins} minutes old.")
         if contradictions:
             uncertainty_elements.extend(contradictions)
+        if warnings_unavail:
+            uncertainty_elements.append("Official warning information is currently unavailable.")
 
         uncertainty_note = " | ".join(uncertainty_elements) if uncertainty_elements else None
 
@@ -246,5 +255,6 @@ class WeatherReasoner:
             ai_detected_hazards=ai_detected_hazards,
             overall_risk=overall_risk,
             uncertainty_note=uncertainty_note,
-            sources_used=sources_used
+            sources_used=sources_used,
+            warnings_available=not warnings_unavail
         )

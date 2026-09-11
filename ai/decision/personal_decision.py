@@ -18,10 +18,12 @@ Strict Rules:
 """
 
 from typing import Any, Dict, List, Optional
+from datetime import datetime, timezone
 import re
 
 from ai.models import (
     ForecastItem,
+    FreshnessStatusEnum,
     HazardDetection,
     IntentEnum,
     LanguageEnum,
@@ -166,13 +168,48 @@ class PersonalDecisionEngine:
         if hazard_names:
             reasons.append(f"Active hazard signals: {', '.join(hazard_names[:2])}")
 
+        effective_loc = reasoning.location if reasoning.location != "Unknown" else (getattr(nlu.entities, "location", None) if nlu and nlu.entities else "your area")
+        time_window = "today"
+        if nlu and nlu.entities:
+            time_window = nlu.entities.time or nlu.entities.date or "today"
+
+        # Marine & Verified Telemetry Quality Factors
+        humidity = float(getattr(weather, "humidity", 0.0) or 0.0) if weather else None
+        visibility_km = float(getattr(weather, "visibility_km", 0.0) or 0.0) if (weather and getattr(weather, "visibility_km", None) is not None) else None
+        data_freshness = reasoning.freshness.value if (reasoning and hasattr(reasoning, "freshness")) else "fresh"
+
+        # Calculate data age in minutes
+        data_age = 0
+        if weather and getattr(weather, "observed_at", None):
+            obs = getattr(weather, "observed_at")
+            now = datetime.now(timezone.utc)
+            if hasattr(obs, "tzinfo") and obs.tzinfo is None:
+                obs = obs.replace(tzinfo=timezone.utc)
+            data_age = int(max(0, (now - obs).total_seconds() / 60))
+        elif hasattr(reasoning, "age_minutes") and reasoning.age_minutes:
+            data_age = reasoning.age_minutes
+
+        is_stale = (reasoning.freshness == FreshnessStatusEnum.STALE) if (reasoning and hasattr(reasoning, "freshness")) else (data_age > 180)
+        data_available = bool(weather and getattr(weather, "source", "") != "DATA_UNAVAILABLE" and getattr(weather, "temperature", None) is not None)
+        warnings_available = getattr(reasoning, "warnings_available", True)
+        if reasoning and getattr(reasoning, "uncertainty_note", None) and "Official warning information is currently unavailable" in str(reasoning.uncertainty_note):
+            warnings_available = False
+
         evidence = StructuredEvidence(
             temperature_c=temp_c,
             rain_probability=max(rain_prob, fc_max_rain),
             rainfall_mm=rain_mm,
             wind_speed_kmh=max(wind_spd, fc_max_wind),
             weather_condition=weather_cond,
+            humidity=humidity,
+            visibility_km=visibility_km,
             is_rain_expected=is_rain_expected,
+            data_freshness=data_freshness,
+            data_age_minutes=data_age,
+            is_stale=is_stale,
+            data_available=data_available,
+            warnings_available=warnings_available,
+            forecast_period=time_window,
             active_warnings=warning_titles,
             hazards_detected=hazard_names,
             transit_departure_prob=dep_prob,
@@ -181,11 +218,6 @@ class PersonalDecisionEngine:
             transit_return_time=ret_time,
             reasons=reasons,
         )
-
-        effective_loc = reasoning.location if reasoning.location != "Unknown" else (getattr(nlu.entities, "location", None) if nlu and nlu.entities else "your area")
-        time_window = "today"
-        if nlu and nlu.entities:
-            time_window = nlu.entities.time or nlu.entities.date or "today"
 
         # Determine Decision Rules per Type
         if dec_type == DecisionTypeEnum.COLLEGE_COMMUTE:
@@ -436,32 +468,78 @@ class PersonalDecisionEngine:
         time_win: str
     ) -> PersonalDecisionResult:
         has_warning = len(ev.active_warnings) > 0
-        is_squally = ev.wind_speed_kmh >= 45.0 or any("cyclone" in h or "wind" in h for h in ev.hazards_detected)
+        is_squally = ev.wind_speed_kmh >= 35.0 or any("cyclone" in h or "wind" in h or "storm" in h for h in ev.hazards_detected)
 
-        if has_warning or is_squally:
+        # 1. Official Warning Active
+        if has_warning:
+            verdict = DecisionVerdictEnum.NO_GO
+            warn_name = ev.active_warnings[0] if ev.active_warnings else "Marine Warning"
+            action = f"Fishermen are strictly advised not to venture into the sea off {loc} because an official marine warning is active ({warn_name})."
+            primary = f"Official marine warning active ({warn_name})"
+            ans_en = "I wouldn't recommend going during that period because an official marine warning is active."
+            ans_ta = "அதிகாரப்பூர்வ கடல் எச்சரிக்கை செயலில் உள்ளதால், இந்த நேரத்தில் கடலுக்குச் செல்ல வேண்டாம் என்று பரிந்துரைக்கப்படுகிறது."
+            ans_hi = "इस अवधि के दौरान समुद्र में जाने की सलाह नहीं दी जाती है क्योंकि एक आधिकारिक समुद्री चेतावनी सक्रिय है।"
+            precautions = ["Heed IMD and INCOIS coastal advisories", "Secure boats and fishing gear at harbor", "Monitor port danger signals"]
+
+        # 2. Weather Telemetry Unavailable or Provider Failure
+        elif not ev.data_available or (ev.temperature_c is None and ev.wind_speed_kmh == 0.0 and (not ev.weather_condition or ev.weather_condition == "Unknown")):
+            verdict = DecisionVerdictEnum.NOT_RECOMMENDED
+            action = f"Venture to sea off {loc} is not recommended because verified weather data is currently unavailable."
+            primary = "Verified weather data unavailable"
+            ans_en = f"I cannot recommend going to sea at this time because verified weather data is currently unavailable for {loc}."
+            ans_ta = f"{loc} பகுதிக்கான சரிபார்க்கப்பட்ட வானிலை தரவு தற்போது கிடைக்காததால், கடலுக்குச் செல்ல பரிந்துரைக்க முடியாது."
+            ans_hi = f"{loc} के लिए सत्यापित मौसम डेटा वर्तमान में उपलब्ध नहीं होने के कारण इस समय समुद्र में जाने की सलाह नहीं दी जा सकती है।"
+            precautions = ["Await verified meteorological observations before departing", "Consult local coastal authorities"]
+
+        # 3. Official Warning Information Unavailable
+        elif not ev.warnings_available:
+            verdict = DecisionVerdictEnum.CAUTION
+            action = f"Official marine warning information is currently unavailable for {loc}. Venturing out to sea is not recommended without verified advisories."
+            primary = "Official warning information unavailable"
+            ans_en = f"Official warning information is currently unavailable for {loc}. Venturing out to sea is not recommended without verified marine advisories."
+            ans_ta = f"{loc} பகுதிக்கான அதிகாரப்பூர்வ எச்சரிக்கை தகவல் தற்போது கிடைக்கவில்லை. சரிபார்க்கப்பட்ட கடல் அறிவிப்புகள் இல்லாமல் கடலுக்குச் செல்ல வேண்டாம்."
+            ans_hi = f"{loc} के लिए आधिकारिक चेतावनी की जानकारी वर्तमान में उपलब्ध नहीं है। सत्यापित समुद्री बुलेटिन के बिना समुद्र में जाने की सलाह नहीं दी जाती है।"
+            precautions = ["Contact local port authority for active warning status", "Do not venture into deep sea without official clearance"]
+
+        # 4. Stale Weather Data
+        elif ev.is_stale or reasoning.freshness == FreshnessStatusEnum.STALE or ev.data_age_minutes > 180:
+            verdict = DecisionVerdictEnum.NOT_RECOMMENDED
+            action = f"Heading out to sea off {loc} is not recommended as weather telemetry is stale ({ev.data_age_minutes} minutes old)."
+            primary = f"Stale weather telemetry ({ev.data_age_minutes}m old)"
+            ans_en = f"I wouldn't recommend going to sea because available weather telemetry is stale ({ev.data_age_minutes} minutes old). Real-time verified observations are required before heading out."
+            ans_ta = f"வானிலை தகவல் காலாவதியானது ({ev.data_age_minutes} நிமிடங்கள் பழமையானது) என்பதால் கடலுக்குச் செல்ல பரிந்துரைக்க முடியாது. நேரலை தகவல்களைச் சரிபார்க்கவும்."
+            ans_hi = f"मौसम डेटा पुराना ({ev.data_age_minutes} मिनट पुराना) होने के कारण समुद्र में जाने की सलाह नहीं दी जाती है। वास्तविक समय की पुष्टि आवश्यक है।"
+            precautions = ["Obtain fresh meteorological observation before departure", "Verify local sea conditions at port"]
+
+        # 5. Squally Winds, Storms, or Cyclone Hazards
+        elif is_squally:
             verdict = DecisionVerdictEnum.NO_GO
             action = f"Fishermen are strictly advised not to venture into the sea off {loc}. Squally winds ({ev.wind_speed_kmh:.0f} km/h) and rough sea conditions."
-            primary = f"Rough sea warning and squally winds ({ev.wind_speed_kmh:.0f} km/h)"
-            ans_en = f"Fishermen are strictly advised not to venture into the sea off {loc} {time_win}. Severe squally weather and rough sea conditions are active with wind gusts up to {ev.wind_speed_kmh:.0f} km/h."
+            primary = f"Hazardous wind speeds ({ev.wind_speed_kmh:.0f} km/h) and rough sea"
+            ans_en = f"I wouldn't recommend going during that period due to high wind speeds ({ev.wind_speed_kmh:.0f} km/h) and hazardous sea conditions off {loc}."
             ans_ta = f"{loc} கடல் பகுதியில் பலத்த சூறாவளிக் காற்று ({ev.wind_speed_kmh:.0f} கி.மீ/மணி) மற்றும் கடல் சீற்றம் நிலவுவதால் மீனவர்கள் கடலுக்குச் செல்ல வேண்டாம் என எச்சரிக்கப்படுகிறார்கள்."
-            ans_hi = f"{loc} के तटीय क्षेत्रों में {ev.wind_speed_kmh:.0f} किमी/घंटा की तेज हवाओं और समुद्र में अशांत स्थिति के कारण मछुआरों को समुद्र में न जाने की सख्त सलाह दी जाती है।"
-            precautions = ["Heed IMD and INCOIS coastal advisories", "Secure boats and fishing gear at harbor", "Monitor port danger signals"]
-        elif ev.wind_speed_kmh >= 30.0 or ev.is_rain_expected:
+            ans_hi = f"{loc} में तेज हवाओं ({ev.wind_speed_kmh:.0f} किमी/घंटा) और अशांत समुद्र के कारण इस अवधि में जाने की सलाह नहीं दी जाती है।"
+            precautions = ["Secure boats and gear at harbor", "Avoid deep-sea fishing during squally weather"]
+
+        # 6. Moderate Winds or Rain Caution
+        elif ev.wind_speed_kmh >= 25.0 or ev.is_rain_expected:
             verdict = DecisionVerdictEnum.CAUTION
             action = f"Exercise caution in coastal waters off {loc}; moderate wave action and winds ({ev.wind_speed_kmh:.0f} km/h)."
-            primary = f"Moderate coastal wind ({ev.wind_speed_kmh:.0f} km/h)"
-            ans_en = f"Fishermen should exercise caution off {loc}. Winds are moderate around {ev.wind_speed_kmh:.0f} km/h with choppy waves. Keep communication sets active."
+            primary = f"Moderate coastal winds ({ev.wind_speed_kmh:.0f} km/h)"
+            ans_en = f"Caution is advised off {loc} {time_win}. Moderate winds of {ev.wind_speed_kmh:.0f} km/h are expected; monitor coastal weather bulletins closely."
             ans_ta = f"{loc} கடலில் மிதமான காற்று ({ev.wind_speed_kmh:.0f} கி.மீ/மணி) வீசுவதால் கவனத்துடன் செயல்படவும். தகவல் தொடர்பு கருவிகளை தயார் நிலையில் வைக்கவும்."
             ans_hi = f"{loc} के समुद्र में मध्यम हवाएं ({ev.wind_speed_kmh:.0f} किमी/घंटा) चल रही हैं। गहरे समुद्र में जाने से पहले सतर्कता बरतें और संचार उपकरण चालू रखें।"
-            precautions = ["Keep VHF radio and life jackets ready", "Monitor real-time INCOIS wave forecast"]
+            precautions = ["Keep VHF radio and life jackets ready", "Monitor coastal bulletins"]
+
+        # 7. Valid Weather Data & Manageable Conditions
         else:
             verdict = DecisionVerdictEnum.GO
-            action = f"Sea conditions are calm and favorable for fishing off {loc}."
-            primary = f"Calm sea and mild winds ({ev.wind_speed_kmh:.0f} km/h)"
-            ans_en = f"Yes, sea conditions off {loc} are calm and favorable for fishing {time_win}. Winds are mild at {ev.wind_speed_kmh:.0f} km/h."
-            ans_ta = f"ஆம், {loc} கடல் பகுதியில் வானிலை சாதகமாகவும் அலைகள் இயல்பான நிலையிலும் உள்ளன. மீன்பிடிக்க செல்லலாம்."
-            ans_hi = f"हाँ, {loc} में समुद्र शांत है और मौसम मछली पकड़ने के लिए पूरी तरह अनुकूल है। हवाएं सामान्य हैं।"
-            precautions = ["Standard maritime safety protocol"]
+            action = f"Conditions look manageable for the requested period based on the available verified data off {loc}. Sea conditions are calm and favorable for fishing."
+            primary = f"Manageable marine conditions ({ev.wind_speed_kmh:.0f} km/h wind, {ev.weather_condition})"
+            ans_en = "Conditions look manageable for the requested period based on the available verified data."
+            ans_ta = f"கிடைக்கக்கூடிய சரிபார்க்கப்பட்ட தரவுகளின்படி, குறிப்பிட்ட காலத்திற்கு {loc} கடல் பகுதியில் வானிலை சீராகவும் சாதகமாகவும் உள்ளது."
+            ans_hi = f"उपलब्ध सत्यापित आंकड़ों के आधार पर अनुरोधित अवधि के लिए {loc} में परिस्थितियां अनुकूल और सामान्य प्रतीत होती हैं।"
+            precautions = ["Standard maritime safety protocol", "Carry required safety and communication equipment"]
 
         return PersonalDecisionResult(
             decision_type=DecisionTypeEnum.FISHING_MARINE,
@@ -469,7 +547,7 @@ class PersonalDecisionEngine:
             recommended_action=action,
             primary_factor=primary,
             risk_level=reasoning.overall_risk,
-            confidence="HIGH" if reasoning.consistency_score >= 70 else "MEDIUM",
+            confidence="HIGH" if (reasoning.consistency_score >= 70 and ev.data_available) else "MEDIUM",
             location=loc,
             time_window=time_win,
             evidence=ev,

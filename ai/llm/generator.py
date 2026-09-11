@@ -178,7 +178,7 @@ class GroundedLLMGenerator:
             target_lang = resolve_target_language(nlu.detected_language, nlu.original_text)
         else:
             target_lang = LanguageEnum.EN
-        loc = reasoning.location
+        loc = reasoning.location if (reasoning and reasoning.location != "Unknown") else (getattr(nlu.entities, "location", None) if nlu and nlu.entities and nlu.entities.location else "your area")
 
         user_prefix = ""
         prompt_text = context.formatted_prompt if (context and hasattr(context, "formatted_prompt")) else ""
@@ -259,17 +259,17 @@ class GroundedLLMGenerator:
 
             if target_lang == LanguageEnum.TA:
                 dec_ans = personal_dec.get("concise_answer_ta") if personal_dec else ""
-                if dec_ans and alert.title in dec_ans:
+                if dec_ans and (personal_dec.get("decision_type") in ("fishing_marine", "marine_safety") or alert.title in dec_ans):
                     return f"{user_prefix}{dec_ans}"
                 return f"⚠️ [அதிகாரப்பூர்வ IMD {sev} எச்சரிக்கை: {alert.title}] {affected} பகுதியில் செயலில் உள்ளது. {dec_ans or precaution}"
             elif target_lang == LanguageEnum.HI:
                 dec_ans = personal_dec.get("concise_answer_hi") if personal_dec else ""
-                if dec_ans and alert.title in dec_ans:
+                if dec_ans and (personal_dec.get("decision_type") in ("fishing_marine", "marine_safety") or alert.title in dec_ans):
                     return f"{user_prefix}{dec_ans}"
                 return f"⚠️ [आधिकारिक IMD {sev} चेतावनी: {alert.title}] {affected} में सक्रिय है। {dec_ans or precaution}"
             else:
                 dec_ans = personal_dec.get("concise_answer") if personal_dec else ""
-                if dec_ans and alert.title.lower() in dec_ans.lower():
+                if dec_ans and (personal_dec.get("decision_type") in ("fishing_marine", "marine_safety") or alert.title.lower() in dec_ans.lower()):
                     return f"{user_prefix}{dec_ans}"
                 return f"An official IMD {sev} alert is active for {affected} ({alert.title}). {dec_ans or precaution}"
 
