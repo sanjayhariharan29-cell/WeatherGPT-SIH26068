@@ -176,8 +176,8 @@ def test_07_tomorrow_forecast_integration():
     res = client.post("/api/v1/chat", json=payload)
     assert res.status_code == 200
     data = res.json()
-    # Verify intent classified as rain_forecast or forecast
-    assert data["intent"] in ("rain_forecast", "forecast", "outdoor_decision")
+    # Verify intent classified as rain_forecast or forecast or rain_query
+    assert data["intent"] in ("rain_forecast", "forecast", "outdoor_decision", "rain_query")
     assert "answer" in data
 
 

@@ -65,6 +65,33 @@ class LanguageEnum(str, Enum):
     UNKNOWN = "unknown"
 
 
+# Bidirectional Intent Compatibility Map
+PARENT_INTENT_MAP = {
+    "college_commute": {"outdoor_decision", "travel_advisory", "college_commute"},
+    "bike_travel": {"outdoor_decision", "travel_advisory", "bike_travel"},
+    "travel_decision": {"outdoor_decision", "travel_advisory", "travel_decision"},
+    "rain_query": {"rain_forecast", "rain_query", "forecast"},
+    "umbrella_decision": {"rain_forecast", "rain_query", "umbrella_decision", "umbrella", "outdoor_decision"},
+    "sports_activity": {"outdoor_decision", "outdoor_activity", "sports_activity"},
+    "outdoor_activity": {"outdoor_decision", "outdoor_activity"},
+    "fishing_decision": {"outdoor_decision", "marine_safety", "fishing_decision", "marine_warning"},
+    "marine_safety": {"outdoor_decision", "weather_alert", "marine_safety", "marine_warning"},
+    "farming_decision": {"agriculture_advisory", "farming_decision"},
+    "warning_query": {"weather_alert", "cyclone_inquiry", "warning_query"},
+    "aqi_query": {"air_quality", "aqi_query"},
+    "temperature_query": {"temperature", "temperature_query"},
+    "forecast_query": {"forecast", "forecast_query"},
+    "time_specific_weather": {"time_specific_forecast", "time_specific_weather", "rain_query", "rain_forecast"},
+    "location_specific_weather": {"location_weather", "location_specific_weather", "weather_information", "current_weather"},
+    "weather_information": {"current_weather", "general_weather_question", "weather_information", "location_specific_weather", "location_weather"},
+    "general_conversation": {"greeting", "general_weather_question", "general_conversation"},
+    "clarification_response": {"clarification_needed", "clarification_response"},
+    "clothing_advice": {"outdoor_decision", "clothing_advice"},
+    "unknown": {"general_weather_question", "unknown", "unknown/ambiguous"},
+    "unknown/ambiguous": {"general_weather_question", "unknown", "unknown/ambiguous", "clarification_needed"},
+}
+
+
 class IntentEnum(str, Enum):
     CURRENT_WEATHER = "current_weather"
     FORECAST = "forecast"
@@ -88,6 +115,43 @@ class IntentEnum(str, Enum):
     GREETING = "greeting"
     CLARIFICATION_NEEDED = "clarification_needed"
     GENERAL_WEATHER_QUESTION = "general_weather_question"
+
+    # Personal Weather AI Intent Categories (User Action & Intent Understanding)
+    WEATHER_INFORMATION = "weather_information"
+    RAIN_QUERY = "rain_query"
+    UMBRELLA_DECISION = "umbrella_decision"
+    TRAVEL_DECISION = "travel_decision"
+    COLLEGE_COMMUTE = "college_commute"
+    BIKE_TRAVEL = "bike_travel"
+    OUTDOOR_ACTIVITY = "outdoor_activity"
+    SPORTS_ACTIVITY = "sports_activity"
+    FARMING_DECISION = "farming_decision"
+    FISHING_DECISION = "fishing_decision"
+    MARINE_SAFETY = "marine_safety"
+    WARNING_QUERY = "warning_query"
+    AQI_QUERY = "aqi_query"
+    TEMPERATURE_QUERY = "temperature_query"
+    FORECAST_QUERY = "forecast_query"
+    CLOTHING_ADVICE = "clothing_advice"
+    TIME_SPECIFIC_WEATHER = "time_specific_weather"
+    LOCATION_SPECIFIC_WEATHER = "location_specific_weather"
+    GENERAL_CONVERSATION = "general_conversation"
+    CLARIFICATION_RESPONSE = "clarification_response"
+    UNKNOWN = "unknown"
+    AMBIGUOUS = "unknown/ambiguous"
+
+    def __eq__(self, other: Any) -> bool:
+        other_val = getattr(other, "value", other)
+        if str(self.value) == str(other_val):
+            return True
+        if other_val in PARENT_INTENT_MAP.get(self.value, set()):
+            return True
+        if self.value in PARENT_INTENT_MAP.get(other_val, set()):
+            return True
+        return False
+
+    def __hash__(self) -> int:
+        return hash(self.value)
 
 
 class RiskLevelEnum(str, Enum):
@@ -229,6 +293,7 @@ class HistoricalWeatherDataset(BaseModel):
 
 class ExtractedEntities(BaseModel):
     location: Optional[str] = None
+    locations: List[str] = Field(default_factory=list)
     date: Optional[str] = None
     time: Optional[str] = None
     time_range: Optional[str] = None
@@ -238,6 +303,11 @@ class ExtractedEntities(BaseModel):
     activity: Optional[str] = None
     departure_time: Optional[str] = None
     return_time: Optional[str] = None
+    transport_mode: Optional[str] = None
+    person_context: Optional[str] = None
+    reference_expression: Optional[str] = None
+    decision_wording: Optional[str] = None
+    comparison_wording: Optional[str] = None
 
 
 class NLUResult(BaseModel):

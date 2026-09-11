@@ -38,7 +38,14 @@ def parse_query(text: str) -> NLUResult:
         IntentEnum.WIND,
         IntentEnum.HUMIDITY,
         IntentEnum.WEATHER_ALERT,
-        IntentEnum.OUTDOOR_DECISION
+        IntentEnum.OUTDOOR_DECISION,
+        IntentEnum.WEATHER_INFORMATION,
+        IntentEnum.RAIN_QUERY,
+        IntentEnum.TEMPERATURE_QUERY,
+        IntentEnum.FORECAST_QUERY,
+        IntentEnum.LOCATION_SPECIFIC_WEATHER,
+        IntentEnum.TIME_SPECIFIC_WEATHER,
+        IntentEnum.WARNING_QUERY,
     }
 
     if intent in location_dependent_intents and not entities.location:

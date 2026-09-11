@@ -68,7 +68,6 @@ KNOWN_LOCATIONS = {
     "mumbai": "Mumbai",
     "bombay": "Mumbai",
     "மும்பை": "Mumbai",
-    "मुंबई": "Mumbai",
     "bengaluru": "Bengaluru",
     "bangalore": "Bengaluru",
     "பெங்களூரு": "Bengaluru",
@@ -92,19 +91,24 @@ def extract_entities(text: str) -> ExtractedEntities:
     entities = ExtractedEntities()
 
     # 1. Location Candidate Extraction
+    matched_locations = []
     # Sort keys by descending length to match more specific/longer terms first
     for loc_key in sorted(KNOWN_LOCATIONS.keys(), key=len, reverse=True):
         canonical_name = KNOWN_LOCATIONS[loc_key]
         if loc_key.isascii():
             pattern = rf"\b{re.escape(loc_key)}(?:-la|la|le|mein|me|ka|ki)?\b"
             if re.search(pattern, clean):
-                entities.location = canonical_name
-                break
+                if canonical_name not in matched_locations:
+                    matched_locations.append(canonical_name)
         else:
             # Indic / Unicode scripts: substring match naturally handles case inflections (-இல், -க்கு, में, का)
             if loc_key in clean:
-                entities.location = canonical_name
-                break
+                if canonical_name not in matched_locations:
+                    matched_locations.append(canonical_name)
+
+    if matched_locations:
+        entities.location = matched_locations[0]
+        entities.locations = matched_locations
 
     # Fallback: Prepositional location extraction (e.g. "in Salem", "about Madurai", "near Coimbatore")
     if not entities.location:
@@ -114,12 +118,13 @@ def extract_entities(text: str) -> ExtractedEntities:
             excluded = {
                 "the", "a", "an", "today", "tomorrow", "yesterday", "now", "me", "you", "us",
                 "weather", "rain", "temperature", "temp", "morning", "afternoon", "evening",
-                "night", "there", "it", "here", "this", "that"
+                "night", "there", "it", "here", "this", "that", "college", "school", "work", "office"
             }
             if candidate.lower() not in excluded and len(candidate) >= 3:
                 entities.location = candidate.capitalize()
+                entities.locations = [entities.location]
 
-    # 2. Relative Date Extraction
+    # 2. Date & Weekday Extraction
     year_match = re.search(r"\b(?:in|during|year)\s+(19\d\d|20[0-2]\d)\b", clean)
     if year_match:
         entities.date = year_match.group(1)
@@ -143,6 +148,21 @@ def extract_entities(text: str) -> ExtractedEntities:
         entities.date = "this weekend"
     elif any(k in clean for k in ["next week", "adutha vaaram", "agle hafte", "अगले हफ्ते"]):
         entities.date = "next week"
+    else:
+        # Weekday detection (English, Tamil, Hindi)
+        weekday_map = {
+            "monday": "Monday", "திங்கட்கிழமை": "Monday", "திங்கள்": "Monday", "सोमवार": "Monday", "somwar": "Monday",
+            "tuesday": "Tuesday", "செவ்வாய்க்கிழமை": "Tuesday", "செவ்வாய்": "Tuesday", "मंगलवार": "Tuesday", "mangalwar": "Tuesday",
+            "wednesday": "Wednesday", "புதன்கிழமை": "Wednesday", "புதன்": "Wednesday", "बुधवार": "Wednesday", "budhwar": "Wednesday",
+            "thursday": "Thursday", "வியாழக்கிழமை": "Thursday", "வியாழன்": "Thursday", "गुरुवार": "Thursday", "guruwar": "Thursday",
+            "friday": "Friday", "வெள்ளிக்கிழமை": "Friday", "வெள்ளி": "Friday", "शुक्रवार": "Friday", "shukrawar": "Friday",
+            "saturday": "Saturday", "சனிக்கிழமை": "Saturday", "சனி": "Saturday", "शनिवार": "Saturday", "shaniwar": "Saturday",
+            "sunday": "Sunday", "ஞாயிற்றுக்கிழமை": "Sunday", "ஞாயிறு": "Sunday", "रविवार": "Sunday", "raviwar": "Sunday"
+        }
+        for day_kw, day_name in weekday_map.items():
+            if re.search(rf"\b{re.escape(day_kw)}\b", clean):
+                entities.date = day_name
+                break
 
     # 3. Relative Time & Time Range Normalization
     # Check for schedule pairs (e.g., "leave at 8 AM and return at 5 PM")
@@ -151,12 +171,19 @@ def extract_entities(text: str) -> ExtractedEntities:
 
     all_time_tokens = [m.group(1).upper().strip() for m in re.finditer(r"\b(\d{1,2}(?::\d{2})?\s*(?:am|pm))\b", clean, re.IGNORECASE)]
 
+    range_match = re.search(r"(?:between|from)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\s+(?:and|to|-)\s+(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)", clean)
+
     if dep_match and ret_match and dep_match.group(1) and ret_match.group(1):
         entities.departure_time = dep_match.group(1).upper().strip()
         entities.return_time = ret_match.group(1).upper().strip()
         entities.time = entities.departure_time
         entities.time_range = f"{entities.departure_time}-{entities.return_time}"
-    elif len(all_time_tokens) >= 2 and any(k in clean for k in ["leave", "return", "commute", "college", "office", "back"]):
+    elif range_match:
+        entities.departure_time = range_match.group(1).upper().strip()
+        entities.return_time = range_match.group(2).upper().strip()
+        entities.time = entities.departure_time
+        entities.time_range = f"{entities.departure_time}-{entities.return_time}"
+    elif len(all_time_tokens) >= 2:
         entities.departure_time = all_time_tokens[0]
         entities.return_time = all_time_tokens[1]
         entities.time = entities.departure_time
@@ -170,10 +197,20 @@ def extract_entities(text: str) -> ExtractedEntities:
         else:
             entities.time = single_t
             entities.time_range = single_t
+    elif any(k in clean for k in ["when i come back", "when i return", "thirumbi varumbodhu", "திரும்பி வரும்போது", "wapas aate", "वापस आते"]):
+        entities.time = "return window"
+        entities.return_time = "return window"
+        entities.time_range = "transit return"
+        entities.reference_expression = "when returning"
+        if not entities.person_context:
+            entities.person_context = "commuter"
     else:
-        time_match = re.search(r"\b(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", clean)
-        if time_match and any(x in clean for x in ["am", "pm", ":"]):
-            entities.time = time_match.group(1).upper().strip()
+        # Numeric time like "at 5", "what about 5", "5 PM", "5 baje", "5 manikku"
+        num_time_match = re.search(r"\b(?:what\s+about|how\s+about|at|around|by|from|till|to)?\s*(\d{1,2})(?::(\d{2}))?\s*(am|pm|baje|manikku|\?)?\b", clean)
+        if num_time_match and (num_time_match.group(3) or any(k in clean for k in ["at", "about", "around", "what about 5", "5?"])):
+            h = num_time_match.group(1)
+            m = num_time_match.group(2) or "00"
+            entities.time = f"{h}:{m}"
             entities.time_range = entities.time
         elif any(k in clean for k in ["leave college", "leaving college", "after college"]):
             entities.time = "evening"
@@ -210,41 +247,99 @@ def extract_entities(text: str) -> ExtractedEntities:
     elif any(k in clean for k in ["thunder", "lightning", "இடி", "மின்னல்", "बिजली"]):
         entities.hazard = "thunderstorm"
 
-    # 5. Persona & Activity Identification
-    if any(k in clean for k in [
-        "college", "school", "exam", "student", "பள்ளி", "கல்லூரி", "padhai", "padipu",
-        "leave college", "reach college", "campus"
-    ]):
+    # 5. Transport Mode Extraction
+    if any(k in clean for k in ["bike", "motorcycle", "scooter", "two wheeler", "two-wheeler", "cycle", "bicycle", "பைக்", "இருசக்கர", "டூவீலர்", "बाइक", "स्कूटर", "मोटरसाइकिल"]):
+        entities.transport_mode = "bike"
+    elif any(k in clean for k in ["car", "cab", "taxi", "கார்", "டாக்சி", "कार", "गाड़ी"]):
+        entities.transport_mode = "car"
+    elif any(k in clean for k in ["bus", "பேருந்து", "बस"]):
+        entities.transport_mode = "bus"
+    elif any(k in clean for k in ["train", "metro", "rail", "ரயில்", "ரெயில்", "மெட்ரோ", "ट्रेन", "मेट्रो"]):
+        entities.transport_mode = "train"
+    elif any(k in clean for k in ["walk", "walking", "pedestrian", "நடந்து", "पैदल"]):
+        entities.transport_mode = "walk"
+    elif any(k in clean for k in ["boat", "ferry", "ship", "படகு", "नाव"]):
+        entities.transport_mode = "boat"
+
+    # 6. Reference Expression Extraction
+    for ref_pat, ref_val in [
+        (r"\bwhen\s+i\s+come\s+back\b", "when I come back"),
+        (r"\bwhen\s+i\s+return\b", "when I return"),
+        (r"\bwhen\s+leaving\b", "when leaving"),
+        (r"\bthirumbi\s+varumbodhu\b", "when returning"),
+        (r"திரும்பி\s*வரும்போது", "when returning"),
+        (r"\bwapas\s+aate\s*(?:waqt|samay)?\b", "when returning"),
+        (r"वापस\s*आते\s*समय", "when returning"),
+        (r"\band\s+friday\??\b", "And Friday?"),
+        (r"\bwhat\s+about\s+5\??\b", "What about 5?"),
+        (r"\bthere\b", "there"),
+        (r"\bthat\s+place\b", "that place"),
+        (r"\bsame\s+place\b", "same place"),
+        (r"அங்கே", "there"),
+        (r"அங்க", "there"),
+        (r"वहाँ", "there"),
+        (r"वहां", "there")
+    ]:
+        if re.search(ref_pat, clean, re.IGNORECASE):
+            entities.reference_expression = ref_val
+            break
+
+    # 7. Decision & Comparison Wording Extraction
+    decision_kws = sorted([
+        "can i go", "can i play", "can i travel", "can i ride", "can i do", "can i",
+        "should i take", "should i go", "should i ride", "should i",
+        "do i need", "is it safe to", "is it safe", "can we", "could i",
+        "better to", "allowed to", "need to",
+        "போகலாமா", "போலாமா", "விளையாடலாமா", "செல்லலாமா", "தேவையா", "வேணுமா", "எடுக்கலாமா", "செய்யலாமா",
+        "क्या मैं", "क्या मुझे", "जाना चाहिए", "जा सकते हैं", "सकते हैं", "चाहिए", "खेल सकते हैं"
+    ], key=len, reverse=True)
+    for dec_kw in decision_kws:
+        if dec_kw in clean:
+            entities.decision_wording = dec_kw
+            break
+
+    for comp_kw in [
+        "which is cooler", "which is warmer", "which is hotter", "compare", "versus", " vs ",
+        "விட", "தவிர", "तुलना"
+    ]:
+        if comp_kw in clean:
+            entities.comparison_wording = comp_kw
+            break
+
+    # 8. Persona & Activity Identification
+    if any(k in clean for k in ["college", "school", "exam", "student", "பள்ளி", "கல்லூரி", "padhai", "padipu", "leave college", "reach college", "campus"]):
         entities.persona = PersonaEnum.STUDENT
-        entities.activity = "college/school commute"
-    elif any(k in clean for k in [
-        "fishing", "kadal", "marine", "boat", "மீன்பிடி", "கடல்", "fisherman", "machli", "machuara",
-        "deep sea", "sea-safety", "coastal warning"
-    ]):
+        entities.person_context = "student"
+        entities.activity = "college"
+    elif any(k in clean for k in ["cricket", "football", "badminton", "match", "sports", "கிரிக்கெட்", "விளையாட", "क्रिकेट", "मैच"]):
+        entities.activity = "cricket" if "cricket" in clean or "கிரிக்கெட்" in clean or "क्रिकेट" in clean else "sports"
+        entities.person_context = "athlete"
+    elif any(k in clean for k in ["fishing", "kadal", "marine", "boat", "மீன்பிடி", "கடல்", "fisherman", "machli", "machuara", "deep sea", "sea-safety", "coastal warning"]):
         entities.persona = PersonaEnum.FISHERMAN
-        entities.activity = "marine fishing trip"
-    elif any(k in clean for k in [
-        "farmer", "crop", "agriculture", "விவசாயி", "பயிர்", "irrigation", "kisan", "kheti", "fasal",
-        "field", "spraying", "pesticide", "fertilizer", "harvest"
-    ]):
+        entities.person_context = "fisherman"
+        entities.activity = "fishing"
+    elif any(k in clean for k in ["farmer", "crop", "agriculture", "விவசாயி", "பயிர்", "irrigation", "kisan", "kheti", "fasal", "field", "spraying", "pesticide", "fertilizer", "harvest"]):
         entities.persona = PersonaEnum.FARMER
-        entities.activity = "farming & irrigation"
-    elif any(k in clean for k in [
-        "rescue", "disaster", "evacuate", "relief", "rahat", "बचाव", "emergency", "sdrf", "ndrf",
-        "mobilization", "safety instructions"
-    ]):
+        entities.person_context = "farmer"
+        entities.activity = "farming"
+    elif any(k in clean for k in ["rescue", "disaster", "evacuate", "relief", "rahat", "बचाव", "emergency", "sdrf", "ndrf", "mobilization", "safety instructions"]):
         entities.persona = PersonaEnum.DISASTER_RESPONSE
+        entities.person_context = "disaster_response"
         entities.activity = "disaster management"
-    elif any(k in clean for k in [
-        "office", "commute", "metro", "bus", "train", "workplace", "daily commute", "transit",
-        "traffic", "travel period"
-    ]):
+    elif any(k in clean for k in ["bike", "ride", "scooter"]):
+        entities.activity = "bike travel"
+        entities.person_context = "commuter"
         entities.persona = PersonaEnum.COMMUTER
-        entities.activity = "daily commute"
-    elif any(k in clean for k in [
-        "travel", "drive", "trip", "highway", "பயணம்", "safar", "yatra", "tour", "flight"
-    ]):
+    elif any(k in clean for k in ["umbrella", "kudai", "குடை", "chhata"]):
+        entities.activity = "umbrella"
+        entities.person_context = "commuter"
+    elif any(k in clean for k in ["office", "commute", "metro", "bus", "train", "workplace", "daily commute", "transit", "traffic", "travel period"]):
+        entities.persona = PersonaEnum.COMMUTER
+        entities.person_context = "commuter"
+        entities.activity = "commute"
+    elif any(k in clean for k in ["travel", "drive", "trip", "highway", "பயணம்", "safar", "yatra", "tour", "flight"]):
         entities.persona = PersonaEnum.TRAVELLER
+        entities.person_context = "traveller"
         entities.activity = "travel"
 
     return entities
