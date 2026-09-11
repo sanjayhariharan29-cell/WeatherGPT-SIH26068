@@ -11,6 +11,8 @@ from sqlalchemy.orm import Session
 
 from backend.config.logging import logger
 from backend.db.session import get_db
+from backend.db.models import User
+from backend.core.security import get_optional_current_user
 from ai.voice import (
     VoiceAIService,
     VoiceError,
@@ -34,6 +36,8 @@ async def voice_query(
     language: Optional[str] = Form(None),
     persona: str = Form("student"),
     location_name: str = Form("Coimbatore"),
+    conversation_id: Optional[str] = Form(None),
+    current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db)
 ):
     """Processes voice audio or speech transcripts through the AI intelligence pipeline."""
@@ -54,6 +58,7 @@ async def voice_query(
             )
 
     try:
+        user_id = str(current_user.id) if current_user else None
         voice_result = await _voice_service.process_voice_query(
             audio_bytes=audio_bytes,
             filename=filename,
@@ -62,6 +67,8 @@ async def voice_query(
             language=language,
             persona=persona,
             location_name=location_name,
+            conversation_id=conversation_id,
+            user_id=user_id,
             db=db
         )
         return voice_result.model_dump()

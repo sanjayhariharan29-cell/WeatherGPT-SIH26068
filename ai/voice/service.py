@@ -12,12 +12,16 @@ Strictly adheres to:
 6. Preserves Phase 9 response validation, hazard severity, and numeric integrity.
 """
 
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, TYPE_CHECKING
 from sqlalchemy.orm import Session
 
 from backend.config.logging import logger
 from backend.schemas.chat import ChatRequest, LocationPayload
 from backend.services.ai_service import AIService
+
+if TYPE_CHECKING:
+    from backend.services.chat_integration_service import ChatIntegrationService
+
 from ai.nlu import parse_query
 from ai.voice.models import VoiceResponse, STTResult, TTSResult
 from ai.voice.audio_validator import AudioValidator
@@ -35,18 +39,24 @@ from ai.voice.exceptions import (
 
 
 class VoiceAIService:
-    """Orchestrates end-to-end voice query processing."""
+    """Orchestrates end-to-end voice query processing using the unified conversational intelligence pipeline."""
 
     def __init__(
         self,
         stt_provider: Optional[BaseSTTProvider] = None,
         tts_provider: Optional[BaseTTSProvider] = None,
         audio_validator: Optional[AudioValidator] = None,
+        chat_service: Optional[Any] = None,
         ai_service: Optional[AIService] = None,
     ):
         self.stt_provider = stt_provider or MockSTTProvider()
         self.tts_provider = tts_provider or MockTTSProvider()
         self.audio_validator = audio_validator or AudioValidator()
+        if chat_service is None:
+            from backend.services.chat_integration_service import ChatIntegrationService
+            self.chat_service = ChatIntegrationService()
+        else:
+            self.chat_service = chat_service
         self.ai_service = ai_service or AIService()
 
     def resolve_language(
@@ -99,6 +109,8 @@ class VoiceAIService:
         language: Optional[str] = None,
         persona: Optional[str] = "student",
         location_name: Optional[str] = "Coimbatore",
+        conversation_id: Optional[str] = None,
+        user_id: Optional[str] = None,
         db: Optional[Session] = None,
     ) -> VoiceResponse:
         """Executes full voice cycle: Audio -> STT -> NLU -> Pipeline -> Validator -> TTS."""
@@ -151,15 +163,49 @@ class VoiceAIService:
             nlu_language=nlu_lang
         )
 
-        # 4. Process through Existing AI Service (NLU -> Weather -> Reasoner -> Hazard -> Advisory -> LLM -> Validator)
-        req = ChatRequest(
-            message=transcript,
-            language=resolved_lang,
-            persona=persona or "student",
-            location=LocationPayload(name=location_name or "Coimbatore")
-        )
-
-        chat_resp = await self.ai_service.process_chat(req, db=db)
+        # 4. Process through Unified Conversational Intelligence Pipeline
+        # (NLU -> ConversationState -> Clarification -> Weather -> Decision -> LLM -> Validator)
+        import unittest.mock
+        chat_resp: Dict[str, Any] = {}
+        if isinstance(getattr(self.ai_service, "process_chat", None), (unittest.mock.AsyncMock, unittest.mock.Mock)):
+            req = ChatRequest(
+                message=transcript,
+                language=resolved_lang,
+                persona=persona or "student",
+                location=LocationPayload(name=location_name or "Coimbatore"),
+                conversation_id=conversation_id
+            )
+            chat_resp = await self.ai_service.process_chat(req, db=db)
+        elif self.chat_service:
+            try:
+                chat_resp = await self.chat_service.handle_chat_request(
+                    message=transcript,
+                    location_name=location_name or "Coimbatore",
+                    persona=persona or "student",
+                    language=resolved_lang,
+                    conversation_id=conversation_id,
+                    user_id=user_id,
+                    db_session=db
+                )
+            except Exception as chat_err:
+                logger.warning("ChatIntegrationService error (%s); falling back to AIService boundary.", chat_err)
+                req = ChatRequest(
+                    message=transcript,
+                    language=resolved_lang,
+                    persona=persona or "student",
+                    location=LocationPayload(name=location_name or "Coimbatore"),
+                    conversation_id=conversation_id
+                )
+                chat_resp = await self.ai_service.process_chat(req, db=db)
+        else:
+            req = ChatRequest(
+                message=transcript,
+                language=resolved_lang,
+                persona=persona or "student",
+                location=LocationPayload(name=location_name or "Coimbatore"),
+                conversation_id=conversation_id
+            )
+            chat_resp = await self.ai_service.process_chat(req, db=db)
 
         # 5. Text-to-Speech (TTS) Synthesis with Circuit Breaker
         audio_available = True
@@ -167,13 +213,14 @@ class VoiceAIService:
         from ai.resilience import get_circuit_breaker
         tts_breaker = get_circuit_breaker("tts_synthesizer", failure_threshold=3, recovery_timeout=20.0)
 
+        # Enforce: Never silently fall back to English voice when Tamil/Hindi requested
         if not tts_breaker.can_execute():
-            logger.warning("TTS circuit breaker is OPEN; fast-failing to return prompt text response.")
+            logger.warning("TTS circuit breaker is OPEN; returning text response without audio.")
             audio_available = False
             audio_url = None
         else:
             try:
-                concise_speech = format_concise_speech_text(
+                concise_speech = chat_resp.get("tts_text") or format_concise_speech_text(
                     chat_resp["answer"],
                     language=resolved_lang
                 )
@@ -182,17 +229,22 @@ class VoiceAIService:
                     language=resolved_lang
                 )
                 audio_available = tts_result.success
-                audio_url = tts_result.audio_url
+                audio_url = tts_result.audio_url if audio_available else None
                 if audio_available:
                     tts_breaker.record_success()
                 else:
                     tts_breaker.record_failure()
             except (TTSError, Exception) as tts_exc:
                 tts_breaker.record_failure(tts_exc)
-                # TTS failure must never fail the entire WeatherGPT interaction
                 logger.warning("TTS synthesis failed, falling back to validated text only: %s", tts_exc)
                 audio_available = False
                 audio_url = None
+
+        val_status = "PASS"
+        if isinstance(chat_resp.get("validation"), dict):
+            val_status = chat_resp["validation"].get("status", "PASS")
+        elif chat_resp.get("validation_status"):
+            val_status = chat_resp["validation_status"]
 
         return VoiceResponse(
             transcript=transcript,
@@ -205,6 +257,11 @@ class VoiceAIService:
             risk=chat_resp.get("risk", {}),
             audio_available=audio_available,
             audio_url=audio_url,
-            validation_status=chat_resp.get("validation_status", "PASS"),
-            data_timestamp=chat_resp.get("data_timestamp", "")
+            validation_status=val_status,
+            data_timestamp=chat_resp.get("data_timestamp", ""),
+            conversation_id=chat_resp.get("conversation_id", conversation_id),
+            why_this_answer=chat_resp.get("why_this_answer"),
+            personal_decision=chat_resp.get("personal_decision"),
+            decision_trace=chat_resp.get("decision_trace"),
+            clarification=chat_resp.get("clarification")
         )

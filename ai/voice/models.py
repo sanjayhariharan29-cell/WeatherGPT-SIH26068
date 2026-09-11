@@ -52,3 +52,8 @@ class VoiceResponse(BaseModel):
     audio_url: Optional[str] = Field(default="simulated_tts_audio.mp3", description="Generated audio output reference")
     validation_status: str = Field(default="PASS", description="Validation status from Phase 9 guard")
     data_timestamp: str = Field(description="Observation data timestamp")
+    conversation_id: Optional[str] = Field(default=None, description="Conversation session UUID for conversational state continuity")
+    why_this_answer: Optional[Dict[str, Any]] = Field(default=None, description="Structured explainability path for evidence, freshness, and sources")
+    personal_decision: Optional[Dict[str, Any]] = Field(default=None, description="Deterministic personal decision result")
+    decision_trace: Optional[Dict[str, Any]] = Field(default=None, description="Detailed decision factors and reasoning trace")
+    clarification: Optional[Dict[str, Any]] = Field(default=None, description="Clarification state if more information needed")

@@ -2402,6 +2402,7 @@ function loadSavedLocationsList() {
 
 // 10. Conversational Chat Engine (Anti-Hallucination & Reasoning Display)
 let isSendingChatMessage = false;
+let currentChatConversationId = null;
 
 function escapeHTML(str) {
   if (!str) return "";
@@ -2466,7 +2467,7 @@ function sendQuickQuery(queryText) {
   handleUserSend();
 }
 
-async function handleUserSend() {
+async function handleUserSend(isVoice = false) {
   if (isSendingChatMessage) return; // Anti-duplicate send protection
 
   const input = document.getElementById("chatInput");
@@ -2488,10 +2489,21 @@ async function handleUserSend() {
   const typingId = showTypingIndicator();
 
   try {
-    const data = await window.apiClient.sendChatMessage(text, persona, location, null, currentLanguage);
+    const data = await window.apiClient.sendChatMessage(
+      text,
+      persona,
+      location,
+      currentChatConversationId,
+      currentLanguage
+    );
+    if (data && data.conversation_id) {
+      currentChatConversationId = data.conversation_id;
+    }
     removeTypingIndicator(typingId);
     appendBotMessage(data);
-    if (data.answer) speakText(data.answer);
+    if (isVoice && data.answer) {
+      speakText(data.answer, data.language || currentLanguage);
+    }
   } catch (err) {
     removeTypingIndicator(typingId);
     appendFailedMessage(text, persona, location);
@@ -2956,75 +2968,99 @@ function extractConciseSpeech(text, targetLang) {
 
 function handleVoiceClick() {
   const voiceBtn = document.getElementById("voiceBtn");
+  const chatInput = document.getElementById("chatInput");
 
-  if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
-    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
-    const recognition = new SpeechRecognition();
-    const persona = document.getElementById("personaSelect")?.value;
-    
-    // Resolve speech recognition language
-    let speechLang = "en-IN";
-    const curLang = String(currentLanguage || "").toLowerCase();
-    if (curLang === "hi" || curLang === "hinglish") {
-      speechLang = "hi-IN";
-    } else if (curLang === "ta" || curLang === "tanglish" || persona === "farmer" || persona === "fisherman") {
-      speechLang = "ta-IN";
-    }
-    recognition.lang = speechLang;
-
-    if (voiceBtn) {
-      voiceBtn.classList.add("listening");
-      voiceBtn.setAttribute("aria-label", "Microphone listening. Speak now.");
-      voiceBtn.innerHTML = '<span class="material-symbols-rounded" style="color:var(--alert-red);">graphic_eq</span>';
-    }
-    
-    showMobileNotice("Microphone active... Speak your weather query clearly.", "info", 3000);
-    recognition.start();
-
-    recognition.onresult = (event) => {
-      const transcript = event.results[0][0].transcript;
-      const chatInput = document.getElementById("chatInput");
-      if (chatInput) chatInput.value = transcript;
-      if (voiceBtn) {
-        voiceBtn.classList.remove("listening");
-        voiceBtn.setAttribute("aria-label", "Voice input");
-        voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
-      }
-      handleUserSend();
-    };
-
-    recognition.onerror = (event) => {
-      if (voiceBtn) {
-        voiceBtn.classList.remove("listening");
-        voiceBtn.setAttribute("aria-label", "Voice input");
-        voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
-      }
-      const errType = event?.error || "unknown";
-      if (errType === "not-allowed" || errType === "service-not-allowed") {
-        showMobileNotice("Microphone permission denied. Please enable microphone permissions or type your question.", "warning", 5000);
-      } else if (errType === "no-speech") {
-        showMobileNotice("No speech detected. Please try speaking again or type your query.", "info", 3000);
-      } else if (errType === "network") {
-        showMobileNotice("Voice network unavailable. Please type your query in the chat input.", "warning", 4000);
-      } else {
-        showMobileNotice("Voice recognition interrupted. Please type your query in the chat box.", "info", 3000);
-      }
-      const chatInput = document.getElementById("chatInput");
-      if (chatInput) chatInput.focus();
-    };
-
-    recognition.onend = () => {
-      if (voiceBtn) {
-        voiceBtn.classList.remove("listening");
-        voiceBtn.setAttribute("aria-label", "Voice input");
-        voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
-      }
-    };
-  } else {
-    showMobileNotice("Speech recognition is not supported in this browser. Please type your query.", "warning", 4000);
-    const chatInput = document.getElementById("chatInput");
+  if (!('webkitSpeechRecognition' in window || 'SpeechRecognition' in window)) {
+    showMobileNotice("Speech recognition is not supported in this browser or device. Please type your query in the chat box.", "warning", 5000);
     if (chatInput) chatInput.focus();
+    return;
   }
+
+  const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+  const recognition = new SpeechRecognition();
+  const persona = document.getElementById("personaSelect")?.value;
+
+  // Resolve speech recognition language strictly matching current UI language / persona
+  let speechLang = "en-IN";
+  const curLang = String(currentLanguage || "").toLowerCase();
+  if (curLang === "hi" || curLang === "hinglish") {
+    speechLang = "hi-IN";
+  } else if (curLang === "ta" || curLang === "tanglish" || persona === "farmer" || persona === "fisherman") {
+    speechLang = "ta-IN";
+  }
+  recognition.lang = speechLang;
+  recognition.interimResults = false;
+  recognition.maxAlternatives = 1;
+
+  if (voiceBtn) {
+    voiceBtn.classList.add("listening");
+    voiceBtn.setAttribute("aria-label", "Microphone listening. Speak now.");
+    voiceBtn.innerHTML = '<span class="material-symbols-rounded" style="color:var(--alert-red);">graphic_eq</span>';
+  }
+
+  const langLabel = speechLang.startsWith("ta") ? "Tamil" : (speechLang.startsWith("hi") ? "Hindi" : "English");
+  showMobileNotice(`Microphone listening (${langLabel})... Speak your weather query clearly.`, "info", 3000);
+
+  try {
+    recognition.start();
+  } catch (startErr) {
+    console.warn("Speech recognition failed to start or was already running:", startErr);
+    if (voiceBtn) {
+      voiceBtn.classList.remove("listening");
+      voiceBtn.setAttribute("aria-label", "Voice input");
+      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+    }
+    showMobileNotice("Microphone already active or busy. Please try speaking again.", "info", 3000);
+    return;
+  }
+
+  recognition.onresult = (event) => {
+    if (voiceBtn) {
+      voiceBtn.classList.remove("listening");
+      voiceBtn.setAttribute("aria-label", "Voice input");
+      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+    }
+    const transcript = event?.results?.[0]?.[0]?.transcript?.trim() || "";
+    if (!transcript) {
+      showMobileNotice("Empty speech transcript received. Please speak clearly or type your question.", "info", 3500);
+      if (chatInput) chatInput.focus();
+      return;
+    }
+    if (chatInput) chatInput.value = transcript;
+    // Route directly through the canonical conversational intelligence pipeline with TTS enabled
+    handleUserSend(true);
+  };
+
+  recognition.onerror = (event) => {
+    if (voiceBtn) {
+      voiceBtn.classList.remove("listening");
+      voiceBtn.setAttribute("aria-label", "Voice input");
+      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+    }
+    const errType = event?.error || "unknown";
+    if (errType === "not-allowed" || errType === "service-not-allowed") {
+      showMobileNotice("Microphone permission denied. Please grant microphone access in your browser or Android app settings.", "warning", 6000);
+    } else if (errType === "no-speech") {
+      showMobileNotice("No speech detected. Please speak into the microphone or type your query.", "info", 3500);
+    } else if (errType === "network") {
+      showMobileNotice("Speech recognition network error. Please check your connection or type your query.", "warning", 4500);
+    } else if (errType === "language-not-supported") {
+      showMobileNotice(`Speech recognition for ${langLabel} (${speechLang}) is not supported on this device. Install voice data in Android settings.`, "warning", 6000);
+    } else if (errType === "aborted") {
+      console.info("Voice recognition aborted by user or session.");
+    } else {
+      showMobileNotice(`Voice recognition interrupted (${errType}). Please type your query in the chat box.`, "info", 3500);
+    }
+    if (chatInput) chatInput.focus();
+  };
+
+  recognition.onend = () => {
+    if (voiceBtn) {
+      voiceBtn.classList.remove("listening");
+      voiceBtn.setAttribute("aria-label", "Voice input");
+      voiceBtn.innerHTML = '<span class="material-symbols-rounded">mic</span>';
+    }
+  };
 }
 
 function speakText(text, lang) {
@@ -3121,6 +3157,8 @@ window.resetConversationContext = function() {
   if ('speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
+
+  currentChatConversationId = null;
 
   // Preserve initial welcome message bubble (first child), remove subsequent dialogue turns
   const bubbles = history.querySelectorAll(".msg-bubble");
