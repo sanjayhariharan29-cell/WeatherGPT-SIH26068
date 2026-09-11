@@ -1,12 +1,14 @@
 // WeatherGPT Mobile Service Worker
-const CACHE_NAME = "weathergpt-mobile-v1";
+const PREVIOUS_CACHE = "weathergpt-mobile-v1";
+const CACHE_NAME = "weathergpt-mobile-v2-skyzen";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",
   "/styles.css",
   "/app.js",
   "/mobile/apiClient.js",
-  "/manifest.json"
+  "/manifest.json",
+  "/assets/skyzen_official_logo.png"
 ];
 
 // Install Event — Cache Core App Shell
@@ -69,22 +71,18 @@ self.addEventListener("fetch", (event) => {
     return;
   }
 
-  // App Shell & Static Assets: Stale-While-Revalidate
+  // App Shell & Static Assets: Network First with Cache Fallback
   event.respondWith(
-    caches.match(event.request).then((cachedResponse) => {
-      const fetchPromise = fetch(event.request)
-        .then((networkResponse) => {
-          if (networkResponse && networkResponse.status === 200) {
-            const responseToCache = networkResponse.clone();
-            caches.open(CACHE_NAME).then((cache) => {
-              cache.put(event.request, responseToCache);
-            });
-          }
-          return networkResponse;
-        })
-        .catch(() => cachedResponse);
-
-      return cachedResponse || fetchPromise;
-    })
+    fetch(event.request)
+      .then((networkResponse) => {
+        if (networkResponse && networkResponse.status === 200) {
+          const responseToCache = networkResponse.clone();
+          caches.open(CACHE_NAME).then((cache) => {
+            cache.put(event.request, responseToCache);
+          });
+        }
+        return networkResponse;
+      })
+      .catch(() => caches.match(event.request))
   );
 });

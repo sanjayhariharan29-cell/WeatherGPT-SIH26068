@@ -1826,8 +1826,13 @@ async function loadCurrentWeather(showLoader = false) {
     await loadAirQuality(location);
 
     if (typeof mapInstance !== "undefined" && mapInstance) {
-      loadMapTelemetry();
-      recenterMapToSelected(location);
+      try {
+        if (typeof recenterMapToSelected === "function") {
+          recenterMapToSelected(location);
+        }
+      } catch (mapErr) {
+        console.warn("Map recenter error (non-fatal):", mapErr);
+      }
     }
   } catch (err) {
     console.warn("Weather telemetry fetch error, checking local cache:", err);
@@ -1852,17 +1857,28 @@ async function loadCurrentWeather(showLoader = false) {
         await loadAirQuality(location);
 
         if (typeof mapInstance !== "undefined" && mapInstance) {
-          loadMapTelemetry();
-          recenterMapToSelected(location);
+          try {
+            if (typeof recenterMapToSelected === "function") {
+              recenterMapToSelected(location);
+            }
+          } catch (mapErr) {
+            console.warn("Map recenter error (non-fatal):", mapErr);
+          }
         }
       } catch (e) {
         if (errorCard) {
-          document.getElementById("dashboardErrorText").textContent = err.message || "Failed to connect to weather backend.";
+          const isJsException = err && err.message && (err.message.includes("is not defined") || err.message.includes("Cannot read propert"));
+          document.getElementById("dashboardErrorText").textContent = isJsException
+            ? "Weather service is currently refreshing. Please retry."
+            : (err.message || "Failed to connect to weather backend.");
           errorCard.classList.remove("hidden");
         }
       }
     } else if (errorCard) {
-      document.getElementById("dashboardErrorText").textContent = err.message || "Failed to connect to weather backend.";
+      const isJsException = err && err.message && (err.message.includes("is not defined") || err.message.includes("Cannot read propert"));
+      document.getElementById("dashboardErrorText").textContent = isJsException
+        ? "Weather service is currently refreshing. Please retry."
+        : (err.message || "Failed to connect to weather backend.");
       errorCard.classList.remove("hidden");
     }
   } finally {
@@ -1871,6 +1887,14 @@ async function loadCurrentWeather(showLoader = false) {
     if (refreshBtn) refreshBtn.style.animation = "none";
   }
 }
+
+// Backward-compatibility and resilience definition for loadMapTelemetry
+function loadMapTelemetry() {
+  if (typeof loadMonitoredLocationsTelemetry === "function") {
+    return loadMonitoredLocationsTelemetry();
+  }
+}
+window.loadMapTelemetry = loadMapTelemetry;
 
 function renderWeatherCard(data) {
   if (!data) return;
@@ -2019,6 +2043,12 @@ function renderWeatherCard(data) {
   if (humElem) {
     humElem.textContent = (data.weather?.humidity !== undefined && data.weather?.humidity !== null)
       ? `${data.weather.humidity}%` : "--";
+  }
+
+  const visElem = document.getElementById("visibilityVal");
+  if (visElem) {
+    visElem.textContent = (data.weather?.visibility !== undefined && data.weather?.visibility !== null)
+      ? `${data.weather.visibility} km` : "--";
   }
 
   // Consensus / Agreement
@@ -2399,6 +2429,8 @@ async function loadAlerts(location) {
 
       if (titleElem) titleElem.textContent = heroAlert.title || "Weather Warning";
       if (descElem) descElem.textContent = heroAlert.description || "No description provided.";
+      const areaElem = document.getElementById("alertAffectedArea");
+      if (areaElem) areaElem.textContent = heroAlert.area || heroAlert.district || location;
       if (badgeText) {
         if (isFixture) {
           badgeText.textContent = `OFFICIAL IMD WARNING [TEST FIXTURE] (${severityStr})`;
@@ -2675,6 +2707,44 @@ async function loadAirQuality(location) {
         });
       }
     }
+
+    // Synchronize Home AQI Card Widget
+    const homeAqiVal = document.getElementById("homeAqiVal");
+    const homeAqiCat = document.getElementById("homeAqiCategory");
+    const homeAqiCircle = document.getElementById("homeAqiCircle");
+    const homeAqiSum = document.getElementById("homeAqiSummary");
+    const homeAqiSrc = document.getElementById("homeAqiSourceTag");
+    const homePm25 = document.getElementById("homePm25Val");
+    const homePm10 = document.getElementById("homePm10Val");
+    const homeNo2 = document.getElementById("homeNo2Val");
+
+    if (homeAqiSrc) {
+      homeAqiSrc.textContent = aqiData.is_official_cpcb ? "Source: CPCB (Official)" : `Source: ${aqiData.source || "Open-Meteo"}`;
+    }
+    if (homeAqiVal) homeAqiVal.textContent = (aqiData.aqi !== null && aqiData.aqi !== undefined) ? aqiData.aqi : "--";
+    if (homeAqiCat) {
+      homeAqiCat.textContent = aqiData.category || "Good";
+      if (aqiData.aqi <= 50) {
+        homeAqiCat.style.background = "#F0FDF4";
+        homeAqiCat.style.color = "#15803D";
+        if (homeAqiCircle) homeAqiCircle.className = "home-aqi-circle good";
+      } else if (aqiData.aqi <= 100) {
+        homeAqiCat.style.background = "#FFFBEB";
+        homeAqiCat.style.color = "#B45309";
+        if (homeAqiCircle) homeAqiCircle.className = "home-aqi-circle moderate";
+      } else {
+        homeAqiCat.style.background = "#FEF2F2";
+        homeAqiCat.style.color = "#B91C1C";
+        if (homeAqiCircle) homeAqiCircle.className = "home-aqi-circle unhealthy";
+      }
+    }
+    if (homeAqiSum) {
+      const defaultAdv = aqiData.aqi <= 50 ? "Air quality is satisfactory. Ideal for outdoor activity." : "Air quality is moderate. Sensitive groups should monitor exertion.";
+      homeAqiSum.textContent = aqiData.summary || aqiData.health_recommendations || defaultAdv;
+    }
+    if (homePm25 && aqiData.pollutants) homePm25.textContent = aqiData.pollutants.pm2_5 !== undefined ? `${aqiData.pollutants.pm2_5} µg/m³` : "--";
+    if (homePm10 && aqiData.pollutants) homePm10.textContent = aqiData.pollutants.pm10 !== undefined ? `${aqiData.pollutants.pm10} µg/m³` : "--";
+    if (homeNo2 && aqiData.pollutants) homeNo2.textContent = aqiData.pollutants.no2 !== undefined ? `${aqiData.pollutants.no2} µg/m³` : "--";
   } catch (e) {
     console.warn("Could not fetch air quality telemetry:", e);
   }

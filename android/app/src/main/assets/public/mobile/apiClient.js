@@ -18,7 +18,7 @@ class WeatherGPTApiClient {
       this.baseUrl = "/api/v1";
     }
     this.tokenKey = "weathergpt_auth_token";
-    this.timeoutMs = 10000;
+    this.timeoutMs = 35000;
   }
 
   isNativeAndroid() {
@@ -71,12 +71,14 @@ class WeatherGPTApiClient {
   }
 
   // Request Headers Helper
-  getHeaders(customHeaders = {}) {
+  getHeaders(customHeaders = {}, isFormData = false) {
     const headers = {
-      "Content-Type": "application/json",
       "X-Request-ID": `mob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       ...customHeaders
     };
+    if (!isFormData && !headers["Content-Type"]) {
+      headers["Content-Type"] = "application/json";
+    }
 
     const token = this.getToken();
     if (token) {
@@ -100,9 +102,10 @@ class WeatherGPTApiClient {
     const controller = new AbortController();
     const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
+    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
     const config = {
       ...options,
-      headers: this.getHeaders(options.headers),
+      headers: this.getHeaders(options.headers, isFormData),
       signal: controller.signal
     };
 
@@ -152,6 +155,17 @@ class WeatherGPTApiClient {
     const res = await this.request("/auth/login", {
       method: "POST",
       body: JSON.stringify({ email, password })
+    });
+    if (res && res.access_token) {
+      this.setToken(res.access_token);
+    }
+    return res;
+  }
+
+  async demoLogin() {
+    const res = await this.request("/auth/demo", {
+      method: "POST",
+      body: JSON.stringify({})
     });
     if (res && res.access_token) {
       this.setToken(res.access_token);
@@ -317,12 +331,26 @@ class WeatherGPTApiClient {
   }
 
   // Conversational Chat API Methods
-  async sendChatMessage(message, persona = "student", locationName = "Coimbatore", conversationId = null, language = "ta") {
+  async sendChatMessage(message, persona = "student", locationInput = "Coimbatore", conversationId = null, language = "ta") {
+    let locPayload = { name: "Coimbatore" };
+    if (typeof locationInput === "object" && locationInput !== null) {
+      locPayload = {
+        name: locationInput.name || "Coimbatore",
+        latitude: locationInput.latitude ?? locationInput.lat ?? null,
+        longitude: locationInput.longitude ?? locationInput.lon ?? null,
+        source_type: locationInput.source_type || locationInput.type || "manual",
+        accuracy: locationInput.accuracy ?? null,
+        is_stale: Boolean(locationInput.isStale || locationInput.is_stale)
+      };
+    } else if (typeof locationInput === "string") {
+      locPayload = { name: locationInput };
+    }
+
     const payload = {
       message,
       persona,
       language,
-      location: { name: locationName }
+      location: locPayload
     };
     if (conversationId) {
       payload.conversation_id = conversationId;
@@ -330,6 +358,13 @@ class WeatherGPTApiClient {
     return await this.request("/chat", {
       method: "POST",
       body: JSON.stringify(payload)
+    });
+  }
+
+  async sendVoiceQuery(formData) {
+    return await this.request("/voice/query", {
+      method: "POST",
+      body: formData
     });
   }
 
