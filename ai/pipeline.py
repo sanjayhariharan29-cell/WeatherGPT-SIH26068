@@ -766,6 +766,17 @@ class WeatherGPTPipeline:
             data_types_used=data_types_used,
         )
 
+        from ai.decision import build_why_this_answer
+        personal_dec_data = getattr(advisory, "personal_decision", None)
+        why_this_answer = build_why_this_answer(
+            reasoning=reasoning,
+            weather=weather,
+            forecast=forecast,
+            advisory=advisory,
+            personal_decision=personal_dec_data,
+            language=target_lang,
+        )
+
         # Return Canonical Payload conforming to docs/08_Api_Contracts.md & Phase 16/19
         return {
             "request_id": request_id,
@@ -789,7 +800,8 @@ class WeatherGPTPipeline:
             "alerts": warnings_list,
             "hazards": hazards_list,
             "advisory": advisory_dict,
-            "personal_decision": getattr(advisory, "personal_decision", None),
+            "personal_decision": personal_dec_data,
+            "why_this_answer": why_this_answer,
             "source": ", ".join(reasoning.sources_used) if reasoning.sources_used else "None",
             "sources": reasoning.sources_used,
             "data_quality": data_quality_dict,

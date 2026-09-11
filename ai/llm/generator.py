@@ -161,7 +161,15 @@ class GroundedLLMGenerator:
         target_language: Optional[LanguageEnum] = None,
         historical_weather: Optional[HistoricalWeatherDataset] = None
     ) -> str:
-        """Deterministic, grounded template generator for offline/resilience/guard failure use."""
+        """Deterministic personal assistant generator for offline/resilience/guard failure use.
+
+        Follows SkyZen Personal Assistant rules:
+        - 1–3 short sentences.
+        - Action first answering the user's actual question.
+        - Only include weather variables relevant to the question.
+        - Never dump decision traces, raw JSON, or telemetry tables into main answer.
+        - Prominently acknowledge official warnings when active.
+        """
         from ai.llm.multilingual import resolve_target_language, translate_condition
         if target_language:
             target_lang = target_language
@@ -170,8 +178,6 @@ class GroundedLLMGenerator:
         else:
             target_lang = LanguageEnum.EN
         loc = reasoning.location
-
-        lines: List[str] = []
 
         user_prefix = ""
         prompt_text = context.formatted_prompt if (context and hasattr(context, "formatted_prompt")) else ""
@@ -184,7 +190,7 @@ class GroundedLLMGenerator:
                     user_prefix = f"{fname}, "
 
         # -----------------------------------------------------------------
-        # Historical Weather & Risk Intelligence Handler
+        # 1. Historical Weather Handler (Concise 1-2 Sentences)
         # -----------------------------------------------------------------
         is_historical = False
         if nlu and nlu.intent in (IntentEnum.HISTORICAL_WEATHER, IntentEnum.CLIMATE_TREND):
@@ -208,12 +214,6 @@ class GroundedLLMGenerator:
                         "average_temperature_c": historical_weather.average_temperature_c,
                         "average_annual_rainfall_mm": historical_weather.average_annual_rainfall_mm,
                         "total_rainfall_mm": historical_weather.total_rainfall_mm,
-                        "max_single_day_rainfall_mm": historical_weather.max_single_day_rainfall_mm,
-                        "hottest_month": historical_weather.hottest_month,
-                        "wettest_month": historical_weather.wettest_month,
-                        "weather_patterns": historical_weather.weather_patterns,
-                        "recurring_hazards": historical_weather.recurring_hazards,
-                        "source": historical_weather.source
                     }
                 else:
                     hf = {
@@ -221,7 +221,6 @@ class GroundedLLMGenerator:
                         "location": historical_weather.location.name,
                         "start_date": historical_weather.start_date,
                         "end_date": historical_weather.end_date,
-                        "unavailability_reason": historical_weather.unavailability_reason
                     }
 
             if hf and hf.get("status") == "AVAILABLE":
@@ -230,231 +229,216 @@ class GroundedLLMGenerator:
                 end_d = hf.get("end_date", "")
                 rain_val = hf.get("average_annual_rainfall_mm") or hf.get("total_rainfall_mm")
                 temp_val = hf.get("average_temperature_c")
-                hottest_m = hf.get("hottest_month", "May")
-                wettest_m = hf.get("wettest_month", "November")
-                src_name = hf.get("source", "NASA POWER / IMD Historical Archive")
-
-                user_msg = nlu.original_text.lower() if nlu else ""
-                is_comparison = any(c in user_msg for c in ["unusual compared", "compared to previous", "compared with previous", "different from previous", "higher than normal", "lower than normal"])
 
                 if target_lang == LanguageEnum.TA:
-                    lines.append(f"📊 [வரலாற்று வானிலை தரவு — {h_loc}] (கால அளவு: {start_d} முதல் {end_d} வரை):")
-                    if rain_val is not None:
-                        lines.append(f"• பதிவு செய்யப்பட்ட சராசரி மழை அளவு: {rain_val:.1f} மி.மீ.")
-                    if temp_val is not None:
-                        lines.append(f"• வரலாற்று சராசரி வெப்பநிலை: {temp_val:.1f}°C (அதிகபட்ச வெப்ப மாதம்: {hottest_m}, அதிக மழை மாதம்: {wettest_m}).")
-                    if is_comparison and weather:
-                        curr_rain = weather.rainfall_amount_mm or 0.0
-                        comp_text = "வழக்கத்தை விட அதிகம்" if curr_rain > ((rain_val or 950.0) / 52.0) else "வழக்கமான வரம்பிற்குள் உள்ளது"
-                        lines.append(f"• ஒப்பீடு: தற்போதைய மழைவீழ்ச்சி ({curr_rain:.1f} மி.மீ) வரலாற்று சராசரியுடன் ஒப்பிடும்போது {comp_text}.")
-                    lines.append(f"\nஆலோசனை: {advisory.advisory_text}")
-                    lines.append("\n⚠️ [பாதுகாப்பு குறிப்பு]: வரலாற்று தரவுகள் கடந்த கால பதிவுகளை மட்டுமே குறிக்கின்றன. இன்றைய நிலைமையை தற்போதைய முன்னறிவிப்புகள் மற்றும் அதிகாரப்பூர்வ IMD எச்சரிக்கைகள் மூலம் மதிப்பீடு செய்ய வேண்டும்.")
-                    lines.append(f"\n(தகவல் மூலம்: {src_name})")
-                    return "\n".join(lines)
+                    return f"{h_loc}ல் வரலாற்று சராசரி வெப்பநிலை {temp_val:.1f}°C மற்றும் ஆண்டு மழை அளவு {rain_val:.1f} மி.மீ. இன்றைய முடிவுகளுக்கு நேரலை முன்னறிவிப்புகளைப் பார்க்கவும்."
                 elif target_lang == LanguageEnum.HI:
-                    lines.append(f"📊 [ऐतिहासिक मौसम डेटा — {h_loc}] (अवधि: {start_d} से {end_d}):")
-                    if rain_val is not None:
-                        lines.append(f"• दर्ज औसत वार्षिक वर्षा: {rain_val:.1f} मिमी")
-                    if temp_val is not None:
-                        lines.append(f"• ऐतिहासिक औसत तापमान: {temp_val:.1f}°C (सबसे गर्म महीना: {hottest_m}, सबसे अधिक बारिश: {wettest_m})।")
-                    if is_comparison and weather:
-                        curr_rain = weather.rainfall_amount_mm or 0.0
-                        comp_text = "सामान्य से अधिक" if curr_rain > ((rain_val or 950.0) / 52.0) else "सामान्य सीमा में"
-                        lines.append(f"• तुलना: वर्तमान वर्षा ({curr_rain:.1f} मिमी) ऐतिहासिक औसत की तुलना में {comp_text} है।")
-                    lines.append(f"\nसलाह: {advisory.advisory_text}")
-                    lines.append("\n⚠️ [सुरक्षा नोट]: ऐतिहासिक डेटा केवल पिछले रिकॉर्ड को दर्शाता है। आज की स्थिति का मूल्यांकन वर्तमान पूर्वानुमान और आधिकारिक IMD चेतावनियों के आधार पर किया जाना चाहिए।")
-                    lines.append(f"\n(स्रोत: {src_name})")
-                    return "\n".join(lines)
+                    return f"{h_loc} में ऐतिहासिक औसत तापमान {temp_val:.1f}°C और वार्षिक वर्षा {rain_val:.1f} मिमी दर्ज की गई है। आज की स्थिति के लिए लाइव पूर्वानुमान देखें।"
                 else:
-                    lines.append(f"📊 Historical Weather Intelligence for {h_loc} (Period: {start_d} to {end_d}):")
-                    if rain_val is not None:
-                        lines.append(f"• Recorded Annual Average Precipitation: {rain_val:.1f} mm")
-                    if temp_val is not None:
-                        lines.append(f"• Historical Average Temperature: {temp_val:.1f}°C (Typical peak summer: {hottest_m}, wettest month: {wettest_m})")
-                    if hf.get("max_single_day_rainfall_mm"):
-                        lines.append(f"• Extreme Historical Event: Max single-day rainfall of {hf['max_single_day_rainfall_mm']:.1f} mm recorded.")
-                    if is_comparison and weather:
-                        curr_rain = weather.rainfall_amount_mm or 0.0
-                        benchmark = ((rain_val or 950.0) / 52.0)
-                        comp_desc = f"elevated above typical weekly baseline ({benchmark:.1f} mm)" if curr_rain > benchmark else "within expected seasonal baseline"
-                        lines.append(f"• Seasonal Comparison: Current observed rainfall ({curr_rain:.1f} mm) is {comp_desc}.")
-                    lines.append(f"\nAdvisory: {advisory.advisory_text}")
-                    lines.append("\n⚠️ Safety Notice: Historical records reflect past climate patterns and must not be confused with current conditions. Today's decisions should be evaluated using live forecasts and official IMD warnings.")
-                    lines.append(f"\n(Source: {src_name})")
-                    return "\n".join(lines)
+                    return f"Historically in {h_loc} ({start_d} to {end_d}), average temperature was {temp_val:.1f}°C with {rain_val:.1f} mm average annual rainfall. Today's trip should be guided by live forecasts."
             elif hf and hf.get("status") == "UNAVAILABLE":
                 h_loc = hf.get("location", loc)
-                start_d = hf.get("start_date", "")
-                end_d = hf.get("end_date", "")
-                lines.append(f"Historical weather records for {h_loc} ({start_d} to {end_d}) are currently unavailable in official meteorological archives.")
-                lines.append("SkyZen does not fabricate historical statistics when archive records cannot be retrieved.")
-                lines.append(f"\nAdvisory: {advisory.advisory_text}")
-                lines.append("\nPlease refer to current live weather observations and official IMD forecast warnings.")
-                return "\n".join(lines)
-
-        if target_lang == LanguageEnum.TA:
-            temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "கிடைக்கவில்லை"
-            rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "கிடைக்கவில்லை"
-            cond_str = translate_condition(weather.weather_condition, LanguageEnum.TA) if weather else "கிடைக்கவில்லை"
-
-            if reasoning.active_warnings:
-                alert = reasoning.active_warnings[0]
-                sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
-                affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
-                precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "அதிகாரப்பூர்வ முன்னெச்சரிக்கை நடவடிக்கைகளை உடனடியாக பின்பற்றவும்.")
-                lines.append(f"⚠️ [அதிகாரப்பூர்வ IMD {sev} எச்சரிக்கை] நிலை: செயலில் உள்ளது — {alert.title}")
-                lines.append(f"📍 பாதிக்கப்பட்ட பகுதி: {affected}")
-                lines.append(f"🛡️ முக்கிய பாதுகாப்பு வழிமுறை: {precaution}")
-                lines.append(f"ℹ️ விளக்கம்: {alert.description}")
-
-            if weather and weather.temperature is not None and weather.rain_probability is not None:
-                lines.append(
-                    f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை {temp_str} மற்றும் மழை வாய்ப்பு {rain_str} (வானிலை: {cond_str})."
-                )
-            else:
-                lines.append(
-                    f"{user_prefix}{loc}ல் தற்போதைய தரவு முழுமையாக கிடைக்கவில்லை (வெப்பநிலை: {temp_str}, மழை வாய்ப்பு: {rain_str})."
-                )
-
-            personal_dec = getattr(advisory, "personal_decision", None)
-            if personal_dec and personal_dec.get("concise_answer_ta"):
-                lines.append(f"\nநேரடி ஆலோசனை: {personal_dec['concise_answer_ta']}")
-
-            lines.append(f"\nஆலோசனை: {advisory.advisory_text}")
-
-            if advisory.key_precautions:
-                precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
-                lines.append(f"\nமுக்கிய பாதுகாப்பு வழிகாட்டுதல்கள்:{precautions_str}")
-
-            conf_factors = getattr(reasoning, "consistency_factors", {}) or {}
-            conf_lvl = getattr(reasoning, "confidence_level", None)
-            conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
-            if conf_lvl_str == "LOW":
-                lines.append(f"\nவானிலை முன்னறிவிப்பு நம்பகத்தன்மை குறைவு: கிடைக்கும் வானிலை தகவல் மூலங்கள் வேறுபடுகின்றன.")
-            elif conf_lvl_str == "HIGH":
-                lines.append(f"\nவானிலை முன்னறிவிப்பு நம்பகத்தன்மை அதிகம்: தகவல் மூலங்கள் ஒத்துப் போகின்றன.")
-
-            lines.append(
-                f"\n(தகவல் மூலம்: {', '.join(reasoning.sources_used)} | புதுப்பிக்கப்பட்டது {reasoning.data_age_minutes} நிமிடங்களுக்கு முன் | முன்னறிவிப்பு நிலைத்தன்மை: {reasoning.consistency_score}/100 [{conf_lvl_str}])"
-            )
-        elif target_lang == LanguageEnum.HI:
-            temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "उपलब्ध नहीं"
-            rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "उपलब्ध नहीं"
-            cond_str = translate_condition(weather.weather_condition, LanguageEnum.HI) if weather else "उपलब्ध नहीं"
-
-            if reasoning.active_warnings:
-                alert = reasoning.active_warnings[0]
-                sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
-                affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
-                precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "आधिकारिक सुरक्षा सावधानियों का तुरंत पालन करें।")
-                lines.append(f"⚠️ [आधिकारिक IMD {sev} चेतावनी] स्थिति: सक्रिय — {alert.title}")
-                lines.append(f"📍 प्रभावित क्षेत्र: {affected}")
-                lines.append(f"🛡️ महत्वपूर्ण सुरक्षा निर्देश: {precaution}")
-                lines.append(f"ℹ️ विवरण: {alert.description}")
-
-            if weather and weather.temperature is not None and weather.rain_probability is not None:
-                lines.append(
-                    f"{user_prefix}{loc} में वर्तमान तापमान {temp_str} है और बारिश की संभावना {rain_str} है (मौसम: {cond_str})।"
-                )
-            else:
-                lines.append(
-                    f"{user_prefix}{loc} में वर्तमान अवलोकन डेटा आंशिक रूप से अनुपलब्ध है (तापमान: {temp_str}, बारिश की संभावना: {rain_str})।"
-                )
-
-            personal_dec = getattr(advisory, "personal_decision", None)
-            if personal_dec and personal_dec.get("concise_answer_hi"):
-                lines.append(f"\nप्रत्यक्ष सलाह: {personal_dec['concise_answer_hi']}")
-
-            lines.append(f"\nसलाह: {advisory.advisory_text}")
-
-            if advisory.key_precautions:
-                precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
-                lines.append(f"\nमुख्य सावधानियां:{precautions_str}")
-
-            conf_factors = getattr(reasoning, "consistency_factors", {}) or {}
-            conf_lvl = getattr(reasoning, "confidence_level", None)
-            conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
-            if conf_lvl_str == "LOW":
-                lines.append(f"\nपूर्वानुमान स्थिरता कम है क्योंकि उपलब्ध स्रोत असहमत हैं।")
-            elif conf_lvl_str == "HIGH":
-                lines.append(f"\nपूर्वानुमान स्थिरता उच्च है क्योंकि उपलब्ध स्रोत काफी हद तक सहमत हैं।")
-
-            lines.append(
-                f"\n(स्रोत: {', '.join(reasoning.sources_used)} | {reasoning.data_age_minutes} मिनट पहले अपडेट किया गया | पूर्वानुमान संगति स्कोर: {reasoning.consistency_score}/100 [{conf_lvl_str}])"
-            )
-        else:
-            temp_str = f"{weather.temperature:.0f}°C" if (weather and weather.temperature is not None) else "unavailable"
-            rain_str = f"{weather.rain_probability:.0f}%" if (weather and weather.rain_probability is not None) else "unavailable"
-            cond_str = weather.weather_condition if (weather and weather.weather_condition) else "unavailable"
-
-            if reasoning.active_warnings:
-                alert = reasoning.active_warnings[0]
-                sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
-                affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
-                precaution = advisory.key_precautions[0] if advisory.key_precautions else (advisory.advisory_text or "Follow official civil defense precautions immediately.")
-                lines.append(f"⚠️ [OFFICIAL IMD WARNING] ({sev}) Status: ACTIVE — {alert.title}")
-                lines.append(f"📍 Affected Area: {affected}")
-                lines.append(f"🛡️ Critical Safety Instruction: {precaution}")
-                lines.append(f"ℹ️ Explanation: {alert.description}")
-
-            if weather and weather.temperature is not None and weather.rain_probability is not None:
-                lines.append(
-                    f"{user_prefix}in {loc}, current temperature is {temp_str} with a {rain_str} chance of precipitation ({cond_str})." if user_prefix else f"In {loc}, current temperature is {temp_str} with a {rain_str} chance of precipitation ({cond_str})."
-                )
-            else:
-                lines.append(
-                    f"{user_prefix}in {loc}, current rainfall and live weather conditions could not be verified because live weather data is unavailable." if user_prefix else f"In {loc}, current rainfall and live weather conditions could not be verified because live weather data is unavailable."
-                )
-
-            # Schedule-aware commute decision assistance (deterministic Phase 7)
-            user_text = (nlu.original_text.lower() if nlu and nlu.original_text else "")
-            sched = getattr(advisory, "schedule_decision", None) or {}
-            has_sched = sched.get("has_schedule", False)
-            if has_sched or "umbrella" in user_text or ("8 am" in user_text and "5 pm" in user_text) or "commute" in user_text:
-                dep_t = sched.get("departure_time", "8:00 AM")
-                ret_t = sched.get("return_time", "5:00 PM")
-                if not weather and not sched:
-                    lines.append(f"\nCommute Decision:")
-                    lines.append(f"- Current rainfall and transit conditions could not be verified because live weather data is unavailable.")
-                    lines.append(f"- Recommendation: Check official IMD advisories before departure.")
+                if target_lang == LanguageEnum.TA:
+                    return f"{h_loc}க்கான வரலாற்று வானிலை பதிவுகள் தற்போது அதிகாரப்பூர்வ காப்பகத்தில் கிடைக்கவில்லை."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{h_loc} के लिए ऐतिहासिक मौसम रिकॉर्ड वर्तमान में आधिकारिक संग्रह में उपलब्ध नहीं हैं।"
                 else:
-                    rec_umb = sched.get("recommend_umbrella", False)
-                    if not sched and weather and weather.rain_probability is not None:
-                        rec_umb = (weather.rain_probability >= 30.0 or bool(reasoning.active_warnings))
-                    umbrella_rec = "Yes, carrying an umbrella is recommended" if rec_umb else "Carrying an umbrella is not strictly required for dry morning hours, but recommended if evening clouds build"
-                    risk_lvl = sched.get("departure_risk", "low")
-                    dep_prob_val = sched.get("departure_prob", weather.rain_probability if weather and weather.rain_probability is not None else 0.0)
-                    commute_line = f"{user_prefix}your commute has a {risk_lvl} rain risk around {dep_t}." if user_prefix else f"Your commute has a {risk_lvl} rain risk around {dep_t}."
-                    lines.append(f"\nCommute Decision ({dep_t} Departure — {ret_t} Return):")
-                    lines.append(f"- {commute_line}")
-                    lines.append(f"- Recommendation: {user_prefix}{umbrella_rec.lower() if user_prefix else umbrella_rec}.")
-                    lines.append(f"- Precipitation Risk: {dep_prob_val:.0f}% precipitation chance during transit window.")
+                    return f"Historical weather records for {h_loc} are currently unavailable in official archives."
+
+        # -----------------------------------------------------------------
+        # 2. Priority Safety Case: Active Official IMD Alert
+        # -----------------------------------------------------------------
+        if reasoning.active_warnings:
+            alert = reasoning.active_warnings[0]
+            sev = alert.severity.value.upper() if hasattr(alert.severity, "value") else str(alert.severity).upper()
+            affected = ", ".join(alert.affected_locations) if alert.affected_locations else loc
+            precaution = advisory.key_precautions[0] if advisory.key_precautions else "Stay indoors and follow official safety directives."
 
             personal_dec = getattr(advisory, "personal_decision", None)
-            if personal_dec and personal_dec.get("concise_answer"):
-                lines.append(f"\nDirect Recommendation: {personal_dec['concise_answer']}")
 
-            lines.append(f"\nAdvisory: {advisory.advisory_text}")
+            if target_lang == LanguageEnum.TA:
+                dec_ans = personal_dec.get("concise_answer_ta") if personal_dec else ""
+                if dec_ans and ("எச்சரிக்கை" in dec_ans or "alert" in dec_ans.lower()):
+                    return f"{user_prefix}{dec_ans}"
+                return f"⚠️ [அதிகாரப்பூர்வ IMD {sev} எச்சரிக்கை] {affected} பகுதியில் {alert.title} செயலில் உள்ளது. {dec_ans or precaution}"
+            elif target_lang == LanguageEnum.HI:
+                dec_ans = personal_dec.get("concise_answer_hi") if personal_dec else ""
+                if dec_ans and ("चेतावनी" in dec_ans or "alert" in dec_ans.lower()):
+                    return f"{user_prefix}{dec_ans}"
+                return f"⚠️ [आधिकारिक IMD {sev} चेतावनी] {affected} में {alert.title} सक्रिय है। {dec_ans or precaution}"
+            else:
+                dec_ans = personal_dec.get("concise_answer") if personal_dec else ""
+                if dec_ans and ("warning" in dec_ans.lower() or "alert" in dec_ans.lower()):
+                    return f"{user_prefix}{dec_ans}"
+                return f"An official IMD {sev} alert is active for {affected} ({alert.title}). {dec_ans or precaution}"
 
-            if advisory.key_precautions:
-                precautions_str = "\n- " + "\n- ".join(advisory.key_precautions)
-                lines.append(f"\nRecommended Precautions:{precautions_str}")
+        # -----------------------------------------------------------------
+        # 3. Specific Inquiries (Rain / Temperature) or Personal Decisions
+        # -----------------------------------------------------------------
+        user_text = (nlu.original_text.lower() if nlu and nlu.original_text else "")
+        intent_val = (nlu.intent.value if (nlu and hasattr(nlu.intent, "value")) else str(nlu.intent if nlu else "")).lower()
 
-            # Phase 9: Forecast Consistency & Multi-Source Agreement Explanation
-            conf_factors = getattr(reasoning, "consistency_factors", {}) or {}
-            conf_summary = conf_factors.get("summary")
-            conf_lvl = getattr(reasoning, "confidence_level", None)
-            conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
+        is_rain_q = (
+            intent_val in ("rain_query", "rain_forecast")
+            or ("rain" in user_text and not any(k in user_text for k in ["umbrella", "bike", "college", "school", "cricket", "play"]))
+        )
+        is_temp_q = (
+            intent_val in ("temperature_query", "temperature")
+            or any(k in user_text for k in ["temperature", "hot", "cold", "வெப்பநிலை", "तापमान"])
+        )
 
-            if conf_summary:
-                lines.append(f"\nForecast Consistency ({conf_lvl_str}): {conf_summary}")
-            elif reasoning.source_agreement == SourceAgreementEnum.LOW:
-                lines.append(f"\nForecast consistency is low because available sources disagree.")
-            elif reasoning.source_agreement == SourceAgreementEnum.HIGH:
-                lines.append(f"\nForecast consistency is high as available forecast sources broadly agree.")
+        personal_dec = getattr(advisory, "personal_decision", None)
+        p_type = personal_dec.get("decision_type") if personal_dec else None
 
-            lines.append(
-                f"\n(Source: {', '.join(reasoning.sources_used)} | Updated {reasoning.data_age_minutes}m ago | Forecast Consistency Score: {reasoning.consistency_score}/100 [Data Confidence Indicator: {conf_lvl_str}])"
-            )
+        # If user asks specific weather inquiry (e.g. 'Will it rain?'), answer it directly
+        # unless user asked a specific activity decision (college, bike, umbrella, sports, etc.)
+        if is_rain_q and p_type in ("general_go", "outdoor_activity", None):
+            rain_prob = float(weather.rain_probability if (weather and weather.rain_probability is not None) else 0.0)
+            if rain_prob >= 40.0:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்புள்ளது ({rain_prob:.0f}% வாய்ப்பு). வெளியே செல்லும்போது குடை எடுத்துச் செல்லவும்."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में आज बारिश की संभावना है ({rain_prob:.0f}% संभावना)। बाहर जाते समय छाता साथ रखें।"
+                else:
+                    return f"{user_prefix}Rain is likely in {loc} today with a {rain_prob:.0f}% chance. I'd recommend carrying an umbrella."
+            elif rain_prob >= 20.0:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் காலையில் மழை வாய்ப்பு குறைவு, ஆனால் மாலையில் வாய்ப்பு சிறிது அதிகரிக்கலாம் ({rain_prob:.0f}%)."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में सुबह बारिश की संभावना कम है, लेकिन शाम को हल्की संभावना ({rain_prob:.0f}%) हो सकती है।"
+                else:
+                    return f"{user_prefix}Rain is unlikely this morning in {loc}, but the chance increases later today ({rain_prob:.0f}% chance)."
+            else:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்பில்லை ({rain_prob:.0f}%). வானிலை தெளிவாக இருக்கும்."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में आज बारिश की संभावना नहीं है ({rain_prob:.0f}%)। मौसम साफ रहेगा।"
+                else:
+                    return f"{user_prefix}Rain is unlikely in {loc} today with only a {rain_prob:.0f}% chance. Skies remain mostly clear."
 
-        return "\n".join(lines)
+        if is_temp_q and p_type in ("general_go", "outdoor_activity", None):
+            temp_val = weather.temperature if (weather and weather.temperature is not None) else 25.0
+            cond_raw = weather.weather_condition if weather else "Clear"
+            if target_lang == LanguageEnum.TA:
+                cond_ta = translate_condition(cond_raw, LanguageEnum.TA)
+                return f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை {temp_val:.0f}°C மற்றும் வானிலை {cond_ta} ஆக உள்ளது."
+            elif target_lang == LanguageEnum.HI:
+                cond_hi = translate_condition(cond_raw, LanguageEnum.HI)
+                return f"{user_prefix}{loc} में वर्तमान तापमान {temp_val:.0f}°C है और मौसम {cond_hi} बना हुआ है।"
+            else:
+                return f"{user_prefix}It is currently {temp_val:.0f}°C in {loc} with {cond_raw} conditions."
+
+        # If personal decision available for the activity
+        if personal_dec:
+            if target_lang == LanguageEnum.TA:
+                ans = personal_dec.get("concise_answer_ta") or personal_dec.get("concise_answer")
+                if ans:
+                    return f"{user_prefix}{ans}"
+            elif target_lang == LanguageEnum.HI:
+                ans = personal_dec.get("concise_answer_hi") or personal_dec.get("concise_answer")
+                if ans:
+                    return f"{user_prefix}{ans}"
+            else:
+                ans = personal_dec.get("concise_answer")
+                if ans:
+                    return f"{user_prefix}{ans}"
+
+        # -----------------------------------------------------------------
+        # 4. Schedule-aware Commute Decision (if present in advisory)
+        # -----------------------------------------------------------------
+        sched = getattr(advisory, "schedule_decision", None) or {}
+        if sched.get("has_schedule"):
+            dep_t = sched.get("departure_time", "8:00 AM")
+            ret_t = sched.get("return_time", "5:00 PM")
+            ret_prob = float(sched.get("return_prob", 0.0) or 0.0)
+            rec_umb = sched.get("recommend_umbrella", False)
+
+            if target_lang == LanguageEnum.TA:
+                if rec_umb:
+                    return f"{user_prefix}காலை {dep_t} பயணம் பொதுவாக சீராக இருக்கும். மாலை {ret_t} நேரத்தில் மழை வாய்ப்பு ({ret_prob:.0f}%) உள்ளதால் குடை எடுத்துச் செல்லவும்."
+                else:
+                    return f"{user_prefix}உங்கள் காலை {dep_t} மற்றும் மாலை {ret_t} பயணத்திற்கு வானிலை சாதகமாக உள்ளது. குடை தேவையில்லை."
+            elif target_lang == LanguageEnum.HI:
+                if rec_umb:
+                    return f"{user_prefix}सुबह {dep_t} की यात्रा ठीक रहेगी। शाम {ret_t} को बारिश की संभावना ({ret_prob:.0f}%) अधिक है, इसलिए छाता साथ रखें।"
+                else:
+                    return f"{user_prefix}आपकी सुबह {dep_t} और शाम {ret_t} की यात्रा के लिए मौसम अनुकूल है।"
+            else:
+                if rec_umb:
+                    return f"{user_prefix}Your morning trip around {dep_t} looks fine. Rain risk is higher around your {ret_t} return ({ret_prob:.0f}% chance), so I'd carry an umbrella."
+                else:
+                    return f"{user_prefix}Your commute around {dep_t} and return at {ret_t} looks clear and comfortable."
+
+        # -----------------------------------------------------------------
+        # 5. Missing Live Telemetry Case
+        # -----------------------------------------------------------------
+        if not weather or weather.temperature is None:
+            if target_lang == LanguageEnum.TA:
+                return f"{user_prefix}{loc}க்கான நேரலை வானிலை தகவல் தற்போது கிடைக்கவில்லை. பயணத்திற்கு முன் அதிகாரப்பூர்வ IMD அறிக்கைகளைச் சரிபார்க்கவும்."
+            elif target_lang == LanguageEnum.HI:
+                return f"{user_prefix}{loc} के लिए लाइव मौसम डेटा उपलब्ध नहीं है। यात्रा से पहले आधिकारिक IMD बुलेटिन देखें।"
+            else:
+                return f"{user_prefix}Live weather data for {loc} is currently unavailable. Please check official IMD bulletins before traveling."
+
+        # -----------------------------------------------------------------
+        # 6. Specific Weather Inquiry Matching (Rain, Temp, General)
+        # -----------------------------------------------------------------
+        temp_val = weather.temperature
+        rain_prob = float(weather.rain_probability if weather.rain_probability is not None else 0.0)
+        cond_raw = weather.weather_condition or "Clear"
+
+        user_text = (nlu.original_text.lower() if nlu and nlu.original_text else "")
+        intent_val = (nlu.intent.value if (nlu and hasattr(nlu.intent, "value")) else str(nlu.intent if nlu else "")).lower()
+
+        # 6a. Rain query ("Will it rain?")
+        is_rain_q = (
+            intent_val in ("rain_query", "umbrella_decision")
+            or any(k in user_text for k in ["rain", "raining", "மழை", "बारिश", "bheeg", "nanai"])
+        )
+        if is_rain_q:
+            if rain_prob >= 40.0:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்புள்ளது ({rain_prob:.0f}% வாய்ப்பு). வெளியே செல்லும்போது குடை எடுத்துச் செல்லவும்."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में आज बारिश की संभावना है ({rain_prob:.0f}% संभावना)। बाहर जाते समय छाता साथ रखें।"
+                else:
+                    return f"{user_prefix}Rain is likely in {loc} today with a {rain_prob:.0f}% chance. I'd recommend carrying an umbrella."
+            elif rain_prob >= 20.0:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் காலையில் மழை வாய்ப்பு குறைவு, ஆனால் மாலையில் வாய்ப்பு சிறிது அதிகரிக்கலாம் ({rain_prob:.0f}%)."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में सुबह बारिश की संभावना कम है, लेकिन शाम को हल्की संभावना ({rain_prob:.0f}%) हो सकती है।"
+                else:
+                    return f"{user_prefix}Rain is unlikely this morning in {loc}, but the chance increases later today ({rain_prob:.0f}% chance)."
+            else:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் இன்று மழை பெய்ய வாய்ப்பில்லை ({rain_prob:.0f}%). வானிலை தெளிவாக இருக்கும்."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में आज बारिश की संभावना नहीं है ({rain_prob:.0f}%)। मौसम साफ रहेगा।"
+                else:
+                    return f"{user_prefix}Rain is unlikely in {loc} today with only a {rain_prob:.0f}% chance. Skies remain mostly clear."
+
+        # 6b. Temperature query
+        is_temp_q = (
+            intent_val == "temperature_query"
+            or any(k in user_text for k in ["temperature", "hot", "cold", "வெப்பநிலை", "तापमान"])
+        )
+        if is_temp_q:
+            if target_lang == LanguageEnum.TA:
+                cond_ta = translate_condition(cond_raw, LanguageEnum.TA)
+                return f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை {temp_val:.0f}°C மற்றும் வானிலை {cond_ta} ஆக உள்ளது."
+            elif target_lang == LanguageEnum.HI:
+                cond_hi = translate_condition(cond_raw, LanguageEnum.HI)
+                return f"{user_prefix}{loc} में वर्तमान तापमान {temp_val:.0f}°C है और मौसम {cond_hi} बना हुआ है।"
+            else:
+                return f"{user_prefix}It is currently {temp_val:.0f}°C in {loc} with {cond_raw} conditions."
+
+        # 6c. General weather response
+        if target_lang == LanguageEnum.TA:
+            cond_ta = translate_condition(cond_raw, LanguageEnum.TA)
+            return f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை {temp_val:.0f}°C மற்றும் வானிலை {cond_ta} ({rain_prob:.0f}% மழை வாய்ப்பு)."
+        elif target_lang == LanguageEnum.HI:
+            cond_hi = translate_condition(cond_raw, LanguageEnum.HI)
+            return f"{user_prefix}{loc} में वर्तमान तापमान {temp_val:.0f}°C और मौसम {cond_hi} है ({rain_prob:.0f}% बारिश की संभावना)।"
+        else:
+            return f"{user_prefix}In {loc}, it is currently {temp_val:.0f}°C and {cond_raw} with a {rain_prob:.0f}% chance of rain."

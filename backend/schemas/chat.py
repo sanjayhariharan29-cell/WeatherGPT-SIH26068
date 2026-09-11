@@ -90,3 +90,6 @@ class ChatResponse(BaseModel):
     data_timestamp: str = Field(description="Observation timestamp (ISO 8601 UTC)")
     validation: Optional[ValidationSummary] = Field(default=None, description="AI safety validation report")
     decision_trace: Optional[Dict[str, Any]] = Field(default=None, description="Structured DecisionTrace explaining system factors and recommendation basis")
+    why_this_answer: Optional[Dict[str, Any]] = Field(default=None, description="Structured explainability path for evidence, freshness, and sources")
+    personal_decision: Optional[Dict[str, Any]] = Field(default=None, description="Deterministic personal decision result")
+

@@ -384,6 +384,10 @@ class ChatIntegrationService:
             or "why umbrella" in lower_msg
             or "why is confidence" in lower_msg
             or "why disagree" in lower_msg
+            or "why this answer" in lower_msg
+            or "why this recommendation" in lower_msg
+            or "ஏன் இந்த பதில்" in lower_msg
+            or "यह उत्तर क्यों" in lower_msg
         )
         if is_explanation:
             # Check previous turn in context
@@ -600,6 +604,7 @@ class ChatIntegrationService:
                 "hazards": pipeline_result.get("hazards", []),
                 "advisory": pipeline_result.get("advisory", {}),
                 "personal_decision": pipeline_result.get("personal_decision"),
+                "why_this_answer": pipeline_result.get("why_this_answer"),
                 "fallback_used": pipeline_result.get("fallback_used", False),
                 "decision_trace": pipeline_result.get("decision_trace"),
                 "historical": pipeline_result.get("historical"),

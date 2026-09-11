@@ -60,6 +60,7 @@ from ai.reasoner import (
 from ai.decision import (
     DecisionEngine,
     PersonalDecisionEngine,
+    build_why_this_answer,
     DecisionTypeEnum,
     DecisionVerdictEnum,
     PersonalDecisionResult,
@@ -132,6 +133,7 @@ __all__ = [
     # Decision
     "DecisionEngine",
     "PersonalDecisionEngine",
+    "build_why_this_answer",
     "DecisionTypeEnum",
     "DecisionVerdictEnum",
     "PersonalDecisionResult",

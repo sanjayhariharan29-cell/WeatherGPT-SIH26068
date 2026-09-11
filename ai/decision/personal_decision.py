@@ -649,3 +649,91 @@ class PersonalDecisionEngine:
             concise_answer_ta=ans_ta,
             concise_answer_hi=ans_hi,
         )
+
+
+def build_why_this_answer(
+    reasoning: WeatherReasoningResult,
+    weather: Optional[WeatherRecord] = None,
+    forecast: Optional[List[ForecastItem]] = None,
+    advisory: Optional[DecisionAdvisory] = None,
+    personal_decision: Optional[Dict[str, Any]] = None,
+    language: Optional[LanguageEnum] = None,
+) -> Dict[str, Any]:
+    """Builds structured 'Why this answer?' detail path for evidence, freshness, and sources.
+
+    Ensures complete explainability and auditing without cluttering the
+    primary conversational personal assistant response.
+    """
+    conf_lvl = getattr(reasoning, "confidence_level", None)
+    conf_lvl_str = conf_lvl.value if hasattr(conf_lvl, "value") else (str(conf_lvl) if conf_lvl else "HIGH")
+
+    primary_factors: List[str] = []
+
+    # 1. Official warning factor
+    if reasoning.active_warnings:
+        warn_titles = [getattr(w, "title", "Alert") for w in reasoning.active_warnings]
+        primary_factors.append(f"Official IMD Warning: {', '.join(warn_titles[:2])}")
+
+    # 2. Personal decision primary factor
+    if personal_decision and personal_decision.get("primary_factor"):
+        primary_factors.append(personal_decision["primary_factor"])
+    elif personal_decision and personal_decision.get("recommended_action"):
+        primary_factors.append(personal_decision["recommended_action"])
+
+    # 3. Weather / rain factors
+    rain_prob = float(getattr(weather, "rain_probability", 0.0) or 0.0) if weather else 0.0
+    if weather and weather.temperature is not None:
+        primary_factors.append(
+            f"Current temperature {weather.temperature:.0f}°C with {rain_prob:.0f}% rain probability ({weather.weather_condition or 'Clear'})"
+        )
+    elif rain_prob > 0:
+        primary_factors.append(f"Rain probability {rain_prob:.0f}%")
+
+    # 4. Source agreement factor
+    agreement_val = reasoning.source_agreement.value if hasattr(reasoning.source_agreement, "value") else str(reasoning.source_agreement)
+    sources_str = ", ".join(reasoning.sources_used) if reasoning.sources_used else "IMD"
+    if agreement_val in ("high", "consistent"):
+        primary_factors.append(f"High multi-source consensus across {sources_str}")
+    elif agreement_val == "low":
+        primary_factors.append("Source divergence detected; conservative safety margin applied")
+
+    # Evidence bundle
+    ev_dict: Dict[str, Any] = {
+        "temperature_c": getattr(weather, "temperature", None) if weather else None,
+        "rain_probability": rain_prob,
+        "weather_condition": getattr(weather, "weather_condition", "Clear") if weather else "Clear",
+        "wind_speed_kmh": getattr(weather, "wind_speed", None) if weather else None,
+        "active_warnings": [getattr(w, "title", "Alert") for w in reasoning.active_warnings],
+        "hazards": [getattr(h, "hazard_type", "") for h in reasoning.detected_hazards],
+    }
+
+    if personal_decision and "evidence" in personal_decision:
+        p_ev = personal_decision["evidence"]
+        if isinstance(p_ev, dict):
+            for k in ["transit_departure_prob", "transit_return_prob", "transit_departure_time", "transit_return_time"]:
+                if k in p_ev:
+                    ev_dict[k] = p_ev[k]
+
+    # Summary sentence
+    if personal_decision and personal_decision.get("primary_factor"):
+        summary = f"Recommendation based on {personal_decision['primary_factor'].lower()} and verified {sources_str} observations."
+    elif reasoning.active_warnings:
+        summary = f"Recommendation directly driven by active official IMD warning ({reasoning.active_warnings[0].title})."
+    else:
+        summary = f"Recommendation deterministically computed from verified {sources_str} weather observations and multi-source consensus."
+
+    return {
+        "summary": summary,
+        "verdict": personal_decision.get("verdict") if personal_decision else ("CAUTION" if reasoning.active_warnings else "GO"),
+        "decision_type": personal_decision.get("decision_type") if personal_decision else "weather_guidance",
+        "primary_factors": primary_factors,
+        "evidence": ev_dict,
+        "sources": reasoning.sources_used or ["IMD"],
+        "data_freshness": reasoning.freshness.value if hasattr(reasoning.freshness, "value") else str(reasoning.freshness),
+        "data_age_minutes": reasoning.data_age_minutes,
+        "consistency_score": reasoning.consistency_score,
+        "confidence_level": conf_lvl_str,
+        "precautions": personal_decision.get("precautions", []) if personal_decision else (advisory.key_precautions if advisory else []),
+        "language": language.value if hasattr(language, "value") else str(language or "en"),
+    }
+
