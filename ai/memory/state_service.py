@@ -756,6 +756,16 @@ class ConversationStateService:
         resolved_departure_time = current_state.active_departure_time
         resolved_return_time = current_state.active_return_time
 
+        # If activity is college, office, or commute, initialize schedule anchors from user_schedule if not yet set
+        if resolved_activity in ("college", "office", "commute"):
+            sched_act = resolved_activity if resolved_activity in ("college", "office") else "college"
+            if not resolved_departure_time:
+                resolved_departure_time = current_state.user_schedule.get(f"{sched_act}_departure", "08:30")
+                inherited_fields.append("departure_time")
+            if not resolved_return_time:
+                resolved_return_time = current_state.user_schedule.get(f"{sched_act}_return", "17:00")
+                inherited_fields.append("return_time")
+
         if resolved_trip_phase == "departure":
             if extracted_time:
                 resolved_departure_time = extracted_time
@@ -765,12 +775,14 @@ class ConversationStateService:
                 resolved_time = current_state.active_departure_time
                 inherited_fields.append("departure_time")
             else:
-                # User's known/usual college or commute departure time
                 sched_key = f"{resolved_activity}_departure" if resolved_activity else "college_departure"
                 sched_time = current_state.user_schedule.get(sched_key) or current_state.user_schedule.get("college_departure", "08:30")
                 resolved_departure_time = sched_time
                 resolved_time = sched_time
                 inherited_fields.append("departure_time")
+            # Strictly preserve return time if already set or in schedule
+            if current_state.active_return_time:
+                resolved_return_time = current_state.active_return_time
         elif resolved_trip_phase == "return":
             if extracted_time:
                 resolved_return_time = extracted_time
@@ -780,12 +792,14 @@ class ConversationStateService:
                 resolved_time = current_state.active_return_time
                 inherited_fields.append("return_time")
             else:
-                # User's known/usual return time
                 sched_key = f"{resolved_activity}_return" if resolved_activity else "college_return"
                 sched_time = current_state.user_schedule.get(sched_key) or current_state.user_schedule.get("college_return", "17:00")
                 resolved_return_time = sched_time
                 resolved_time = sched_time
                 inherited_fields.append("return_time")
+            # Strictly preserve departure time if already set or in schedule
+            if current_state.active_departure_time:
+                resolved_departure_time = current_state.active_departure_time
         elif extracted_time:
             resolved_time = extracted_time
         elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE) and current_state.active_time:
@@ -876,7 +890,7 @@ class ConversationStateService:
                 resolved_intent = nlu.intent.value
             elif resolved_transport_mode == "bike":
                 resolved_intent = IntentEnum.BIKE_TRAVEL.value
-            elif resolved_activity == "college" and resolved_trip_phase == "departure":
+            elif resolved_activity == "college":
                 resolved_intent = IntentEnum.COLLEGE_COMMUTE.value
             elif turn_type in (TurnTypeEnum.FOLLOW_UP, TurnTypeEnum.TOPIC_CONTINUATION, TurnTypeEnum.CLARIFICATION_RESPONSE) and current_state.current_intent:
                 resolved_intent = current_state.current_intent

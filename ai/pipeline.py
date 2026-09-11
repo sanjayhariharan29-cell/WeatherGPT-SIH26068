@@ -67,6 +67,7 @@ class WeatherGPTPipeline:
         t_mem = time.perf_counter()
         resolved_context_summary = context_summary
         resolved_mem_location = None
+        turn_analysis = None
         if not resolved_context_summary and conversation_id and conversation_id != "default":
             try:
                 from ai.memory import memory_manager, ContextResolver, state_service
@@ -96,6 +97,20 @@ class WeatherGPTPipeline:
         t0 = time.perf_counter()
         nlu = parse_query(message)
         t_nlu = (time.perf_counter() - t0) * 1000
+
+        if turn_analysis:
+            if turn_analysis.resolved_departure_time and not getattr(nlu.entities, "departure_time", None):
+                nlu.entities.departure_time = turn_analysis.resolved_departure_time
+            if turn_analysis.resolved_return_time and not getattr(nlu.entities, "return_time", None):
+                nlu.entities.return_time = turn_analysis.resolved_return_time
+            if turn_analysis.resolved_location and (not nlu.entities.location or nlu.entities.location == "Unspecified"):
+                nlu.entities.location = turn_analysis.resolved_location
+            if turn_analysis.resolved_intent:
+                from ai.models import IntentEnum
+                try:
+                    nlu.intent = IntentEnum(turn_analysis.resolved_intent)
+                except Exception:
+                    pass
 
         # Persona resolution: explicit argument overrides query entity
         resolved_persona = persona or nlu.entities.persona or PersonaEnum.GENERAL

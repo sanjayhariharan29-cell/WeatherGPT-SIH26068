@@ -160,6 +160,11 @@ class DecisionEngine:
             elif meridiem == "am" and h == 12:
                 h = 0
             return h
+        m_single = re.match(r"^(\d{1,2})$", s)
+        if m_single:
+            h = int(m_single.group(1))
+            if 0 <= h <= 23:
+                return h
         lower = s.lower()
         if "morning" in lower:
             return 8
@@ -200,16 +205,37 @@ class DecisionEngine:
         dep_time_str = getattr(entities, "departure_time", None)
         ret_time_str = getattr(entities, "return_time", None)
 
+        # Check entities.time if departure or return
+        gen_time = getattr(entities, "time", None) if entities else None
+        if not dep_time_str and gen_time and any(k in raw_text for k in ["morning", "leave", "depart", "going"]):
+            dep_time_str = gen_time
+        if not ret_time_str and gen_time and any(k in raw_text for k in ["evening", "back", "return", "night"]):
+            ret_time_str = gen_time
+
         # Infer from text if not on entities
         if not dep_time_str:
             dep_m = re.search(r"\b(?:leave|depart|going|at)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", raw_text)
             if dep_m and "am" in dep_m.group(1).lower():
                 dep_time_str = dep_m.group(1).upper()
+            elif dep_m and any(k in raw_text for k in ["morning", "leave", "depart"]):
+                val = dep_m.group(1).strip()
+                h = cls._parse_hour(val)
+                if h is not None:
+                    dep_time_str = f"{h}:00 AM" if h <= 12 else f"{h}:00"
 
         if not ret_time_str:
             ret_m = re.search(r"\b(?:return|back|reach|at)\s*(\d{1,2}(?::\d{2})?\s*(?:am|pm)?)\b", raw_text)
-            if ret_m and "pm" in ret_m.group(1).lower():
-                ret_time_str = ret_m.group(1).upper()
+            if ret_m:
+                val = ret_m.group(1).strip()
+                if "pm" in val.lower():
+                    ret_time_str = val.upper()
+                elif any(k in raw_text for k in ["back", "return", "evening", "after college"]):
+                    h = cls._parse_hour(val)
+                    if h is not None:
+                        if 1 <= h <= 11:
+                            ret_time_str = f"{h}:00 PM"
+                        else:
+                            ret_time_str = f"{h}:00"
 
         has_explicit_schedule = bool(dep_time_str or ret_time_str) or ("8 am" in raw_text and "5 pm" in raw_text)
         is_leave_college = any(k in raw_text for k in ["leave college", "leaving college", "after college", "from college"])
