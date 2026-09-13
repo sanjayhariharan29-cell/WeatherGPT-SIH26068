@@ -82,7 +82,7 @@ class NasaPowerAdapter(BaseWeatherProvider):
                 "hottest_month": "May",
                 "wettest_month": "November"
             },
-            source=f"{self.name} / IMD Historical Archive",
+            source=f"{self.name} Climate Archive",
             retrieved_at=now_utc
         )
 

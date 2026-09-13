@@ -35,7 +35,7 @@ async def voice_query(
     transcript: Optional[str] = Form(None),
     language: Optional[str] = Form(None),
     persona: str = Form("student"),
-    location_name: str = Form("Coimbatore"),
+    location_name: Optional[str] = Form(None),
     conversation_id: Optional[str] = Form(None),
     current_user: Optional[User] = Depends(get_optional_current_user),
     db: Session = Depends(get_db)

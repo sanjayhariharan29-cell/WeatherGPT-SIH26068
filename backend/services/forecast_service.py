@@ -1,7 +1,7 @@
 """Forecast Engine Service.
 
 Dedicated service layer for retrieving, normalizing, aggregating (hourly & daily),
-validating, persisting, and converting multi-day weather forecasts across primary (IMD)
+validating, persisting, and converting multi-day weather forecasts across primary (OpenWeather)
 and secondary (Open-Meteo) adapters.
 """
 
@@ -12,6 +12,7 @@ from sqlalchemy.orm import Session
 
 from backend.services.imd_adapter import IMDAdapter
 from backend.services.open_meteo_adapter import OpenMeteoAdapter
+from backend.services.openweather_adapter import OpenWeatherAdapter
 from backend.services.geocoding_service import GeocodingService
 from backend.services.base_provider import BaseWeatherProvider
 from backend.services.exceptions import ProviderError
@@ -35,8 +36,18 @@ class ForecastService:
         secondary_provider: Optional[BaseWeatherProvider] = None,
         geocoding_service: Optional[GeocodingService] = None
     ):
-        self.primary = primary_provider or IMDAdapter()
-        self.secondary = secondary_provider or OpenMeteoAdapter()
+        # OpenWeather is active primary live forecast provider.
+        # Open-Meteo is secondary provider.
+        # IMD is gated until real credentials are provided.
+        if primary_provider and not isinstance(primary_provider, IMDAdapter):
+            self.primary = primary_provider
+            self.secondary = secondary_provider or OpenMeteoAdapter()
+        elif primary_provider and isinstance(primary_provider, IMDAdapter) and (primary_provider.is_live_configured or getattr(primary_provider, "mode", "") == "test"):
+            self.primary = primary_provider
+            self.secondary = secondary_provider or OpenMeteoAdapter()
+        else:
+            self.primary = OpenWeatherAdapter(authority_level="primary_live")
+            self.secondary = secondary_provider or OpenMeteoAdapter()
         self.geocoding = geocoding_service or GeocodingService()
 
     def validate_coordinates(self, lat: Optional[float], lon: Optional[float]) -> None:
@@ -65,13 +76,19 @@ class ForecastService:
         longitude = lon if lon is not None else loc["longitude"]
         resolved_name = loc["name"]
 
-        # 1. Fetch Primary Forecast (IMD) with failover to Secondary (Open-Meteo)
+        # 1. Fetch Primary Forecast (OpenWeather default) with failover to Secondary (Open-Meteo)
         source_label = self.primary.name
+        lead_identity = self.primary.name
         primary_diag = None
         system_state_val = "ONLINE"
+        raw_items = []
         try:
             raw_items = await self.primary.get_forecast(latitude, longitude, resolved_name)
-        except ProviderError as e:
+            if not raw_items and self.secondary:
+                raw_items = await self.secondary.get_forecast(latitude, longitude, resolved_name)
+                source_label = f"{self.secondary.name} (Fallback)"
+                lead_identity = self.secondary.name
+        except Exception as e:
             primary_diag = {
                 "failed_provider": self.primary.name,
                 "error_type": type(e).__name__,
@@ -82,6 +99,7 @@ class ForecastService:
             system_state_val = "DEGRADED"
             raw_items = await self.secondary.get_forecast(latitude, longitude, resolved_name)
             source_label = f"{self.secondary.name} (Fallback)"
+            lead_identity = self.secondary.name
 
         now_utc = datetime.now(timezone.utc).isoformat()
         issued_at_timestamp = raw_items[0].issued_at if raw_items else now_utc
@@ -125,6 +143,7 @@ class ForecastService:
             daily_forecast=daily_schemas,
             days_count=min(max(days, 1), 7),
             source=source_label,
+            source_identity=lead_identity,
             units=WeatherUnitsSchema(),
             issued_at=issued_at_timestamp,
             retrieved_at=now_utc,

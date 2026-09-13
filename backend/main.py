@@ -1,6 +1,7 @@
 import os
 from contextlib import asynccontextmanager
-from fastapi import FastAPI
+from fastapi import FastAPI, Depends
+from fastapi.responses import HTMLResponse
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
@@ -12,7 +13,9 @@ from backend.middleware import (
     RateLimiterMiddleware
 )
 from backend.db.init_db import init_db
-from backend.api import health, auth, weather, locations, users, chat, voice, notifications
+from backend.db.models import User
+from backend.core.security import require_developer_role
+from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer
 
 # Initialize Database on Module Import
 init_db()
@@ -59,6 +62,17 @@ app.include_router(users.router, prefix=settings.API_V1_PREFIX)
 app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
 app.include_router(voice.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
+app.include_router(developer.router, prefix=settings.API_V1_PREFIX)
+
+# Developer Portal Web Entrypoints (Guarded by require_developer_role)
+@app.get("/developer", response_class=HTMLResponse, tags=["developer"])
+@app.get("/dashboard/developer", response_class=HTMLResponse, tags=["developer"])
+@app.get("/developer.html", response_class=HTMLResponse, tags=["developer"])
+def developer_portal_entry(current_user: User = Depends(require_developer_role)):
+    """Serves the developer console HTML page, guarded by require_developer_role.
+    Returns 401 for unauthenticated requests, 403 for normal users, and 200 for developers.
+    """
+    return developer.get_developer_dashboard(current_user=current_user)
 
 # Mount Static Frontend Directory if present
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")

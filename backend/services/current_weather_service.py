@@ -1,7 +1,7 @@
 """Current Weather Service.
 
 Dedicated service layer for retrieving, normalizing, validating, persisting,
-and converting current weather observations across primary (IMD) and secondary (Open-Meteo) providers.
+and converting current weather observations across primary (OpenWeather) and secondary (Open-Meteo) providers.
 """
 
 from datetime import datetime, timezone, timedelta
@@ -38,9 +38,21 @@ class CurrentWeatherService:
         tertiary_provider: Optional[BaseWeatherProvider] = None,
         geocoding_service: Optional[GeocodingService] = None
     ):
-        self.primary = primary_provider or IMDAdapter()
-        self.secondary = secondary_provider or OpenMeteoAdapter()
-        self.tertiary = tertiary_provider or OpenWeatherAdapter()
+        # OpenWeather is the active primary live data source.
+        # Open-Meteo is the secondary live data source.
+        # IMDAdapter remains in the codebase as a placeholder until institutional approval completes.
+        if primary_provider is None:
+            self.primary = OpenWeatherAdapter(authority_level="primary_live")
+            self.secondary = secondary_provider or OpenMeteoAdapter()
+            self.tertiary = tertiary_provider or IMDAdapter()
+        elif isinstance(primary_provider, IMDAdapter) and not primary_provider.is_live_configured and getattr(primary_provider, "mode", "") != "test":
+            self.primary = OpenWeatherAdapter(authority_level="primary_live")
+            self.secondary = secondary_provider or OpenMeteoAdapter()
+            self.tertiary = primary_provider
+        else:
+            self.primary = primary_provider
+            self.secondary = secondary_provider or OpenMeteoAdapter()
+            self.tertiary = tertiary_provider or OpenWeatherAdapter()
         self.geocoding = geocoding_service or GeocodingService()
 
     def validate_coordinates(self, lat: Optional[float], lon: Optional[float]) -> None:
@@ -82,7 +94,12 @@ class CurrentWeatherService:
 
         from backend.services.cache import provider_cache
 
-        # Attempt Primary (IMD)
+        # Check if tertiary provider is IMD and whether it should be queried
+        should_query_tertiary = True
+        if isinstance(self.tertiary, IMDAdapter):
+            should_query_tertiary = bool(self.tertiary.is_live_configured or getattr(self.tertiary, "mode", "") == "test")
+
+        # Attempt Primary (OpenWeather by default)
         try:
             primary_obs = await self.primary.get_current_weather(latitude, longitude, resolved_name)
             is_primary_healthy = True
@@ -95,6 +112,13 @@ class CurrentWeatherService:
                 "timestamp": getattr(e, "timestamp", datetime.now(timezone.utc).isoformat()),
                 "diagnostics": getattr(e, "diagnostics", {})
             }
+        except Exception as e:
+            is_primary_healthy = False
+            primary_diag = {
+                "failed_provider": self.primary.name,
+                "error_type": type(e).__name__,
+                "error_message": str(e)
+            }
 
         # Attempt Secondary (Open-Meteo)
         try:
@@ -104,20 +128,24 @@ class CurrentWeatherService:
             is_secondary_healthy = False
             sec_obs = None
 
-        # Attempt Tertiary (OpenWeather / Independent Provider) if configured
-        try:
-            tertiary_obs = await self.tertiary.get_current_weather(latitude, longitude, resolved_name)
-            is_tertiary_healthy = True
-        except Exception:
+        # Attempt Tertiary (if configured and not unconfigured IMD)
+        if should_query_tertiary:
+            try:
+                tertiary_obs = await self.tertiary.get_current_weather(latitude, longitude, resolved_name)
+                is_tertiary_healthy = True
+            except Exception:
+                is_tertiary_healthy = False
+                tertiary_obs = None
+        else:
             is_tertiary_healthy = False
             tertiary_obs = None
 
         # Determine Lead Observation: Primary is preferred; if failed, failover to secondary, then tertiary
-        if is_primary_healthy:
+        if is_primary_healthy and primary_obs:
             lead_obs = primary_obs
-        elif is_secondary_healthy:
+        elif is_secondary_healthy and sec_obs:
             lead_obs = sec_obs
-        elif is_tertiary_healthy:
+        elif is_tertiary_healthy and tertiary_obs:
             lead_obs = tertiary_obs
         else:
             lead_obs = None
@@ -129,11 +157,15 @@ class CurrentWeatherService:
                 cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(cache_key, max_stale_seconds=7200)
                 if not cached_val:
                     cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(
-                        f"imd_current_{resolved_name}_{latitude}_{longitude}", max_stale_seconds=7200
+                        f"openweather_current_{resolved_name}_{latitude}_{longitude}", max_stale_seconds=7200
                     )
                 if not cached_val:
                     cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(
                         f"openmeteo_current_{resolved_name}_{latitude}_{longitude}", max_stale_seconds=7200
+                    )
+                if not cached_val:
+                    cached_val, is_fresh_cache, cache_age = provider_cache.get_with_metadata(
+                        f"imd_current_{resolved_name}_{latitude}_{longitude}", max_stale_seconds=7200
                     )
 
                 if cached_val:
@@ -171,14 +203,18 @@ class CurrentWeatherService:
             sources_list.append(f"{lead_obs.source} (Cached)")
 
         # Determine composite source label
+        p_src = (getattr(primary_obs, "source", None) if is_primary_healthy and primary_obs else None) or getattr(self.primary, "name", "OpenWeather")
+        s_src = (getattr(sec_obs, "source", None) if is_secondary_healthy and sec_obs else None) or getattr(self.secondary, "name", "Open-Meteo")
+        t_src = (getattr(tertiary_obs, "source", None) if is_tertiary_healthy and tertiary_obs else None) or getattr(self.tertiary, "name", "IMD")
+
         if is_primary_healthy and is_secondary_healthy:
-            source_label = f"{self.primary.name} (Primary), {self.secondary.name} (Secondary)"
+            source_label = f"{p_src} (Primary), {s_src} (Secondary)"
         elif is_primary_healthy:
-            source_label = f"{self.primary.name} (Primary)"
+            source_label = f"{p_src} (Primary)"
         elif is_secondary_healthy:
-            source_label = f"{self.secondary.name} (Fallback)"
+            source_label = f"{s_src} (Fallback)"
         elif is_tertiary_healthy:
-            source_label = f"{self.tertiary.name} (Fallback)"
+            source_label = f"{t_src} (Fallback)"
         else:
             source_label = f"{lead_obs.source} (Cached Telemetry)"
 
@@ -188,10 +224,10 @@ class CurrentWeatherService:
         provider_records: List[ProviderObservationSummarySchema] = []
 
         if is_primary_healthy and primary_obs:
-            p_name = getattr(self.primary, "name", "IMD")
-            p_name = str(p_name) if not hasattr(p_name, "_mock_name") else "IMD"
-            p_auth = getattr(self.primary, "authority_level", getattr(primary_obs, "authority_level", "primary_authoritative"))
-            p_auth = str(p_auth) if not hasattr(p_auth, "_mock_name") else getattr(primary_obs, "authority_level", "primary_authoritative")
+            p_name = getattr(primary_obs, "source", None) or getattr(self.primary, "name", "OpenWeather")
+            p_name = str(p_name) if not hasattr(p_name, "_mock_name") else "OpenWeather"
+            p_auth = getattr(primary_obs, "authority_level", None) or getattr(self.primary, "authority_level", "primary_live")
+            p_auth = str(p_auth) if not hasattr(p_auth, "_mock_name") else "primary_live"
 
             provider_records.append(
                 ProviderObservationSummarySchema(
@@ -211,10 +247,10 @@ class CurrentWeatherService:
             )
 
         if is_secondary_healthy and sec_obs:
-            s_name = getattr(self.secondary, "name", "Open-Meteo")
+            s_name = getattr(sec_obs, "source", None) or getattr(self.secondary, "name", "Open-Meteo")
             s_name = str(s_name) if not hasattr(s_name, "_mock_name") else "Open-Meteo"
-            s_auth = getattr(self.secondary, "authority_level", getattr(sec_obs, "authority_level", "secondary_forecast"))
-            s_auth = str(s_auth) if not hasattr(s_auth, "_mock_name") else getattr(sec_obs, "authority_level", "secondary_forecast")
+            s_auth = getattr(sec_obs, "authority_level", None) or getattr(self.secondary, "authority_level", "secondary_forecast")
+            s_auth = str(s_auth) if not hasattr(s_auth, "_mock_name") else "secondary_forecast"
 
             provider_records.append(
                 ProviderObservationSummarySchema(
@@ -234,10 +270,10 @@ class CurrentWeatherService:
             )
 
         if is_tertiary_healthy and tertiary_obs:
-            t_name = getattr(self.tertiary, "name", "OpenWeather")
-            t_name = str(t_name) if not hasattr(t_name, "_mock_name") else "OpenWeather"
-            t_auth = getattr(self.tertiary, "authority_level", getattr(tertiary_obs, "authority_level", "secondary_independent"))
-            t_auth = str(t_auth) if not hasattr(t_auth, "_mock_name") else getattr(tertiary_obs, "authority_level", "secondary_independent")
+            t_name = getattr(tertiary_obs, "source", None) or getattr(self.tertiary, "name", "IMD")
+            t_name = str(t_name) if not hasattr(t_name, "_mock_name") else "IMD"
+            t_auth = getattr(tertiary_obs, "authority_level", None) or getattr(self.tertiary, "authority_level", "secondary_independent")
+            t_auth = str(t_auth) if not hasattr(t_auth, "_mock_name") else "secondary_independent"
 
             provider_records.append(
                 ProviderObservationSummarySchema(
@@ -365,6 +401,7 @@ class CurrentWeatherService:
             ),
             alerts=alert_dicts,
             source=source_label,
+            source_identity=getattr(lead_obs, "source", None) or getattr(self.primary, "name", "OpenWeather"),
             sources=sources_list,
             units=WeatherUnitsSchema(),
             observed_at=lead_obs.observed_at,

@@ -192,7 +192,7 @@ class SkyZenNotificationManager {
     }
     return await window.apiClient.sendTestNotification(
       "SkyZen Test Notification",
-      "Controlled verification of IMD push notification delivery pipeline.",
+      "Controlled verification of SkyZen emergency push notification delivery pipeline.",
       this.currentToken
     );
   }

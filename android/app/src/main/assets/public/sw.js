@@ -8,6 +8,7 @@ const ASSETS_TO_CACHE = [
   "/app.js",
   "/mobile/apiClient.js",
   "/manifest.json",
+  "/manifest-desktop.json",
   "/assets/skyzen_official_logo.png"
 ];
 

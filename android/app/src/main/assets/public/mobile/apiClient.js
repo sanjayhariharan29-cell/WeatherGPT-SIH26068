@@ -331,19 +331,19 @@ class WeatherGPTApiClient {
   }
 
   // Conversational Chat API Methods
-  async sendChatMessage(message, persona = "student", locationInput = "Coimbatore", conversationId = null, language = "ta") {
-    let locPayload = { name: "Coimbatore" };
+  async sendChatMessage(message, persona = "student", locationInput = null, conversationId = null, language = "ta") {
+    let locPayload = null;
     if (typeof locationInput === "object" && locationInput !== null) {
       locPayload = {
-        name: locationInput.name || "Coimbatore",
+        name: locationInput.name || null,
         latitude: locationInput.latitude ?? locationInput.lat ?? null,
         longitude: locationInput.longitude ?? locationInput.lon ?? null,
         source_type: locationInput.source_type || locationInput.type || "manual",
         accuracy: locationInput.accuracy ?? null,
         is_stale: Boolean(locationInput.isStale || locationInput.is_stale)
       };
-    } else if (typeof locationInput === "string") {
-      locPayload = { name: locationInput };
+    } else if (typeof locationInput === "string" && locationInput.trim()) {
+      locPayload = { name: locationInput.trim() };
     }
 
     const payload = {

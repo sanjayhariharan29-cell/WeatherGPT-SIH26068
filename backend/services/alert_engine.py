@@ -279,6 +279,10 @@ class AlertEngine:
         db: Session
     ) -> List[DBAlert]:
         """Ingests raw warnings, validates, normalizes, detects updates/duplicates, and persists."""
+        if not getattr(self.imd, "is_live_configured", False) and getattr(self.imd, "mode", "") != "test":
+            logger.info("IMD live credentials not configured; skipping ingestion.")
+            return []
+
         raw_items = await self.imd.get_official_alerts(latitude, longitude, location_name)
         persisted_records: List[DBAlert] = []
 

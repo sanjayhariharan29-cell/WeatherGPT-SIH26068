@@ -84,21 +84,24 @@ class NotificationService:
         area: Optional[str] = None,
         instructions: Optional[str] = None,
         valid_until: Optional[str] = None,
-        alert_id: Optional[str] = None
+        alert_id: Optional[str] = None,
+        source: Optional[str] = None
     ) -> Dict[str, str]:
         """Formats alert title and body in user's preferred language (English, Tamil, Hindi).
 
         Strict Safety & Preservation Invariants:
         1. Warning severity is NEVER downgraded or softened.
         2. Numbers, units, dates, and measurements are preserved verbatim.
-        3. Official IMD instructions are included without fabrication or omission.
+        3. Official IMD instructions are included without fabrication or omission when from IMD.
         4. Affected geographic area is accurately stated.
         """
         lang = (language or "ta").lower().strip()
         sev_upper = (severity or "WARNING").upper()
+        source_name = (source or "Weather Service").strip()
+        is_imd = source_name.upper() == "IMD"
 
         if lang == "ta":
-            header = f"⚠️ [IMD] அதிகாரப்பூர்வ வானிலை எச்சரிக்கை: {sev_upper}"
+            header = f"⚠️ [{source_name}] {'அதிகாரப்பூர்வ ' if is_imd else ''}வானிலை எச்சரிக்கை: {sev_upper}"
             parts = [f"{title}"]
             if area:
                 parts.append(f"பகுதி: {area}")
@@ -108,7 +111,7 @@ class NotificationService:
             if valid_until:
                 parts.append(f"செல்லுபடியாகும் காலம்: {valid_until}")
         elif lang == "hi":
-            header = f"⚠️ [IMD] आधिकारिक मौसम चेतावनी: {sev_upper}"
+            header = f"⚠️ [{source_name}] {'आधिकारिक ' if is_imd else ''}मौसम चेतावनी: {sev_upper}"
             parts = [f"{title}"]
             if area:
                 parts.append(f"क्षेत्र: {area}")
@@ -118,7 +121,8 @@ class NotificationService:
             if valid_until:
                 parts.append(f"वैधता: {valid_until}")
         else:  # Default to English
-            header = f"⚠️ [IMD] Official Warning - IMD Official Warning: {sev_upper}"
+            warning_title = "Official Warning - IMD Official Warning" if is_imd else "Weather Warning"
+            header = f"⚠️ [{source_name}] {warning_title}: {sev_upper}"
             parts = [f"{title}"]
             if area:
                 parts.append(f"Area: {area}")

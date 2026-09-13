@@ -273,6 +273,10 @@ class AlertService:
 
         active_count = sum(1 for a in alert_schemas if a.is_active)
 
+        alert_identity = "IMD" if (alert_schemas and any("IMD" in (a.source or "") for a in alert_schemas)) else (
+            "IMD" if verification_status == "VERIFIED" else "None"
+        )
+
         return AlertResponse(
             location=resolved_name,
             latitude=latitude,
@@ -280,6 +284,7 @@ class AlertService:
             alerts=alert_schemas,
             active_count=active_count,
             source=source_label,
+            source_identity=alert_identity,
             status=verification_status,
             imd_state=imd_state_val,
             retrieved_at=now_utc_str,

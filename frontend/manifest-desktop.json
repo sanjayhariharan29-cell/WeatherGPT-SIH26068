@@ -1,0 +1,20 @@
+{
+  "name": "SkyZen — Weather Intelligence",
+  "short_name": "SkyZen",
+  "description": "AI-Powered Weather Intelligence, Official Alerts, and Decision Engine (MoES / IMD WeatherGPT)",
+  "start_url": "./index.html",
+  "scope": "./",
+  "display": "browser",
+  "display_override": [
+    "browser"
+  ],
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
+  "icons": [
+    {
+      "src": "./assets/skyzen_official_logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png"
+    }
+  ]
+}

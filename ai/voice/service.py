@@ -108,7 +108,7 @@ class VoiceAIService:
         transcript_override: Optional[str] = None,
         language: Optional[str] = None,
         persona: Optional[str] = "student",
-        location_name: Optional[str] = "Coimbatore",
+        location_name: Optional[str] = None,
         conversation_id: Optional[str] = None,
         user_id: Optional[str] = None,
         db: Optional[Session] = None,
@@ -172,7 +172,7 @@ class VoiceAIService:
                 message=transcript,
                 language=resolved_lang,
                 persona=persona or "student",
-                location=LocationPayload(name=location_name or "Coimbatore"),
+                location=LocationPayload(name=location_name) if location_name else None,
                 conversation_id=conversation_id
             )
             chat_resp = await self.ai_service.process_chat(req, db=db)
@@ -180,7 +180,7 @@ class VoiceAIService:
             try:
                 chat_resp = await self.chat_service.handle_chat_request(
                     message=transcript,
-                    location_name=location_name or "Coimbatore",
+                    location_name=location_name,
                     persona=persona or "student",
                     language=resolved_lang,
                     conversation_id=conversation_id,
@@ -193,7 +193,7 @@ class VoiceAIService:
                     message=transcript,
                     language=resolved_lang,
                     persona=persona or "student",
-                    location=LocationPayload(name=location_name or "Coimbatore"),
+                    location=LocationPayload(name=location_name) if location_name else None,
                     conversation_id=conversation_id
                 )
                 chat_resp = await self.ai_service.process_chat(req, db=db)
@@ -202,7 +202,7 @@ class VoiceAIService:
                 message=transcript,
                 language=resolved_lang,
                 persona=persona or "student",
-                location=LocationPayload(name=location_name or "Coimbatore"),
+                location=LocationPayload(name=location_name) if location_name else None,
                 conversation_id=conversation_id
             )
             chat_resp = await self.ai_service.process_chat(req, db=db)
@@ -252,7 +252,7 @@ class VoiceAIService:
             language=resolved_lang,
             input_language=stt_lang or nlu_lang,
             intent=chat_resp.get("intent", nlu_parse.intent.value if hasattr(nlu_parse, "intent") else "current_weather"),
-            location=chat_resp.get("location", location_name or "Coimbatore"),
+            location=chat_resp.get("location", location_name or "Unspecified"),
             persona=persona or "student",
             risk=chat_resp.get("risk", {}),
             audio_available=audio_available,

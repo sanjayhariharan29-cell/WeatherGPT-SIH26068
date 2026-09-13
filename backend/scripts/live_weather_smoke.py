@@ -34,8 +34,8 @@ async def run_smoke_test(lat: float, lon: float, location: str):
     print("=" * 60)
     print(f"Target Location: {location} (Lat: {lat}, Lon: {lon})\n")
 
-    # 1. Test Open-Meteo (Live API)
-    print("1. Testing Provider: Open-Meteo (Real-Time API)...")
+    # 1. Test Open-Meteo (Secondary Live Provider)
+    print("1. Testing Provider: Open-Meteo (Secondary Live Provider)...")
     open_meteo = OpenMeteoAdapter(timeout=6.0)
     try:
         om_obs = await open_meteo.get_current_weather(lat, lon, location)
@@ -49,8 +49,8 @@ async def run_smoke_test(lat: float, lon: float, location: str):
     except Exception as e:
         print(f"   Status: FAIL ({str(e)})")
 
-    # 2. Test OpenWeather (Independent Secondary Provider)
-    print("\n2. Testing Provider: OpenWeather (Configurable Live API)...")
+    # 2. Test OpenWeather (Primary Live Provider)
+    print("\n2. Testing Provider: OpenWeather (Primary Live Provider)...")
     openweather = OpenWeatherAdapter(timeout=6.0)
     if not openweather.is_configured:
         print("   Status: LIVE PROVIDER CREDENTIALS NOT CONFIGURED")
@@ -68,15 +68,12 @@ async def run_smoke_test(lat: float, lon: float, location: str):
         except Exception as e:
             print(f"   Status: FAIL ({str(e)})")
 
-    # 3. Test IMD (Official Primary Provider)
-    print("\n3. Testing Provider: IMD (India Meteorological Department)...")
+    # 3. Test IMD (Institutional Placeholder - Approval in Progress)
+    print("\n3. Testing Provider: IMD (Institutional Placeholder - Approval in Progress)...")
     imd = IMDAdapter(timeout=6.0)
     if not imd.is_live_configured:
-        print("   Status: IMD LIVE ACCESS NOT CONFIGURED")
-        print("   Notice: Authorized IMD endpoint key not present. Operating in deterministic reference boundary.")
-        imd_obs = await imd.get_current_weather(lat, lon, location)
-        print(f"   Deterministic Fixture Value: {imd_obs.temperature_c}°C ({imd_obs.condition})")
-        print(f"   Authority: {imd_obs.authority_level} (Official Warnings Authoritative)")
+        print("   Status: IMD LIVE ACCESS NOT CONFIGURED (APPROVAL IN PROGRESS)")
+        print("   Notice: IMDAdapter is preserved as a placeholder and gated until live credentials are provided.")
     else:
         try:
             imd_obs = await imd.get_current_weather(lat, lon, location)

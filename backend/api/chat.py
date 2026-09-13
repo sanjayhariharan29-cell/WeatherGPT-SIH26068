@@ -58,7 +58,7 @@ async def chat_endpoint(
     if req.persona and req.persona.lower() not in ALLOWED_PERSONAS:
         raise HTTPException(status_code=400, detail=f"Unsupported persona '{req.persona}'. Supported: student, farmer, fisherman, commuter, general.")
 
-    loc_name = req.location.name if req.location and req.location.name else "Coimbatore"
+    loc_name = req.location.name if req.location and req.location.name else None
     lat = req.location.latitude if req.location else None
     lon = req.location.longitude if req.location else None
 

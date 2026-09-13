@@ -117,23 +117,7 @@ class WeatherTools:
         results: List[Dict[str, Any]] = []
         errors: List[str] = []
 
-        # 1. Primary: Open-Meteo
-        om_obs = None
-        try:
-            om_obs = await self.open_meteo.get_current_weather(latitude, longitude, loc_name)
-            results.append({
-                "provider": "Open-Meteo",
-                "temperature": om_obs.temperature_c,
-                "humidity": om_obs.humidity_pct,
-                "wind_speed": om_obs.wind_speed_kmh,
-                "precipitation": om_obs.rainfall_mm or om_obs.rain_probability_pct,
-                "condition": om_obs.condition,
-                "observed_at": om_obs.observed_at
-            })
-        except Exception as e:
-            errors.append(f"Open-Meteo: {str(e)}")
-
-        # 2. Secondary: OpenWeather (Server-side key check)
+        # 1. Primary: OpenWeather (Server-side key check)
         ow_obs = None
         if self.openweather.is_configured:
             try:
@@ -150,22 +134,39 @@ class WeatherTools:
             except Exception as e:
                 errors.append(f"OpenWeather: {str(e)}")
 
-        # 3. IMD (Real warnings + observation where supported)
-        imd_obs = None
+        # 2. Secondary: Open-Meteo
+        om_obs = None
         try:
-            imd_obs = await self.imd.get_current_weather(latitude, longitude, loc_name)
-            if imd_obs:
-                results.append({
-                    "provider": "IMD",
-                    "temperature": imd_obs.temperature_c,
-                    "humidity": imd_obs.humidity_pct,
-                    "wind_speed": imd_obs.wind_speed_kmh,
-                    "precipitation": imd_obs.rainfall_mm or imd_obs.rain_probability_pct,
-                    "condition": imd_obs.condition,
-                    "observed_at": imd_obs.observed_at
-                })
-        except Exception:
-            pass
+            om_obs = await self.open_meteo.get_current_weather(latitude, longitude, loc_name)
+            results.append({
+                "provider": "Open-Meteo",
+                "temperature": om_obs.temperature_c,
+                "humidity": om_obs.humidity_pct,
+                "wind_speed": om_obs.wind_speed_kmh,
+                "precipitation": om_obs.rainfall_mm or om_obs.rain_probability_pct,
+                "condition": om_obs.condition,
+                "observed_at": om_obs.observed_at
+            })
+        except Exception as e:
+            errors.append(f"Open-Meteo: {str(e)}")
+
+        # 3. IMD (Real warnings + observation only when live credentials configured or in test mode)
+        imd_obs = None
+        if getattr(self.imd, "is_live_configured", False) or getattr(self.imd, "mode", "") == "test":
+            try:
+                imd_obs = await self.imd.get_current_weather(latitude, longitude, loc_name)
+                if imd_obs:
+                    results.append({
+                        "provider": "IMD",
+                        "temperature": imd_obs.temperature_c,
+                        "humidity": imd_obs.humidity_pct,
+                        "wind_speed": imd_obs.wind_speed_kmh,
+                        "precipitation": imd_obs.rainfall_mm or imd_obs.rain_probability_pct,
+                        "condition": imd_obs.condition,
+                        "observed_at": imd_obs.observed_at
+                    })
+            except Exception:
+                pass
 
         if not results:
             return {
@@ -412,27 +413,32 @@ class WeatherTools:
         loc_name = loc_res["name"]
 
         try:
-            alerts = await self.imd.get_active_alerts(latitude, longitude, loc_name)
+            alerts_resp = await self.weather_mgr.get_alerts(latitude, longitude, loc_name, active_only=True)
             alert_items = []
+            alerts = alerts_resp.get("alerts", []) if isinstance(alerts_resp, dict) else getattr(alerts_resp, "alerts", [])
             for a in alerts:
+                a_dict = a if isinstance(a, dict) else a.model_dump()
                 alert_items.append({
-                    "title": a.headline or "Weather Advisory",
-                    "description": a.description,
-                    "severity": a.severity,
-                    "event": a.event,
-                    "effective": a.effective,
-                    "expires": a.expires,
-                    "source": "India Meteorological Department (IMD)"
+                    "title": a_dict.get("title") or "Weather Advisory",
+                    "description": a_dict.get("description", ""),
+                    "severity": a_dict.get("severity", "medium"),
+                    "area": a_dict.get("area", loc_name),
+                    "issued_at": a_dict.get("issued_at"),
+                    "expires_at": a_dict.get("expires_at"),
+                    "source": a_dict.get("source") or "Official Bulletin"
                 })
 
+            resp_source = alerts_resp.get("source_identity", "None") if isinstance(alerts_resp, dict) else getattr(alerts_resp, "source_identity", "None")
+            is_imd = resp_source == "IMD" or any("IMD" in str(item.get("source", "")).upper() for item in alert_items)
+            provider_label = "India Meteorological Department (IMD)" if is_imd else ("OpenWeather & Open-Meteo" if resp_source != "None" else "None")
             return {
                 "status": "SUCCESS",
                 "location": loc_name,
                 "warning_count": len(alert_items),
                 "has_warning": len(alert_items) > 0,
                 "warnings": alert_items,
-                "provider": "India Meteorological Department (IMD)",
-                "authority": "NATIONAL_METEOROLOGICAL_AUTHORITY"
+                "provider": provider_label,
+                "authority": "NATIONAL_METEOROLOGICAL_AUTHORITY" if is_imd else "METEOROLOGICAL_ALERTS"
             }
         except Exception as e:
             return {
@@ -441,7 +447,7 @@ class WeatherTools:
                 "has_warning": False,
                 "warnings": [],
                 "error": str(e),
-                "message": "Official IMD warning feed is currently unreachable."
+                "message": "Official warning feed is currently unreachable."
             }
 
     async def compare_locations(
@@ -545,9 +551,9 @@ class WeatherTools:
         lon: Optional[float]
     ) -> Dict[str, Any]:
         """Ensures valid coordinates exist for the target location."""
-        if lat is not None and lon is not None:
-            return {"resolved": True, "latitude": lat, "longitude": lon, "name": location or "Current Location"}
-        return await self.get_location(location or "Coimbatore")
+        if not location:
+            return {"resolved": False, "error": "MISSING_LOCATION", "name": "Unspecified"}
+        return await self.get_location(location)
 
     def _parse_hour(self, time_str: str) -> int:
         """Deterministically extracts standard 24-hour hour integer from query text."""

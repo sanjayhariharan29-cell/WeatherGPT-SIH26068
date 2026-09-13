@@ -4,7 +4,7 @@ import hashlib
 import jwt
 from datetime import datetime, timezone, timedelta
 from typing import Optional, Set
-from fastapi import Depends, HTTPException, status
+from fastapi import Depends, HTTPException, status, Request
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
@@ -102,18 +102,23 @@ def is_token_revoked(jti: str, db: Session) -> bool:
     return False
 
 def get_current_user(
+    request: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db)
 ) -> User:
-    """FastAPI dependency to extract and validate the authenticated user from Bearer token."""
-    if not credentials or not credentials.credentials:
+    """FastAPI dependency to extract and validate the authenticated user from Bearer token, query param, or cookie."""
+    token = None
+    if credentials and credentials.credentials:
+        token = credentials.credentials
+    elif request:
+        token = request.query_params.get("token") or request.cookies.get("access_token")
+
+    if not token:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Authentication credentials required",
             headers={"WWW-Authenticate": "Bearer"}
         )
-    
-    token = credentials.credentials
     payload = decode_access_token(token)
     jti = payload.get("jti")
     if jti and is_token_revoked(jti, db):
@@ -142,14 +147,20 @@ def get_current_user(
     return user
 
 def get_optional_current_user(
+    request: Request = None,
     credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db)
 ) -> Optional[User]:
     """FastAPI dependency to get current user if authenticated, else None."""
     if not credentials or not credentials.credentials:
+        if request and (request.query_params.get("token") or request.cookies.get("access_token")):
+            try:
+                return get_current_user(request=request, credentials=credentials, db=db)
+            except HTTPException:
+                return None
         return None
     try:
-        return get_current_user(credentials, db)
+        return get_current_user(request=request, credentials=credentials, db=db)
     except HTTPException:
         return None
 
@@ -163,3 +174,19 @@ def require_role(required_role: str):
             )
         return current_user
     return role_checker
+
+
+def require_developer_role(current_user: User = Depends(get_current_user)) -> User:
+    """FastAPI dependency requiring 'developer' or 'admin' role.
+    
+    1. If unauthenticated / no token: get_current_user raises 401 UNAUTHORIZED.
+    2. If authenticated with role="user": raises 403 FORBIDDEN.
+    3. If authenticated with role="developer" or "admin": returns current_user.
+    """
+    if current_user.role not in ("developer", "admin"):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Developer access required. Insufficient permissions for this operation."
+        )
+    return current_user
+

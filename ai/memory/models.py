@@ -97,7 +97,7 @@ class ResolvedQueryContext(BaseModel):
     """Result of combining incoming user query with conversational memory context."""
     original_message: str = Field(description="Raw user query")
     resolved_message: str = Field(description="Disambiguated or enriched message query")
-    resolved_location: str = Field(default="Coimbatore", description="Resolved location name")
+    resolved_location: Optional[str] = Field(default=None, description="Resolved location name")
     resolved_date: Optional[str] = Field(default=None, description="Resolved date context")
     resolved_time: Optional[str] = Field(default=None, description="Resolved time-of-day context")
     resolved_departure_time: Optional[str] = Field(default=None, description="Resolved departure schedule time")

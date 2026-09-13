@@ -41,8 +41,8 @@ window.onLanguageChanged = function(lang) {
   }
   const aqiScreen = document.getElementById("screen-air-quality");
   if (aqiScreen && aqiScreen.classList.contains("active")) {
-    const loc = document.getElementById("locationSelect")?.value || "Coimbatore";
-    loadAirQuality(loc);
+    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || null;
+    if (loc) loadAirQuality(loc);
   }
 };
 
@@ -51,6 +51,11 @@ document.addEventListener("DOMContentLoaded", () => {
 });
 
 async function initApp() {
+  initAppTheme();
+  if (isDesktopBrowserEnvironment()) {
+    const splash = document.getElementById("splashScreen");
+    if (splash) splash.style.display = "none";
+  }
   loadLastKnownLocation();
   setupNavigation();
   setupNetworkMonitoring();
@@ -58,7 +63,9 @@ async function initApp() {
   setupEventListeners();
   setupAutoRefresh();
   initWeatherAtmosphereEngine();
+  initHeroWeatherAtmosphere();
   initSkyzenCopilot();
+  setupPWAExperience();
 
   // Initial Entry Flow: Splash -> Session Check -> (Auth Portal OR Home)
   await restoreSessionOrShowAuth();
@@ -115,16 +122,33 @@ function navigateToScreen(screenName) {
   window.location.hash = screenName;
   window.scrollTo({ top: 0, behavior: "smooth" });
 
+  if (screenName === "home") {
+    if (window.heroAtmosphereEngine && typeof window.heroAtmosphereEngine.resume === "function") {
+      window.heroAtmosphereEngine.resume();
+    }
+  } else {
+    if (window.heroAtmosphereEngine && typeof window.heroAtmosphereEngine.pause === "function") {
+      window.heroAtmosphereEngine.pause();
+    }
+  }
+
   if (screenName === "map") {
     initWeatherMap();
   } else if (screenName === "air-quality") {
-    const loc = document.getElementById("locationSelect")?.value || "Coimbatore";
-    loadAirQuality(loc);
+    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || null;
+    if (loc) loadAirQuality(loc);
   } else if (screenName === "alerts") {
-    const loc = document.getElementById("locationSelect")?.value || "Coimbatore";
-    loadAlerts(loc);
-  } else if (screenName === "locations") {
-    loadSavedLocationsList();
+    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || null;
+    if (loc) loadAlerts(loc);
+  } else if (screenName === "developer") {
+    if (!currentUser || (currentUser.role !== "developer" && currentUser.role !== "admin")) {
+      showMobileNotice("Access Denied: Developer role required.", "error");
+      window.location.hash = "home";
+      navigateToScreen("home");
+      return;
+    }
+    window.location.href = "/developer.html";
+    return;
   }
 }
 
@@ -134,10 +158,21 @@ function handleHashNavigation() {
     return;
   }
   const hash = window.location.hash.replace("#", "");
-  const validScreens = ["home", "chat", "weather", "alerts", "map", "air-quality", "locations", "more", "profile", "settings"];
+  if (hash === "developer") {
+    if (!currentUser || (currentUser.role !== "developer" && currentUser.role !== "admin")) {
+      showMobileNotice("Access Denied: Developer role required.", "error");
+      window.location.hash = "home";
+      navigateToScreen("home");
+      return;
+    }
+    window.location.href = "/developer.html";
+    return;
+  }
+  const validScreens = ["home", "chat", "weather", "alerts", "map", "air-quality", "more", "profile", "settings"];
   const target = validScreens.includes(hash) ? hash : "home";
   navigateToScreen(target);
 }
+
 
 // 2. Offline / Connectivity & System State Monitoring
 let currentSystemState = "ONLINE";
@@ -401,64 +436,6 @@ function setupEventListeners() {
     }
   }
 
-  // Add Location Modal Listeners
-  const addLocBtn = document.getElementById("addLocModalBtn");
-  const addCityModal = document.getElementById("addCityModal");
-  const closeAddCityBtn = document.getElementById("closeAddCityModalBtn");
-  const saveCustomCityBtn = document.getElementById("saveCustomCityBtn");
-  const customCityInput = document.getElementById("customCityInput");
-
-  if (addLocBtn && addCityModal) {
-    addLocBtn.addEventListener("click", () => {
-      addCityModal.classList.remove("hidden");
-      if (customCityInput) customCityInput.focus();
-    });
-  }
-
-  if (closeAddCityBtn && addCityModal) {
-    closeAddCityBtn.addEventListener("click", () => {
-      addCityModal.classList.add("hidden");
-    });
-  }
-
-  if (addCityModal) {
-    addCityModal.addEventListener("click", (e) => {
-      if (e.target === addCityModal) {
-        addCityModal.classList.add("hidden");
-      }
-    });
-  }
-
-  // Quick Chips in Add City Modal
-  const modalChips = document.querySelectorAll("#modalCityChips .chip-btn");
-  modalChips.forEach(chip => {
-    chip.addEventListener("click", () => {
-      const city = chip.getAttribute("data-city");
-      const state = chip.getAttribute("data-state") || "India";
-      const lat = parseFloat(chip.getAttribute("data-lat")) || 20.0;
-      const lon = parseFloat(chip.getAttribute("data-lon")) || 78.0;
-      addAndSelectLocation(city, state, lat, lon);
-      if (addCityModal) addCityModal.classList.add("hidden");
-    });
-  });
-
-  if (saveCustomCityBtn && customCityInput) {
-    const handleSaveCustom = () => {
-      const val = customCityInput.value.trim();
-      if (!val) {
-        showMobileNotice("Please enter a city or district name.", "warning");
-        return;
-      }
-      addAndSelectLocation(val, "India", 13.0, 80.0);
-      customCityInput.value = "";
-      if (addCityModal) addCityModal.classList.add("hidden");
-    };
-
-    saveCustomCityBtn.addEventListener("click", handleSaveCustom);
-    customCityInput.addEventListener("keypress", (e) => {
-      if (e.key === "Enter") handleSaveCustom();
-    });
-  }
 
   // Foreground Resume / Window Focus Auto-Refresh
   // One-shot foreground trigger (strictly zero continuous background polling)
@@ -543,40 +520,6 @@ function setupEventListeners() {
   }
 }
 
-function addAndSelectLocation(cityName, stateName, lat, lon) {
-  const existing = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === cityName.toLowerCase());
-  if (!existing) {
-    MAP_PRESET_LOCATIONS.push({
-      name: cityName,
-      lat: lat,
-      lon: lon,
-      state: stateName
-    });
-  }
-
-  const locSelect = document.getElementById("locationSelect");
-  if (locSelect) {
-    let found = false;
-    for (let i = 0; i < locSelect.options.length; i++) {
-      if (locSelect.options[i].value.toLowerCase() === cityName.toLowerCase()) {
-        locSelect.selectedIndex = i;
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      const opt = document.createElement("option");
-      opt.value = cityName;
-      opt.textContent = `${cityName}, ${stateName}`;
-      locSelect.appendChild(opt);
-      locSelect.selectedIndex = locSelect.options.length - 1;
-    }
-  }
-
-  loadSavedLocationsList();
-  loadCurrentWeather(true);
-  showMobileNotice(`Switched to location: ${cityName}`, "info", 2500);
-}
 
 // ============================================================================
 // SKYZEN AUTOMATIC FOREGROUND CURRENT-LOCATION INTELLIGENCE
@@ -645,7 +588,7 @@ function setLocationState(type, name, lat = null, lon = null, accuracy = null, t
 
   currentLocationState = {
     type,
-    name: name || "Coimbatore",
+    name: name || null,
     latitude: lat !== null && lat !== undefined ? Number(lat) : null,
     longitude: lon !== null && lon !== undefined ? Number(lon) : null,
     accuracy: accuracy !== null && accuracy !== undefined ? Number(accuracy) : null,
@@ -975,8 +918,10 @@ async function refreshForegroundLocation(triggerReason = "manual") {
       }
 
       if (!hadLastKnown && currentLocationState.type !== LOCATION_STATE_TYPES.MANUAL) {
-        // Default to Coimbatore as MoES reference station
-        setLocationState(LOCATION_STATE_TYPES.MANUAL, "Coimbatore", 11.0168, 76.9558);
+        const defaultPreset = (typeof MAP_PRESET_LOCATIONS !== 'undefined' && MAP_PRESET_LOCATIONS.length > 0) ? MAP_PRESET_LOCATIONS[0] : null;
+        if (defaultPreset) {
+          setLocationState(LOCATION_STATE_TYPES.MANUAL, defaultPreset.name, defaultPreset.lat, defaultPreset.lon);
+        }
       }
 
       loadCurrentWeather(false);
@@ -1000,6 +945,113 @@ function setupAutoRefresh() {
 // SKYZEN AUTHENTICATION PORTAL & SESSION RESTORATION (PHASE 1)
 // ============================================================================
 
+// ============================================================================
+// RELIABLE MULTI-SIGNAL DEVICE / VIEWPORT DETECTION ENGINE
+// Evaluates pointer precision, hover capability, mobile UA, and viewport width
+// ============================================================================
+function isDesktopBrowserEnvironment() {
+  try {
+    const hasFinePointer = window.matchMedia && window.matchMedia('(pointer: fine)').matches;
+    const hasHover = window.matchMedia && window.matchMedia('(hover: hover)').matches;
+    const isMobileUA = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent || '');
+    const isNarrowViewport = (window.innerWidth || document.documentElement.clientWidth || 1024) <= 860;
+    const isStandalone = (window.matchMedia && window.matchMedia('(display-mode: standalone)').matches) || (window.navigator.standalone === true);
+
+    // If installed/running in standalone PWA mode, honor standalone mode
+    if (isStandalone) return false;
+
+    // Desktop browser: fine pointer + hover + not mobile UA + viewport > 860px
+    return (hasFinePointer && hasHover && !isMobileUA && !isNarrowViewport);
+  } catch (e) {
+    return (window.innerWidth || 1024) > 860;
+  }
+}
+
+function isMobilePWAEnvironment() {
+  return !isDesktopBrowserEnvironment();
+}
+
+// ============================================================================
+// PWA INSTALLATION & DISPLAY CONTROLLER (MOBILE INSTALL VS DESKTOP BROWSER)
+// ============================================================================
+let deferredPWAInstallPrompt = null;
+
+function setupPWAExperience() {
+  // Desktop browsers render as a normal website with full browser chrome.
+  // Suppress beforeinstallprompt on desktop.
+  window.addEventListener("beforeinstallprompt", (e) => {
+    if (isDesktopBrowserEnvironment()) {
+      e.preventDefault();
+      return false;
+    }
+
+    // On mobile viewports: capture prompt for native bottom banner UX
+    e.preventDefault();
+    deferredPWAInstallPrompt = e;
+
+    // Check if dismissed recently (24h cooldown)
+    const dismissedAt = localStorage.getItem("skyzen_pwa_dismissed_at");
+    const now = Date.now();
+    if (dismissedAt && (now - parseInt(dismissedAt, 10) < 24 * 60 * 60 * 1000)) {
+      return;
+    }
+
+    setTimeout(() => {
+      checkAndShowMobilePWABanner();
+    }, 2500);
+  });
+
+  const promptBtn = document.getElementById("pwaPromptBtn");
+  const laterBtn = document.getElementById("pwaLaterBtn");
+  const banner = document.getElementById("pwaInstallBanner");
+
+  if (promptBtn) {
+    promptBtn.addEventListener("click", async () => {
+      if (banner) banner.classList.add("hidden");
+      if (deferredPWAInstallPrompt) {
+        try {
+          deferredPWAInstallPrompt.prompt();
+          const choiceResult = await deferredPWAInstallPrompt.userChoice;
+          if (choiceResult && choiceResult.outcome === "accepted") {
+            console.log("User accepted the SkyZen PWA install prompt");
+          } else {
+            localStorage.setItem("skyzen_pwa_dismissed_at", Date.now().toString());
+          }
+        } catch (err) {
+          console.warn("PWA install prompt invocation error:", err);
+        }
+        deferredPWAInstallPrompt = null;
+      }
+    });
+  }
+
+  if (laterBtn) {
+    laterBtn.addEventListener("click", () => {
+      if (banner) banner.classList.add("hidden");
+      localStorage.setItem("skyzen_pwa_dismissed_at", Date.now().toString());
+    });
+  }
+
+  window.addEventListener("appinstalled", () => {
+    console.log("SkyZen PWA was successfully installed.");
+    deferredPWAInstallPrompt = null;
+    if (banner) banner.classList.add("hidden");
+    localStorage.removeItem("skyzen_pwa_dismissed_at");
+  });
+}
+
+function checkAndShowMobilePWABanner() {
+  if (!isMobilePWAEnvironment() || !deferredPWAInstallPrompt) return;
+  const dismissedAt = localStorage.getItem("skyzen_pwa_dismissed_at");
+  if (dismissedAt && (Date.now() - parseInt(dismissedAt, 10) < 24 * 60 * 60 * 1000)) return;
+
+  const banner = document.getElementById("pwaInstallBanner");
+  if (banner && isAppAuthenticated()) {
+    banner.classList.remove("hidden");
+    if (window.I18N) window.I18N.applyTranslations();
+  }
+}
+
 function hideSplashScreen() {
   const splash = document.getElementById("splashScreen");
   if (splash) {
@@ -1011,6 +1063,10 @@ function hideSplashScreen() {
 }
 
 function showSplashScreen(statusText = "Initializing Meteorological Intelligence...") {
+  if (isDesktopBrowserEnvironment()) {
+    hideSplashScreen();
+    return;
+  }
   const splash = document.getElementById("splashScreen");
   const textElem = document.getElementById("splashStatusText");
   if (splash) {
@@ -1214,21 +1270,34 @@ function updateProfileUI(user) {
     if (editLang) editLang.value = userLang;
     if (langSelect) langSelect.value = userLang;
     if (editNotif) editNotif.checked = user.notification_enabled !== undefined ? Boolean(user.notification_enabled) : true;
-
-    if (summaryName) summaryName.textContent = user.name || "SkyZen User";
+    if (summaryName) summaryName.textContent = user.name || (window.I18N ? window.I18N.t("profile.user_title") : "SkyZen User");
     if (summaryRole) {
       const pName = (user.persona || "student").charAt(0).toUpperCase() + (user.persona || "student").slice(1);
-      const lName = userLang === "ta" ? "தமிழ்" : (userLang === "hi" ? "हिन्दी" : "English");
+      const curAppLang = (window.I18N && window.I18N.currentLanguage) || "en";
+      const lName = curAppLang === "ta" ? (userLang === "ta" ? "தமிழ்" : (userLang === "hi" ? "இந்தி" : "ஆங்கிலம்"))
+        : (curAppLang === "hi" ? (userLang === "ta" ? "तमिल" : (userLang === "hi" ? "हिंदी" : "अंग्रेज़ी"))
+        : (userLang === "ta" ? "Tamil" : (userLang === "hi" ? "Hindi" : "English")));
       summaryRole.textContent = `${pName} • ${lName}`;
     }
 
     if (userInfoView) userInfoView.classList.remove("hidden");
     if (guestView) guestView.classList.add("hidden");
+
+    const devHub = document.getElementById("devPortalHubSection");
+    if (devHub) {
+      if (user && (user.role === "developer" || user.role === "admin")) {
+        devHub.classList.remove("hidden");
+      } else {
+        devHub.classList.add("hidden");
+      }
+    }
   } else {
     if (userInfoView) userInfoView.classList.add("hidden");
     if (guestView) guestView.classList.remove("hidden");
     if (summaryName) summaryName.textContent = "User Profile";
     if (summaryRole) summaryRole.textContent = "Sign in to personalize role & preferences";
+    const devHub = document.getElementById("devPortalHubSection");
+    if (devHub) devHub.classList.add("hidden");
   }
 }
 
@@ -1266,10 +1335,10 @@ async function restoreSessionOrShowAuth() {
         hideSplashScreen();
         refreshForegroundLocation("session_restore");
         loadCurrentWeather();
-        loadSavedLocationsList();
         if (window.notificationManager) {
           window.notificationManager.init();
         }
+        checkAndShowMobilePWABanner();
         return;
       }
     } catch (err) {
@@ -1300,11 +1369,11 @@ async function executeDemoLogin() {
       navigateToScreen("home");
       refreshForegroundLocation("demo_login");
       loadCurrentWeather();
-      loadSavedLocationsList();
       if (window.notificationManager) {
         window.notificationManager.init();
       }
       showMobileNotice(`Presentation Mode: Welcome, ${res.user.name || "Sanjay"}!`, "info");
+      checkAndShowMobilePWABanner();
       return;
     }
   } catch (err) {
@@ -1321,7 +1390,6 @@ async function executeDemoLogin() {
       navigateToScreen("home");
       refreshForegroundLocation("demo_login");
       loadCurrentWeather();
-      loadSavedLocationsList();
       if (window.notificationManager) {
         window.notificationManager.init();
       }
@@ -1464,7 +1532,6 @@ function setupAuthPortalEngine() {
           navigateToScreen("home");
           refreshForegroundLocation("login_success");
           loadCurrentWeather();
-          loadSavedLocationsList();
           if (window.notificationManager) {
             window.notificationManager.init();
           }
@@ -1594,7 +1661,6 @@ function setupAuthPortalEngine() {
           navigateToScreen("home");
           refreshForegroundLocation("verification_success");
           loadCurrentWeather();
-          loadSavedLocationsList();
           showMobileNotice("Email verified successfully! Welcome to SkyZen.", "info");
         } else {
           showAuthView("login");
@@ -1770,7 +1836,6 @@ function setupAuthPortalEngine() {
         navigateToScreen("home");
         refreshForegroundLocation("onboarding_complete");
         loadCurrentWeather();
-        loadSavedLocationsList();
         showMobileNotice(`Welcome to SkyZen, ${fullName}! Profile setup complete.`, "success");
       } catch (err) {
         setAuthMessage("onboardingMessage", err.message || "Failed to save profile. Please try again.", "error");
@@ -1879,7 +1944,10 @@ function setupAuthPortalEngine() {
           console.warn("Failed to persist language preference to account:", err.message);
         }
       }
-      showMobileNotice(`Language updated to ${newLang === "ta" ? "தமிழ்" : (newLang === "hi" ? "हिन्दी" : "English")}.`, "info");
+      const noticeMsg = newLang === "ta"
+        ? "மொழி தமிழாக மாற்றப்பட்டது."
+        : (newLang === "hi" ? "भाषा हिंदी में अपडेट की गई।" : "Language updated to English.");
+      showMobileNotice(noticeMsg, "info");
     });
   }
 
@@ -1965,7 +2033,7 @@ async function loadCurrentWeather(showLoader = false) {
   isFetchingWeather = true;
 
   const locSelect = document.getElementById("locationSelect");
-  const location = locSelect?.value || "Coimbatore";
+  const location = locSelect?.value || (currentLocationState && currentLocationState.name) || (typeof MAP_PRESET_LOCATIONS !== 'undefined' && MAP_PRESET_LOCATIONS.length > 0 ? MAP_PRESET_LOCATIONS[0].name : null);
 
   // Resolve live GPS / last-known coordinates if they match or correspond to current state
   let lat = null;
@@ -2085,9 +2153,9 @@ function renderWeatherCard(data) {
   if (!data) return;
   window.lastWeatherData = data;
 
-  const locName = data.location?.name || "Coimbatore";
-  const stateStr = data.location?.state ? `, ${data.location.state}` : ", Tamil Nadu";
-  document.getElementById("currentLocationName").textContent = `${locName}${stateStr}`;
+  const locName = data.location?.name || (currentLocationState && currentLocationState.name) || (typeof MAP_PRESET_LOCATIONS !== 'undefined' && MAP_PRESET_LOCATIONS.length > 0 ? MAP_PRESET_LOCATIONS[0].name : "");
+  const stateStr = data.location?.state ? `, ${data.location.state}` : "";
+  document.getElementById("currentLocationName").textContent = locName ? `${locName}${stateStr}` : "";
 
   const sourceTagElem = document.getElementById("currentSourceTag");
   if (sourceTagElem) {
@@ -2204,10 +2272,12 @@ function renderWeatherCard(data) {
   const feelsElem = document.getElementById("feelsLikeText");
   const locFeels = locDyn("Feels like");
   if (feelsElem) {
+    const resolvedSource = data.source_identity || data.source || (data.sources && data.sources.length ? data.sources.join(", ") : "OpenWeather");
+    const srcTag = ` • Source: ${resolvedSource}`;
     if (data.weather?.feels_like !== undefined && data.weather?.feels_like !== null) {
-      feelsElem.textContent = `${locFeels} ${Math.round(data.weather.feels_like)}°C • Multi-source telemetry verified`;
+      feelsElem.textContent = `${locFeels} ${Math.round(data.weather.feels_like)}°C${srcTag}`;
     } else {
-      feelsElem.textContent = "Multi-source telemetry verified";
+      feelsElem.textContent = `Source: ${resolvedSource}`;
     }
   }
 
@@ -2258,8 +2328,9 @@ function renderWeatherCard(data) {
   // Multi-Source Transparency Breakdown
   renderSourcesBreakdown(data);
 
-  // Flagship UI Upgrades (Living Atmosphere, 60-min Nowcast, Lifestyle Hub)
+  // Flagship UI Upgrades (Hero Atmosphere, Living Background, 60-min Nowcast, Lifestyle Hub)
   try {
+    if (typeof updateHeroWeatherAtmosphere === "function") updateHeroWeatherAtmosphere(data);
     if (typeof updateAtmosphereWeather === "function") updateAtmosphereWeather(data);
     if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(data);
     if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(data);
@@ -2344,9 +2415,9 @@ function renderSourcesBreakdown(data) {
   container.innerHTML = "";
 
   const knownProviders = [
+    { key: "OpenWeather", defaultAuth: "primary_live", fallbackStatus: "LIVE ACTIVE" },
     { key: "Open-Meteo", defaultAuth: "secondary_forecast", fallbackStatus: "LIVE VERIFIED" },
-    { key: "OpenWeather", defaultAuth: "secondary_independent", fallbackStatus: "CREDENTIALS NOT CONFIGURED" },
-    { key: "IMD", defaultAuth: "primary_authoritative", fallbackStatus: "LIVE ACCESS NOT CONFIGURED" }
+    { key: "IMD", defaultAuth: "institutional_placeholder", fallbackStatus: "APPROVAL IN PROGRESS" }
   ];
 
   knownProviders.forEach(kp => {
@@ -2377,13 +2448,13 @@ function renderSourcesBreakdown(data) {
       }
     } else {
       if (kp.key === "OpenWeather") {
-        statusChipText = "Credentials Not Configured";
-        condDisplay = "Configurable Provider";
+        statusChipText = "Primary Live Active";
+        condDisplay = "Active Observation & Forecast";
       } else if (kp.key === "IMD") {
-        statusChipText = "Live Access Not Configured";
-        condDisplay = "Deterministic Reference (Warnings Authoritative)";
+        statusChipText = "Approval In Progress";
+        condDisplay = "Institutional Access Pending";
       } else {
-        statusChipText = "Unavailable";
+        statusChipText = "Secondary Forecast";
       }
     }
 
@@ -2401,7 +2472,7 @@ function renderSourcesBreakdown(data) {
       </div>
       <div class="provider-meta-row">
         <span>${escapeHTML(timeText)}</span>
-        <span>${kp.key === 'IMD' ? 'Official Warning Authority' : 'Independent Source'}</span>
+        <span>${kp.key === 'OpenWeather' ? 'Primary Live Provider' : (kp.key === 'Open-Meteo' ? 'Secondary Forecast Source' : 'Institutional Adapter (Pending Approval)')}</span>
       </div>
     `;
 
@@ -2460,6 +2531,101 @@ async function loadForecast(location) {
   }
 }
 
+function buildForecastSvgChart(items, containerId = "forecastChartContainer") {
+  const container = document.getElementById(containerId);
+  if (!container || !items || items.length < 2) return;
+
+  const width = 600;
+  const height = 130;
+  const padX = 36;
+  const padTop = 26;
+  const padBottom = 22;
+
+  // Extract temperatures from real backend data points
+  const pointsData = items.slice(0, 8);
+  const temps = pointsData.map(item => (item.temperature !== undefined && item.temperature !== null) ? Math.round(item.temperature) : 25);
+  let minT = Math.min(...temps);
+  let maxT = Math.max(...temps);
+  if (minT === maxT) {
+    minT -= 2;
+    maxT += 2;
+  }
+  const range = (maxT - minT) || 1;
+
+  const coords = pointsData.map((item, idx) => {
+    const x = padX + (idx / (pointsData.length - 1)) * (width - padX * 2);
+    const y = padTop + ((maxT - temps[idx]) / range) * (height - padTop - padBottom);
+    const fTime = item.forecast_time ? (item.forecast_time.includes("T") ? item.forecast_time.split("T")[1]?.slice(0, 5) : item.forecast_time) : `${idx * 3}:00`;
+    return { x, y, temp: temps[idx], time: fTime, item, idx };
+  });
+
+  // Calculate smooth cubic Bezier path
+  let pathD = `M ${coords[0].x.toFixed(1)} ${coords[0].y.toFixed(1)}`;
+  for (let i = 0; i < coords.length - 1; i++) {
+    const p0 = coords[i === 0 ? 0 : i - 1];
+    const p1 = coords[i];
+    const p2 = coords[i + 1];
+    const p3 = coords[i + 2 >= coords.length ? coords.length - 1 : i + 2];
+
+    const cp1x = p1.x + (p2.x - p0.x) / 6;
+    const cp1y = p1.y + (p2.y - p0.y) / 6;
+    const cp2x = p2.x - (p3.x - p1.x) / 6;
+    const cp2y = p2.y - (p3.y - p1.y) / 6;
+
+    pathD += ` C ${cp1x.toFixed(1)} ${cp1y.toFixed(1)}, ${cp2x.toFixed(1)} ${cp2y.toFixed(1)}, ${p2.x.toFixed(1)} ${p2.y.toFixed(1)}`;
+  }
+
+  // Area path closing down to bottom
+  const lastCoord = coords[coords.length - 1];
+  const firstCoord = coords[0];
+  const areaD = `${pathD} L ${lastCoord.x.toFixed(1)} ${height} L ${firstCoord.x.toFixed(1)} ${height} Z`;
+
+  // Unique gradient ID
+  const gradId = `forecastGrad_${containerId}`;
+
+  let pointsMarkup = "";
+  let labelsMarkup = "";
+
+  coords.forEach((pt, idx) => {
+    const isActive = idx === 0 ? "active" : "";
+    pointsMarkup += `
+      <circle 
+        class="forecast-chart-point ${isActive}" 
+        id="${containerId}_pt_${idx}"
+        cx="${pt.x.toFixed(1)}" 
+        cy="${pt.y.toFixed(1)}" 
+        r="4.5"
+        tabindex="0"
+        role="button"
+        aria-label="${escapeHTML(pt.time)}: ${pt.temp}°C"
+        data-index="${idx}"
+      />
+    `;
+    labelsMarkup += `
+      <text class="forecast-chart-label" x="${pt.x.toFixed(1)}" y="${(pt.y - 10).toFixed(1)}">${pt.temp}°</text>
+      <text class="forecast-chart-time-label" x="${pt.x.toFixed(1)}" y="${(height - 4).toFixed(1)}">${escapeHTML(pt.time)}</text>
+    `;
+  });
+
+  container.innerHTML = `
+    <div class="forecast-svg-wrapper">
+      <svg class="forecast-svg-chart" viewBox="0 0 ${width} ${height}" preserveAspectRatio="none" aria-hidden="true">
+        <defs>
+          <linearGradient id="${gradId}" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stop-color="var(--primary-blue, #0284c7)" stop-opacity="0.30" />
+            <stop offset="85%" stop-color="var(--primary-blue, #0284c7)" stop-opacity="0.04" />
+            <stop offset="100%" stop-color="var(--primary-blue, #0284c7)" stop-opacity="0.0" />
+          </linearGradient>
+        </defs>
+        <path class="forecast-svg-area" d="${areaD}" fill="url(#${gradId})" />
+        <path class="forecast-svg-line" d="${pathD}" fill="none" />
+        ${pointsMarkup}
+        ${labelsMarkup}
+      </svg>
+    </div>
+  `;
+}
+
 function renderForecastGrid(data, cachedAt = null) {
   const gridToday = document.getElementById("forecastGridToday") || document.getElementById("forecastGrid");
   const gridTodayFull = document.getElementById("forecastGridTodayFull");
@@ -2474,9 +2640,27 @@ function renderForecastGrid(data, cachedAt = null) {
   if (dailyList) dailyList.innerHTML = "";
 
   if (data && data.forecast && data.forecast.length > 0) {
+    // Generate smooth SVG animated area and line chart using real forecast data points
+    buildForecastSvgChart(data.forecast, "forecastChartContainer");
+    buildForecastSvgChart(data.forecast, "forecastChartExtendedContainer");
+
     data.forecast.forEach((item, index) => {
       const card = document.createElement("div");
-      card.className = "forecast-card";
+      card.className = "forecast-card" + (index === 0 ? " active-period" : "");
+      card.setAttribute("role", "listitem");
+      card.setAttribute("tabindex", "0");
+      card.addEventListener("click", () => {
+        const parent = card.parentElement;
+        if (parent) {
+          parent.querySelectorAll(".forecast-card").forEach(c => c.classList.remove("active-period"));
+        }
+        card.classList.add("active-period");
+        const pt = document.getElementById(`forecastChartContainer_pt_${index}`);
+        if (pt) {
+          document.querySelectorAll(".forecast-chart-point").forEach(p => p.classList.remove("active"));
+          pt.classList.add("active");
+        }
+      });
       
       const fTime = item.forecast_time ? (item.forecast_time.includes("T") ? item.forecast_time.split("T")[1]?.slice(0, 5) : item.forecast_time) : "Daily";
       const tempText = (item.temperature !== undefined && item.temperature !== null) ? `${Math.round(item.temperature)}°C` : "--°C";
@@ -2630,7 +2814,11 @@ async function loadAlerts(location) {
       }
       if (sourceElem) {
         const fixtureTag = isFixture ? " (Test Fixture)" : "";
-        sourceElem.textContent = `Authoritative Source: India Meteorological Department (${heroAlert.source || 'IMD'}${fixtureTag})`;
+        const alertSrc = heroAlert.source || data.source_identity || '';
+        const isImd = alertSrc.toUpperCase().includes('IMD');
+        sourceElem.textContent = isImd
+          ? `Authoritative Source: India Meteorological Department (${alertSrc}${fixtureTag})`
+          : `Source: ${alertSrc || 'Active Provider'}${fixtureTag}`;
       }
 
       banner.classList.remove("hidden");
@@ -2652,7 +2840,7 @@ async function loadAlerts(location) {
           <div style="text-align:center; padding:32px 16px; display:flex; flex-direction:column; align-items:center; gap:8px;">
             <span class="material-symbols-rounded icon-xl" style="color:var(--success-green);">check_circle</span>
             <strong style="font-size:15px;">All Clear in ${escapeHTML(location)}</strong>
-            <p style="font-size:13px; color:var(--text-secondary);">No severe weather warnings currently active from IMD for this region.</p>
+            <p style="font-size:13px; color:var(--text-secondary);">No severe weather warnings currently active for this region.</p>
           </div>
         `;
       }
@@ -2719,11 +2907,14 @@ function renderAlertsList(alerts) {
     const areaName = a.area || (a.affected_locations && a.affected_locations.length > 0 ? a.affected_locations.join(", ") : "District Bulletin");
     const instructions = a.instructions || "";
 
+    const isImdAlert = Boolean(a.source && a.source.toUpperCase().includes("IMD"));
+    const alertBadgeLabel = isImdAlert ? "OFFICIAL IMD WARNING" : `WEATHER WARNING (${escapeHTML(a.source || 'Active Provider')})`;
+
     item.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
-        <span class="official-imd-badge" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
-          <span class="material-symbols-rounded icon-sm" style="font-size:14px;">verified</span>
-          OFFICIAL IMD WARNING
+        <span class="official-imd-badge" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:#ffffff; background:${isImdAlert ? '#dc2626' : '#2563eb'}; padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
+          <span class="material-symbols-rounded icon-sm" style="font-size:14px;">${isImdAlert ? 'verified' : 'warning'}</span>
+          ${alertBadgeLabel}
         </span>
         <span class="alert-badge ${sev}" style="font-size:10px; font-weight:700;">${(a.severity || 'WARNING').toUpperCase()}</span>
       </div>
@@ -2759,7 +2950,7 @@ function renderAlertsList(alerts) {
       </div>`}
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:8px; font-size:11px; color:var(--text-muted);">
-        <span>Authority: <strong>${escapeHTML(a.source || 'IMD')}</strong> (India Meteorological Department)</span>
+        <span>Authority: <strong>${escapeHTML(a.source || 'Meteorological Authority')}</strong>${isImdAlert ? ' (India Meteorological Department)' : ''}</span>
         ${a.source_url ? `<a href="${escapeHTML(a.source_url)}" target="_blank" rel="noopener noreferrer" style="color:var(--primary-blue); text-decoration:none; display:inline-flex; align-items:center; gap:2px;"><span class="material-symbols-rounded icon-sm" style="font-size:14px;">open_in_new</span>Official Bulletin</a>` : ''}
       </div>
     `;
@@ -2841,12 +3032,49 @@ async function loadAirQuality(location) {
     const cpcbStatusElem = document.getElementById("aqiCpcbStatus");
     const timestampElem = document.getElementById("aqiTimestamp");
 
-    if (aqiData.is_official_cpcb) {
+    if (aqiData.source === "CPCB_MANUAL" || aqiData.source_type === "manual_cpcb") {
+      if (sourceLabelElem) sourceLabelElem.textContent = "CPCB Manual Export:";
+      if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station}) [Manual Export]` : "CPCB Ground Station (Manual Export)";
+
+      const freshnessState = aqiData.freshness || aqiData.status || "STALE";
+      if (cpcbStatusElem) {
+        if (freshnessState === "LIVE" && aqiData.is_real_time) {
+          cpcbStatusElem.textContent = `CPCB Station: ${aqiData.station || 'Manual'} • State: LIVE (Recent Export)`;
+          cpcbStatusElem.style.color = "var(--success-green)";
+        } else {
+          cpcbStatusElem.textContent = `CPCB Station: ${aqiData.station || 'Manual'} • State: ${freshnessState} (Manual Export)`;
+          cpcbStatusElem.style.color = freshnessState === "AGING" ? "#d97706" : "var(--alert-red)";
+        }
+      }
+
+      if (timestampElem) {
+        const obsTime = aqiData.observed_at ? new Date(aqiData.observed_at) : (aqiData.retrieved_at ? new Date(aqiData.retrieved_at) : null);
+        if (obsTime && !isNaN(obsTime.getTime())) {
+          const timeStr = obsTime.toLocaleDateString() + " " + obsTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          if (freshnessState === "LIVE" && aqiData.is_real_time) {
+            timestampElem.textContent = `Current Observation: ${timeStr} • [LIVE]`;
+          } else {
+            timestampElem.textContent = `Exported: ${timeStr} • [${freshnessState}]`;
+          }
+        } else {
+          timestampElem.textContent = `State: ${freshnessState}`;
+        }
+      }
+    } else if (aqiData.is_official_cpcb) {
       if (sourceLabelElem) sourceLabelElem.textContent = window.I18N ? window.I18N.t("aqi.source.official", "Official AQI Source:") : "Official AQI Source:";
       if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station})` : "Central Pollution Control Board (CPCB)";
       if (cpcbStatusElem) {
         cpcbStatusElem.textContent = aqiData.station ? `Ground Monitoring Station: ${aqiData.station}` : "Official Ground Monitoring Station";
         cpcbStatusElem.style.color = "var(--success-green)";
+      }
+      if (timestampElem && aqiData.retrieved_at) {
+        try {
+          const d = new Date(aqiData.retrieved_at);
+          const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          timestampElem.textContent = `${window.I18N ? window.I18N.t("weather.updated", "Updated") : "Updated"}: ${timeStr} UTC`;
+        } catch (_) {
+          timestampElem.textContent = "Updated: Telemetry";
+        }
       }
     } else {
       if (sourceLabelElem) sourceLabelElem.textContent = window.I18N ? window.I18N.t("aqi.source.model", "Air Quality Model:") : "Air Quality Model:";
@@ -2855,15 +3083,14 @@ async function loadAirQuality(location) {
         cpcbStatusElem.textContent = window.I18N ? window.I18N.t("aqi.cpcb.not_configured", "CPCB Ground Monitoring Station API: Not Configured") : "CPCB Ground Monitoring Station API: Not Configured";
         cpcbStatusElem.style.color = "var(--text-secondary)";
       }
-    }
-
-    if (timestampElem && aqiData.retrieved_at) {
-      try {
-        const d = new Date(aqiData.retrieved_at);
-        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-        timestampElem.textContent = `${window.I18N ? window.I18N.t("weather.updated", "Updated") : "Updated"}: ${timeStr} UTC`;
-      } catch (_) {
-        timestampElem.textContent = "Updated: Live telemetry";
+      if (timestampElem && aqiData.retrieved_at) {
+        try {
+          const d = new Date(aqiData.retrieved_at);
+          const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+          timestampElem.textContent = `${window.I18N ? window.I18N.t("weather.updated", "Updated") : "Updated"}: ${timeStr} UTC`;
+        } catch (_) {
+          timestampElem.textContent = "Updated: Modelled estimate";
+        }
       }
     }
 
@@ -2935,41 +3162,6 @@ async function loadAirQuality(location) {
   }
 }
 
-// 9. Saved Locations Grid
-function loadSavedLocationsList() {
-  const grid = document.getElementById("savedLocationsGrid");
-  if (!grid) return;
-  grid.innerHTML = "";
-
-  MAP_PRESET_LOCATIONS.forEach(loc => {
-    const card = document.createElement("div");
-    card.className = "location-item-card";
-    card.onclick = () => {
-      const locSelect = document.getElementById("locationSelect");
-      if (locSelect) {
-        locSelect.value = loc.name;
-        loadCurrentWeather(true);
-        navigateToScreen("home");
-      }
-    };
-
-    card.innerHTML = `
-      <div style="display:flex; align-items:center; gap:12px;">
-        <div style="width:40px; height:40px; border-radius:8px; background:var(--light-blue); color:var(--primary-blue); display:flex; align-items:center; justify-content:center;">
-          <span class="material-symbols-rounded icon-md">location_on</span>
-        </div>
-        <div>
-          <h4 style="font-size:15px; font-weight:700; color:var(--text-primary);">${escapeHTML(loc.name)}</h4>
-          <span style="font-size:12px; color:var(--text-secondary);">${escapeHTML(loc.state)}</span>
-        </div>
-      </div>
-      <div style="display:flex; align-items:center; gap:8px;">
-        <span class="material-symbols-rounded" style="color:var(--text-muted);">chevron_right</span>
-      </div>
-    `;
-    grid.appendChild(card);
-  });
-}
 
 // 10. Conversational Chat Engine (Anti-Hallucination & Reasoning Display)
 let isSendingChatMessage = false;
@@ -3002,9 +3194,9 @@ function formatSourcesBadge(sourceStr, sourcesList) {
   const hasOW = list.some(s => s.toLowerCase().includes("openweather"));
 
   const badges = [];
-  if (hasIMD) badges.push("IMD (Primary)");
+  if (hasOW) badges.push("OpenWeather (Primary)");
   if (hasOM) badges.push("Open-Meteo (Secondary)");
-  if (hasOW) badges.push("OpenWeather (Independent)");
+  if (hasIMD) badges.push("IMD");
 
   if (badges.length === 0) {
     const deduped = Array.from(new Set(list.filter(Boolean)));
@@ -3047,7 +3239,7 @@ async function handleUserSend(isVoice = false) {
   if (!text) return;
 
   const locSelect = document.getElementById("locationSelect");
-  const location = locSelect?.value || "Coimbatore";
+  const location = locSelect?.value || null;
   const persona = document.getElementById("personaSelect")?.value || "student";
 
   // Build structured location payload with live GPS coordinates, accuracy, and staleness metadata
@@ -3173,19 +3365,21 @@ function appendBotMessage(data) {
   let warningsHtml = "";
   if (data.alerts && data.alerts.length > 0) {
     data.alerts.forEach(alert => {
-      const alertTitle = escapeHTML(alert.title || "Official Warning");
+      const alertTitle = escapeHTML(alert.title || "Weather Warning");
       const alertDesc = escapeHTML(alert.description || "");
-      const alertSource = escapeHTML(alert.source || "IMD");
+      const isImd = Boolean(alert.source && alert.source.toUpperCase().includes("IMD"));
+      const alertSource = escapeHTML(alert.source || (isImd ? "IMD" : "OpenWeather"));
+      const alertBadgeTitle = isImd ? `OFFICIAL IMD WARNING: ${alertTitle}` : `WEATHER WARNING: ${alertTitle}`;
       const alertInstructions = alert.instructions ? `<div style="margin-top:6px; font-size:12px; color:var(--text-primary);"><strong>Official Instructions:</strong> ${escapeHTML(alert.instructions)}</div>` : "";
       warningsHtml += `
         <div class="chat-warning-box">
           <div class="chat-warning-title">
             <span class="material-symbols-rounded icon-sm" style="color:#ffffff;">verified</span>
-            <span>OFFICIAL IMD WARNING: ${alertTitle}</span>
+            <span>${alertBadgeTitle}</span>
           </div>
           <p class="chat-warning-desc">${alertDesc}</p>
           ${alertInstructions}
-          <div class="chat-warning-source">Authoritative Meteorological Source: ${alertSource} (India Meteorological Department)</div>
+          <div class="chat-warning-source">${isImd ? 'Authoritative Meteorological Source: ' + alertSource + ' (India Meteorological Department)' : 'Meteorological Source: ' + alertSource}</div>
         </div>
       `;
     });
@@ -3201,7 +3395,7 @@ function appendBotMessage(data) {
   if (!points || points.length === 0) {
     points = [
       data.weather_summary?.condition ? `${data.weather_summary.condition} conditions reported for ${data.location}` : "Live telemetry analyzed",
-      data.risk?.consistency === "high" ? "Multiple forecast sources agree" : "Authoritative ground-truth verified from IMD",
+      data.risk?.consistency === "high" ? "Multiple forecast sources agree" : "Telemetry verified from OpenWeather & Open-Meteo",
       (data.alerts && data.alerts.length > 0) ? `Official alert active: ${data.alerts[0].title || "Severe Weather"}` : "No active severe warning"
     ];
   }
@@ -3215,7 +3409,7 @@ function appendBotMessage(data) {
 
   const sourcesList = (trace.sources && trace.sources.length > 0)
     ? trace.sources.join(" · ")
-    : (formattedSources || "IMD · Open-Meteo");
+    : (formattedSources || "OpenWeather · Open-Meteo");
 
   const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
   const whyId = `why_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
@@ -3404,7 +3598,17 @@ if ('speechSynthesis' in window) {
  * - NEVER use the default browser voice blindly for a mismatched language.
  * - If no matching voice is available, return isAvailable: false with clear reporting.
  */
-function selectBestVoice(targetLang) {
+function getVoiceLanguageDisplayName(cat) {
+  const curLang = (window.I18N && window.I18N.currentLanguage) || "en";
+  if (curLang === "ta") {
+    return cat === "ta" ? "தமிழ்" : (cat === "hi" ? "இந்தி" : "ஆங்கிலம்");
+  } else if (curLang === "hi") {
+    return cat === "ta" ? "तमिल" : (cat === "hi" ? "हिंदी" : "अंग्रेज़ी");
+  }
+  return cat === "ta" ? "Tamil" : (cat === "hi" ? "Hindi" : "English");
+}
+
+function selectBestVoice(targetLang = "en") {
   updateSpeechVoices();
   const voices = cachedSpeechVoices;
   const t = String(targetLang || "en").toLowerCase().trim();
@@ -3424,7 +3628,7 @@ function selectBestVoice(targetLang) {
       isNative: false,
       langCode: langCategory === "ta" ? "ta-IN" : (langCategory === "hi" ? "hi-IN" : "en-IN"),
       targetLang: langCategory,
-      languageName: langCategory === "ta" ? "Tamil (தமிழ்)" : (langCategory === "hi" ? "Hindi (हिंदी)" : "English"),
+      languageName: getVoiceLanguageDisplayName(langCategory),
       reason: "No speech synthesis voices loaded in browser environment."
     };
   }
@@ -3448,7 +3652,7 @@ function selectBestVoice(targetLang) {
         isNative: chosen.localService === true,
         langCode: chosen.lang || "ta-IN",
         targetLang: "ta",
-        languageName: "Tamil (தமிழ்)"
+        languageName: getVoiceLanguageDisplayName("ta")
       };
     }
 
@@ -3459,7 +3663,7 @@ function selectBestVoice(targetLang) {
       isNative: false,
       langCode: "ta-IN",
       targetLang: "ta",
-      languageName: "Tamil (தமிழ்)",
+      languageName: getVoiceLanguageDisplayName("ta"),
       reason: "No Tamil (ta-IN) voice found in device speech synthesis engine."
     };
   }
@@ -3483,7 +3687,7 @@ function selectBestVoice(targetLang) {
         isNative: chosen.localService === true,
         langCode: chosen.lang || "hi-IN",
         targetLang: "hi",
-        languageName: "Hindi (हिंदी)"
+        languageName: getVoiceLanguageDisplayName("hi")
       };
     }
 
@@ -3494,7 +3698,7 @@ function selectBestVoice(targetLang) {
       isNative: false,
       langCode: "hi-IN",
       targetLang: "hi",
-      languageName: "Hindi (हिंदी)",
+      languageName: getVoiceLanguageDisplayName("hi"),
       reason: "No Hindi (hi-IN) voice found in device speech synthesis engine."
     };
   }
@@ -3513,9 +3717,9 @@ function selectBestVoice(targetLang) {
     voice: chosenEn,
     isAvailable: Boolean(chosenEn),
     isNative: chosenEn ? chosenEn.localService === true : false,
-    langCode: chosenEn ? chosenEn.lang : "en-IN",
+    langCode: (chosenEn && chosenEn.lang) ? chosenEn.lang : "en-IN",
     targetLang: "en",
-    languageName: "English"
+    languageName: getVoiceLanguageDisplayName("en")
   };
 }
 
@@ -3702,8 +3906,13 @@ function speakText(text, lang) {
 
   // Requirements 5 & 11: Never use browser default voice blindly; report unavailability clearly
   if (!voiceResult.isAvailable || !voiceResult.voice) {
-    const langLabel = voiceResult.languageName || target;
-    const msg = `Voice Notice: ${voiceResult.languageName} (${voiceResult.langCode}) voice is not installed on this device. Install speech data in Android Settings -> Accessibility -> Text-to-Speech.`;
+    const curLang = (window.I18N && window.I18N.currentLanguage) || "en";
+    let msg = `Voice Notice: ${voiceResult.languageName} (${voiceResult.langCode}) voice is not installed on this device. Install speech data in Android Settings -> Accessibility -> Text-to-Speech.`;
+    if (curLang === "ta") {
+      msg = `குரல் அறிவிப்பு: ${voiceResult.languageName} (${voiceResult.langCode}) குரல் இந்த சாதனத்தில் நிறுவப்படவில்லை. ஆண்ட்ராய்டு அமைப்புகளில் பேச்சுத் தரவை நிறுவவும்.`;
+    } else if (curLang === "hi") {
+      msg = `आवाज़ सूचना: ${voiceResult.languageName} (${voiceResult.langCode}) आवाज़ इस डिवाइस पर इंस्टॉल नहीं है। एंड्रॉइड सेटिंग्स में स्पीच डेटा इंस्टॉल करें।`;
+    }
     console.warn("[SkyZen TTS Voice Unavailable]", { target, voiceResult, text: concise });
     showMobileNotice(msg, "warning", 6500);
     return false;
@@ -3850,8 +4059,15 @@ function initWeatherMap() {
     // Clean light tiles for modern white aesthetic
     L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
       maxZoom: 18,
-      attribution: "&copy; OpenStreetMap contributors | IMD Telemetry"
+      attribution: "&copy; OpenStreetMap contributors | OpenWeather Telemetry"
     }).addTo(mapInstance);
+
+    // Dedicated weather tile overlay pane below markers (600) and popups (700)
+    if (!mapInstance.getPane("weatherTilePane")) {
+      mapInstance.createPane("weatherTilePane");
+      mapInstance.getPane("weatherTilePane").style.zIndex = 250;
+      mapInstance.getPane("weatherTilePane").style.pointerEvents = "none";
+    }
 
     // Marker layers
     mapMarkersGroup = L.layerGroup().addTo(mapInstance);
@@ -3863,13 +4079,24 @@ function initWeatherMap() {
 
     // Setup map controls & listeners
     setupIntelligentMapControls();
+    setupMapLeftLayerToggle();
+
+    // Invalidate map dimensions on window resize
+    window.addEventListener("resize", () => {
+      if (mapInstance) {
+        mapInstance.invalidateSize();
+      }
+    });
+
+    // Initial weather tile layer (Radar / precipitation_new)
+    switchWeatherMapLayer("radar");
 
     // Initial load of telemetry & saved locations
     loadSavedMapLocations();
     loadMonitoredLocationsTelemetry();
 
-    // Select initial default location (Coimbatore or current selection)
-    const initialLoc = document.getElementById("locationSelect")?.value || "Coimbatore";
+    // Select initial map location (current selection or first preset)
+    const initialLoc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || (typeof MAP_PRESET_LOCATIONS !== 'undefined' && MAP_PRESET_LOCATIONS.length > 0 ? MAP_PRESET_LOCATIONS[0].name : "");
     const preset = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === initialLoc.toLowerCase()) || MAP_PRESET_LOCATIONS[0];
     if (preset && isValidCoordinate(preset.lat, preset.lon)) {
       selectLocationAndFetchWeather(preset.lat, preset.lon, preset.name, false);
@@ -3899,6 +4126,9 @@ function setupIntelligentMapControls() {
         selectLocationAndFetchWeather(currentSelectedMapData.lat, currentSelectedMapData.lon, currentSelectedMapData.name, true);
       }
       loadMonitoredLocationsTelemetry(true);
+      if (currentWeatherTileLayer && typeof currentWeatherTileLayer.enableAndFetch === "function") {
+        currentWeatherTileLayer.enableAndFetch();
+      }
       showMobileNotice("Refreshing live map telemetry...", "info", 2000);
     };
   }
@@ -4352,7 +4582,7 @@ function renderMapSelectionCard(payload, lat, lon) {
 
   // Source Transparency & Agreement
   if (sourceElem) {
-    sourceElem.textContent = payload.source || (payload.sources ? payload.sources.join(", ") : "Open-Meteo & IMD Telemetry");
+    sourceElem.textContent = payload.source_identity || payload.source || (payload.sources ? payload.sources.join(", ") : "OpenWeather & Open-Meteo Telemetry");
   }
   if (agreementElem) {
     if (payload.sources && payload.sources.length > 1) {
@@ -4376,7 +4606,8 @@ function renderMapSelectionCard(payload, lat, lon) {
       }
     } else {
       if (aqiSourceElem) {
-        aqiSourceElem.textContent = "Modelled Air Quality (Source: Open-Meteo)";
+        const aqiSrc = aqiData.source_identity || aqiData.source || "OpenWeather";
+        aqiSourceElem.textContent = `Air Quality (Source: ${aqiSrc})`;
       }
     }
   } else {
@@ -4450,7 +4681,7 @@ function renderOfficialAlertGeometry(alerts, centerLat, centerLon) {
         });
         geoLayer.bindPopup(`
           <div style="font-family:'Inter',sans-serif; font-size:12px;">
-            <strong style="color:#e11d48;">[OFFICIAL IMD WARNING]</strong><br/>
+            <strong style="color:#e11d48;">[${(alert.source || '').toUpperCase().includes('IMD') ? 'OFFICIAL IMD WARNING' : 'WEATHER WARNING'}]</strong><br/>
             <strong>${escapeHTML(alert.title)}</strong><br/>
             <span>${escapeHTML(alert.description || '')}</span>
           </div>
@@ -4630,48 +4861,104 @@ function computeMarkerColorByLayer(data, layer) {
   return "#0284c7";
 }
 
-let mapRadarLayer = null;
+// ============================================================================
+// CONTROLLED WEATHER TILE LAYER ENGINE (OPENWEATHER MAPS 2.0 VIA BACKEND PROXY)
+// Confirms tile requests are ONLY fired on layer switch or explicit refresh,
+// NOT continuously while panning/zooming.
+// ============================================================================
+let currentWeatherTileLayer = null;
+let activeWeatherTileLayerName = "radar";
 
-async function loadDopplerRadarLayer() {
-  if (!mapInstance) return;
-  if (mapRadarLayer) {
-    if (!mapInstance.hasLayer(mapRadarLayer)) mapRadarLayer.addTo(mapInstance);
-    return;
-  }
-  try {
-    const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
-    const json = await res.json();
-    if (json && json.radar && json.radar.past && json.radar.past.length > 0) {
-      const latestRadar = json.radar.past[json.radar.past.length - 1];
-      const radarUrl = `https://tilecache.rainviewer.com${latestRadar.path}/256/{z}/{x}/{y}/2/1_1.png`;
-      mapRadarLayer = L.tileLayer(radarUrl, {
-        opacity: 0.72,
-        zIndex: 150,
-        attribution: "Doppler Radar &copy; RainViewer"
-      });
-      mapRadarLayer.addTo(mapInstance);
-      showMobileNotice("Live Doppler radar stream connected", "info", 2500);
+const ControlledWeatherTileLayer = (typeof L !== "undefined" && L.TileLayer) ? L.TileLayer.extend({
+  initialize: function(url, options) {
+    L.TileLayer.prototype.initialize.call(this, url, options);
+    this._tileFetchingEnabled = true;
+  },
+  _update: function(center) {
+    // Intercept: Prevent continuous tile requests while panning and zooming
+    if (!this._tileFetchingEnabled) {
+      return;
     }
-  } catch (e) {
-    console.warn("Could not load Doppler radar tiles:", e);
+    L.TileLayer.prototype._update.call(this, center);
+  },
+  enableAndFetch: function() {
+    this._tileFetchingEnabled = true;
+    this.redraw();
+    // After view updates, lock tile requests to prevent continuous fetching during pan/zoom
+    setTimeout(() => {
+      this._tileFetchingEnabled = false;
+    }, 1000);
+  }
+}) : null;
+
+function switchWeatherMapLayer(layerName) {
+  if (!mapInstance) return;
+  activeWeatherTileLayerName = layerName;
+
+  // 1. Update active states on left-side dock buttons
+  const tileBtns = document.querySelectorAll(".map-tile-btn");
+  tileBtns.forEach(btn => {
+    if (btn.getAttribute("data-layer") === layerName) {
+      btn.classList.add("active");
+      btn.setAttribute("aria-checked", "true");
+    } else {
+      btn.classList.remove("active");
+      btn.setAttribute("aria-checked", "false");
+    }
+  });
+
+  // 2. Remove existing weather overlay layer
+  if (currentWeatherTileLayer && mapInstance.hasLayer(currentWeatherTileLayer)) {
+    mapInstance.removeLayer(currentWeatherTileLayer);
+  }
+
+  // 3. Resolve backend proxy URL (never exposes API key to client)
+  const apiBase = (window.apiClient && window.apiClient.getBaseUrl()) || "/api/v1";
+  const tileUrl = `${apiBase}/weather/tiles/${encodeURIComponent(layerName)}/{z}/{x}/{y}.png`;
+
+  if (ControlledWeatherTileLayer) {
+    currentWeatherTileLayer = new ControlledWeatherTileLayer(tileUrl, {
+      pane: "weatherTilePane",
+      opacity: 0.72,
+      zIndex: 250,
+      maxZoom: 18,
+      attribution: "Weather Tiles &copy; OpenWeather"
+    });
+    currentWeatherTileLayer.addTo(mapInstance);
+    currentWeatherTileLayer.enableAndFetch();
   }
 }
 
+function setupMapLeftLayerToggle() {
+  const tileBtns = document.querySelectorAll(".map-tile-btn");
+  tileBtns.forEach(btn => {
+    btn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const layer = btn.getAttribute("data-layer");
+      if (layer) {
+        switchWeatherMapLayer(layer);
+        showMobileNotice(`Weather Map Layer: ${layer.toUpperCase()}`, "info", 1500);
+      }
+    });
+  });
+}
+
+let mapRadarLayer = null;
+
+async function loadDopplerRadarLayer() {
+  switchWeatherMapLayer("radar");
+}
+
 function removeDopplerRadarLayer() {
-  if (mapInstance && mapRadarLayer && mapInstance.hasLayer(mapRadarLayer)) {
-    mapInstance.removeLayer(mapRadarLayer);
+  if (mapInstance && currentWeatherTileLayer && mapInstance.hasLayer(currentWeatherTileLayer)) {
+    mapInstance.removeLayer(currentWeatherTileLayer);
   }
 }
 
 function activateRadarLayer() {
   navigateToScreen("map");
   setTimeout(() => {
-    const radarPill = document.getElementById("mapRadarLayerPill");
-    if (radarPill) {
-      radarPill.click();
-    } else {
-      loadDopplerRadarLayer();
-    }
+    switchWeatherMapLayer("radar");
   }, 250);
 }
 
@@ -4841,7 +5128,6 @@ async function handleMapSaveLocation() {
     await window.apiClient.saveLocation(name, currentSelectedMapData.lat, currentSelectedMapData.lon);
     showMobileNotice(`Saved "${name}" to your locations.`, "info", 3000);
     loadSavedMapLocations();
-    loadSavedLocationsList();
   } catch (err) {
     console.warn("Failed to save location:", err);
     showMobileNotice("Could not save location. Please try again.", "warning", 3000);
@@ -4850,7 +5136,7 @@ async function handleMapSaveLocation() {
 
 function recenterMapToSelected(locationName) {
   if (!mapInstance) return;
-  const target = locationName || document.getElementById("locationSelect")?.value || "Coimbatore";
+  const target = locationName || document.getElementById("locationSelect")?.value || (MAP_PRESET_LOCATIONS[0] ? MAP_PRESET_LOCATIONS[0].name : "");
   const loc = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === target.toLowerCase());
   if (loc && isValidCoordinate(loc.lat, loc.lon)) {
     mapInstance.setView([loc.lat, loc.lon], 9);
@@ -4861,7 +5147,7 @@ function recenterMapToSelected(locationName) {
 function renderMapFallbackTelemetry() {
   const container = document.getElementById("mapSelectionCard");
   if (!container) return;
-  const selectedLoc = document.getElementById("locationSelect")?.value || "Coimbatore";
+  const selectedLoc = document.getElementById("locationSelect")?.value || (MAP_PRESET_LOCATIONS[0] ? MAP_PRESET_LOCATIONS[0].name : "");
   const preset = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === selectedLoc.toLowerCase()) || MAP_PRESET_LOCATIONS[0];
   selectLocationAndFetchWeather(preset.lat, preset.lon, preset.name, false);
 }
@@ -4906,11 +5192,34 @@ function updateAtmosphereWeather(weatherData) {
   if (!atmosphereEngine) {
     initWeatherAtmosphereEngine();
   }
-  if (!atmosphereEngine || !weatherData) return;
+  if (!weatherData) return;
   const cond = weatherData.weather?.condition || "";
   const hour = new Date().getHours();
-  const isNight = hour >= 19 || hour < 6;
-  atmosphereEngine.setCondition(cond, isNight);
+  const isNight = weatherData.weather?.is_day === false || (hour >= 19 || hour < 6);
+
+  if (atmosphereEngine) {
+    atmosphereEngine.setCondition(cond, isNight);
+  }
+
+  // Update body ambient classes for condition-aware background
+  try {
+    const c = cond.toLowerCase();
+    const ambientClasses = ["ambient-clear-day", "ambient-clear-night", "ambient-rain", "ambient-cloudy", "ambient-storm"];
+    document.body.classList.remove(...ambientClasses);
+    if (c.includes("thunder") || c.includes("storm") || c.includes("squall") || c.includes("lightning") || c.includes("cyclone")) {
+      document.body.classList.add("ambient-storm");
+    } else if (c.includes("rain") || c.includes("drizzle") || c.includes("shower") || c.includes("sleet")) {
+      document.body.classList.add("ambient-rain");
+    } else if (c.includes("cloud") || c.includes("overcast") || c.includes("fog") || c.includes("mist") || c.includes("haze")) {
+      document.body.classList.add("ambient-cloudy");
+    } else if (isNight) {
+      document.body.classList.add("ambient-clear-night");
+    } else {
+      document.body.classList.add("ambient-clear-day");
+    }
+  } catch (err) {
+    console.warn("Graceful degradation: Error setting body ambient condition:", err);
+  }
 }
 
 class WeatherAtmosphereEngine {
@@ -5142,6 +5451,561 @@ class WeatherAtmosphereEngine {
 }
 
 /* ==========================================================================
+   THEME MANAGEMENT SYSTEM (LIGHT / DARK / SYSTEM)
+   ========================================================================== */
+let currentAppTheme = "system";
+
+function initAppTheme() {
+  let saved = "system";
+  try {
+    saved = localStorage.getItem("skyzen_theme") || "system";
+  } catch (e) {}
+  currentAppTheme = saved;
+
+  const resolved = resolveEffectiveTheme(saved);
+  applyResolvedTheme(resolved);
+
+  const toggleBtn = document.getElementById("themeToggleBtn");
+  if (toggleBtn) {
+    toggleBtn.removeEventListener("click", toggleAppTheme);
+    toggleBtn.addEventListener("click", toggleAppTheme);
+  }
+
+  const themeSelect = document.getElementById("themeSelect");
+  if (themeSelect) {
+    themeSelect.value = saved;
+    themeSelect.addEventListener("change", (e) => {
+      setAppTheme(e.target.value, true);
+    });
+  }
+
+  try {
+    const mql = window.matchMedia("(prefers-color-scheme: dark)");
+    if (mql && mql.addEventListener) {
+      mql.addEventListener("change", (e) => {
+        if (currentAppTheme === "system") {
+          applyResolvedTheme(e.matches ? "dark" : "light");
+        }
+      });
+    }
+  } catch (e) {}
+}
+
+function resolveEffectiveTheme(theme) {
+  if (theme === "system") {
+    return (window.matchMedia && window.matchMedia("(prefers-color-scheme: dark)").matches) ? "dark" : "light";
+  }
+  return theme === "light" ? "light" : "dark";
+}
+
+function applyResolvedTheme(resolved) {
+  document.documentElement.setAttribute("data-theme", resolved);
+  const icon = document.getElementById("themeToggleIcon");
+  const toggleBtn = document.getElementById("themeToggleBtn");
+  if (icon) {
+    icon.textContent = resolved === "dark" ? "light_mode" : "dark_mode";
+  }
+  if (toggleBtn) {
+    const label = resolved === "dark" ? "Switch to Light Mode" : "Switch to Dark Mode";
+    toggleBtn.setAttribute("aria-label", label);
+    toggleBtn.setAttribute("title", label);
+  }
+  if (window.heroAtmosphereEngine && typeof window.heroAtmosphereEngine.onThemeChange === "function") {
+    window.heroAtmosphereEngine.onThemeChange(resolved);
+  }
+}
+
+function setAppTheme(theme, persist = true) {
+  currentAppTheme = theme;
+  if (persist) {
+    try {
+      localStorage.setItem("skyzen_theme", theme);
+    } catch (e) {}
+  }
+  const resolved = resolveEffectiveTheme(theme);
+  applyResolvedTheme(resolved);
+
+  const themeSelect = document.getElementById("themeSelect");
+  if (themeSelect && themeSelect.value !== theme) {
+    themeSelect.value = theme;
+  }
+}
+
+function toggleAppTheme() {
+  const currentEffective = resolveEffectiveTheme(currentAppTheme);
+  const nextTheme = currentEffective === "dark" ? "light" : "dark";
+  setAppTheme(nextTheme, true);
+  if (typeof showMobileNotice === "function") {
+    showMobileNotice(nextTheme === "dark" ? "Dark Mode Enabled" : "Light Mode Enabled", "info", 1500);
+  }
+}
+
+window.initAppTheme = initAppTheme;
+window.setAppTheme = setAppTheme;
+window.toggleAppTheme = toggleAppTheme;
+window.getAppTheme = () => currentAppTheme;
+
+/* ==========================================================================
+   HERO DASHBOARD SECTION ATMOSPHERE CANVAS ENGINE
+   Lightweight condition-reactive visuals (Rain, Clear, Cloudy, Storm)
+   ========================================================================== */
+let heroAtmosphereEngine = null;
+
+function initHeroWeatherAtmosphere() {
+  if (heroAtmosphereEngine) return;
+  try {
+    heroAtmosphereEngine = new HeroAtmosphereEngine(
+      "heroAtmosphereCanvas",
+      "heroAtmosphereAmbient",
+      "weatherCardContainer"
+    );
+    window.heroAtmosphereEngine = heroAtmosphereEngine;
+  } catch (err) {
+    console.warn("Graceful degradation: HeroAtmosphereEngine init failed:", err);
+  }
+}
+
+function updateHeroWeatherAtmosphere(data) {
+  if (!heroAtmosphereEngine) {
+    initHeroWeatherAtmosphere();
+  }
+  if (!heroAtmosphereEngine || !data) return;
+  try {
+    const condition = data.weather?.condition || "";
+    const hour = new Date().getHours();
+    const isNight = data.weather?.is_day === false || (hour >= 19 || hour < 6);
+    heroAtmosphereEngine.setCondition(condition, isNight);
+  } catch (err) {
+    console.warn("Graceful degradation: Error updating hero atmosphere:", err);
+  }
+}
+
+class HeroAtmosphereEngine {
+  constructor(canvasId = "heroAtmosphereCanvas", ambientId = "heroAtmosphereAmbient", containerId = "weatherCardContainer") {
+    this.canvas = document.getElementById(canvasId);
+    this.ambient = document.getElementById(ambientId);
+    this.container = document.getElementById(containerId);
+    this.condition = "CLEAR";
+    this.isNight = false;
+    this.particles = [];
+    this.ripples = [];
+    this.lightningFlash = 0;
+    this.lightningTimer = 0;
+    this.sunPulse = 0;
+    this.animationFrameId = null;
+    this.isRunning = false;
+    this.hasFailed = false;
+    this.isReducedMotion = false;
+    this.width = 0;
+    this.height = 0;
+    this.dpr = 1;
+
+    if (!this.canvas) {
+      this.hasFailed = true;
+      return;
+    }
+
+    try {
+      this.ctx = this.canvas.getContext("2d");
+      if (!this.ctx) {
+        this.hasFailed = true;
+        return;
+      }
+    } catch (e) {
+      this.hasFailed = true;
+      return;
+    }
+
+    this.resize = this.resize.bind(this);
+    this.loop = this.loop.bind(this);
+
+    window.addEventListener("resize", this.resize);
+    document.addEventListener("visibilitychange", () => {
+      if (document.hidden) {
+        this.pause();
+      } else {
+        const homeScreen = document.getElementById("screen-home");
+        if (homeScreen && homeScreen.classList.contains("active")) {
+          this.resume();
+        }
+      }
+    });
+
+    this.resize();
+    this.checkReducedMotion();
+  }
+
+  checkReducedMotion() {
+    try {
+      const prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+      if (prefersReduced) {
+        this.isReducedMotion = true;
+        this.pause();
+        this.renderStatic();
+        return true;
+      }
+    } catch (e) {}
+    this.isReducedMotion = false;
+    this.start();
+    return false;
+  }
+
+  onThemeChange() {
+    if (!this.isRunning) {
+      this.renderStatic();
+    }
+  }
+
+  normalizeCondition(rawCond) {
+    const c = (rawCond || "").toLowerCase();
+    if (c.includes("thunder") || c.includes("storm") || c.includes("squall") || c.includes("tornado") || c.includes("lightning") || c.includes("cyclone")) {
+      return "STORM";
+    }
+    if (c.includes("rain") || c.includes("drizzle") || c.includes("shower") || c.includes("sleet")) {
+      return "RAIN";
+    }
+    if (c.includes("cloud") || c.includes("overcast") || c.includes("fog") || c.includes("mist") || c.includes("haze") || c.includes("smoke") || c.includes("dust")) {
+      return "CLOUDY";
+    }
+    return "CLEAR";
+  }
+
+  setCondition(rawCond, isNight = false) {
+    if (this.hasFailed) return;
+    const normalized = this.normalizeCondition(rawCond);
+    const condChanged = this.condition !== normalized || this.isNight !== isNight;
+    this.condition = normalized;
+    this.isNight = Boolean(isNight);
+
+    if (this.ambient) {
+      this.ambient.className = "hero-atmosphere-ambient";
+      if (normalized === "CLEAR") {
+        this.ambient.classList.add(this.isNight ? "ambient-clear-night" : "ambient-clear-day");
+      } else if (normalized === "RAIN") {
+        this.ambient.classList.add("ambient-rain");
+      } else if (normalized === "CLOUDY") {
+        this.ambient.classList.add("ambient-cloudy");
+      } else if (normalized === "STORM") {
+        this.ambient.classList.add("ambient-storm");
+      }
+    }
+
+    if (condChanged) {
+      this.initParticles();
+      if (this.isReducedMotion) {
+        this.renderStatic();
+      }
+    }
+  }
+
+  resize() {
+    if (this.hasFailed || !this.canvas) return;
+    const parent = this.container || this.canvas.parentElement;
+    const rect = parent ? parent.getBoundingClientRect() : null;
+    this.width = rect && rect.width > 0 ? Math.round(rect.width) : (this.canvas.offsetWidth || 360);
+    this.height = rect && rect.height > 0 ? Math.round(rect.height) : (this.canvas.offsetHeight || 220);
+    if (this.width <= 0) this.width = 360;
+    if (this.height <= 0) this.height = 220;
+
+    this.dpr = Math.min(window.devicePixelRatio || 1, 2);
+    this.canvas.width = Math.round(this.width * this.dpr);
+    this.canvas.height = Math.round(this.height * this.dpr);
+    this.canvas.style.width = `${this.width}px`;
+    this.canvas.style.height = `${this.height}px`;
+
+    if (this.ctx) {
+      this.ctx.setTransform(1, 0, 0, 1, 0, 0);
+      this.ctx.scale(this.dpr, this.dpr);
+    }
+    this.initParticles();
+    if (this.isReducedMotion) {
+      this.renderStatic();
+    }
+  }
+
+  initParticles() {
+    this.particles = [];
+    this.ripples = [];
+    const w = this.width;
+    const h = this.height;
+
+    if (this.condition === "RAIN") {
+      const count = Math.min(48, Math.max(24, Math.floor(w / 12)));
+      for (let i = 0; i < count; i++) {
+        this.particles.push({
+          x: Math.random() * (w + 60) - 30,
+          y: Math.random() * h,
+          len: Math.random() * 14 + 10,
+          speedY: Math.random() * 8 + 8,
+          speedX: -1.2,
+          opacity: Math.random() * 0.35 + 0.18,
+          width: Math.random() * 1.2 + 0.6
+        });
+      }
+    } else if (this.condition === "STORM") {
+      const count = Math.min(64, Math.max(32, Math.floor(w / 8)));
+      for (let i = 0; i < count; i++) {
+        this.particles.push({
+          x: Math.random() * (w + 80) - 40,
+          y: Math.random() * h,
+          len: Math.random() * 20 + 14,
+          speedY: Math.random() * 11 + 12,
+          speedX: -2.4,
+          opacity: Math.random() * 0.45 + 0.25,
+          width: Math.random() * 1.6 + 0.8
+        });
+      }
+    } else if (this.condition === "CLOUDY") {
+      const count = 10;
+      for (let i = 0; i < count; i++) {
+        this.particles.push({
+          x: Math.random() * (w + 120) - 60,
+          y: Math.random() * (h * 0.8) + 15,
+          radius: Math.random() * 50 + 35,
+          speedX: Math.random() * 0.3 + 0.15,
+          bobSpeed: Math.random() * 0.015 + 0.006,
+          bobOffset: Math.random() * Math.PI * 2,
+          opacity: Math.random() * 0.08 + 0.04
+        });
+      }
+    } else {
+      // CLEAR
+      if (this.isNight) {
+        const count = 28;
+        for (let i = 0; i < count; i++) {
+          this.particles.push({
+            x: Math.random() * w,
+            y: Math.random() * (h * 0.8),
+            radius: Math.random() * 1.3 + 0.6,
+            twinkleSpeed: Math.random() * 0.03 + 0.01,
+            twinkleOffset: Math.random() * Math.PI * 2,
+            baseAlpha: Math.random() * 0.5 + 0.35
+          });
+        }
+      } else {
+        const count = 16;
+        for (let i = 0; i < count; i++) {
+          this.particles.push({
+            x: Math.random() * w,
+            y: Math.random() * h,
+            radius: Math.random() * 14 + 6,
+            speedY: -(Math.random() * 0.3 + 0.12),
+            speedX: Math.random() * 0.2 - 0.1,
+            opacity: Math.random() * 0.08 + 0.03
+          });
+        }
+      }
+    }
+  }
+
+  start() {
+    if (this.isRunning || this.hasFailed || this.isReducedMotion) return;
+    this.isRunning = true;
+    this.loop();
+  }
+
+  pause() {
+    this.isRunning = false;
+    if (this.animationFrameId) {
+      cancelAnimationFrame(this.animationFrameId);
+      this.animationFrameId = null;
+    }
+  }
+
+  resume() {
+    if (!this.isRunning && !this.hasFailed && !this.isReducedMotion) {
+      this.start();
+    }
+  }
+
+  stop() {
+    this.pause();
+  }
+
+  renderStatic() {
+    if (this.hasFailed || !this.ctx) return;
+    try {
+      this.ctx.clearRect(0, 0, this.width, this.height);
+      const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+      if (this.condition === "CLEAR" && !this.isNight) {
+        const rad = this.ctx.createRadialGradient(this.width * 0.88, 20, 10, this.width * 0.88, 20, 140);
+        rad.addColorStop(0, isDark ? "rgba(245, 158, 11, 0.18)" : "rgba(245, 158, 11, 0.22)");
+        rad.addColorStop(1, "rgba(245, 158, 11, 0)");
+        this.ctx.fillStyle = rad;
+        this.ctx.fillRect(0, 0, this.width, this.height);
+      }
+    } catch (e) {}
+  }
+
+  loop() {
+    if (!this.isRunning || this.hasFailed) return;
+    try {
+      this.render();
+      this.animationFrameId = requestAnimationFrame(this.loop);
+    } catch (e) {
+      console.warn("Graceful degradation: Error in HeroAtmosphereEngine loop", e);
+      this.hasFailed = true;
+      this.stop();
+    }
+  }
+
+  render() {
+    const ctx = this.ctx;
+    if (!ctx) return;
+    const w = this.width;
+    const h = this.height;
+    ctx.clearRect(0, 0, w, h);
+
+    const isDark = document.documentElement.getAttribute("data-theme") === "dark";
+
+    if (this.condition === "RAIN") {
+      ctx.lineCap = "round";
+      for (let p of this.particles) {
+        ctx.beginPath();
+        ctx.strokeStyle = isDark
+          ? `rgba(186, 230, 253, ${p.opacity * 0.85})`
+          : `rgba(96, 165, 250, ${p.opacity})`;
+        ctx.lineWidth = p.width;
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + (p.speedX * 2.8), p.y + p.len);
+        ctx.stroke();
+
+        p.y += p.speedY;
+        p.x += p.speedX;
+
+        if (p.y > h - 10) {
+          if (Math.random() < 0.25) {
+            this.ripples.push({
+              x: p.x,
+              y: h - Math.random() * 10,
+              rx: 2,
+              ry: 1,
+              alpha: 0.35
+            });
+          }
+          p.y = -p.len;
+          p.x = Math.random() * (w + 60) - 30;
+        }
+      }
+
+      for (let i = this.ripples.length - 1; i >= 0; i--) {
+        const r = this.ripples[i];
+        ctx.beginPath();
+        ctx.strokeStyle = isDark ? `rgba(186, 230, 253, ${r.alpha})` : `rgba(96, 165, 250, ${r.alpha})`;
+        ctx.lineWidth = 1;
+        ctx.ellipse(r.x, r.y, r.rx, r.ry, 0, 0, Math.PI * 2);
+        ctx.stroke();
+
+        r.rx += 0.7;
+        r.ry += 0.3;
+        r.alpha -= 0.035;
+        if (r.alpha <= 0) {
+          this.ripples.splice(i, 1);
+        }
+      }
+    } else if (this.condition === "STORM") {
+      this.lightningTimer++;
+      if (this.lightningTimer > 180 && Math.random() < 0.035) {
+        this.lightningFlash = 0.32;
+        this.lightningTimer = 0;
+      }
+      if (this.lightningFlash > 0.01) {
+        ctx.fillStyle = `rgba(224, 242, 254, ${this.lightningFlash})`;
+        ctx.fillRect(0, 0, w, h);
+        this.lightningFlash *= 0.86;
+      }
+
+      ctx.lineCap = "round";
+      for (let p of this.particles) {
+        ctx.beginPath();
+        ctx.strokeStyle = `rgba(224, 242, 254, ${p.opacity})`;
+        ctx.lineWidth = p.width;
+        ctx.moveTo(p.x, p.y);
+        ctx.lineTo(p.x + (p.speedX * 2.8), p.y + p.len);
+        ctx.stroke();
+
+        p.y += p.speedY;
+        p.x += p.speedX;
+
+        if (p.y > h) {
+          p.y = -p.len;
+          p.x = Math.random() * (w + 80) - 40;
+        }
+      }
+    } else if (this.condition === "CLOUDY") {
+      for (let p of this.particles) {
+        p.bobOffset += p.bobSpeed;
+        const currentY = p.y + Math.sin(p.bobOffset) * 6;
+
+        const grad = ctx.createRadialGradient(p.x, currentY, 0, p.x, currentY, p.radius);
+        const col = isDark ? "203, 213, 225" : "255, 255, 255";
+        grad.addColorStop(0, `rgba(${col}, ${p.opacity})`);
+        grad.addColorStop(1, `rgba(${col}, 0)`);
+
+        ctx.fillStyle = grad;
+        ctx.beginPath();
+        ctx.arc(p.x, currentY, p.radius, 0, Math.PI * 2);
+        ctx.fill();
+
+        p.x += p.speedX;
+        if (p.x - p.radius > w) {
+          p.x = -p.radius;
+          p.y = Math.random() * (h * 0.8) + 15;
+        }
+      }
+    } else {
+      // CLEAR
+      if (this.isNight) {
+        const moonGrad = ctx.createRadialGradient(w * 0.88, 25, 4, w * 0.88, 25, 65);
+        moonGrad.addColorStop(0, "rgba(199, 210, 254, 0.16)");
+        moonGrad.addColorStop(1, "rgba(199, 210, 254, 0)");
+        ctx.fillStyle = moonGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        for (let p of this.particles) {
+          p.twinkleOffset += p.twinkleSpeed;
+          const alpha = p.baseAlpha * (0.5 + 0.5 * Math.sin(p.twinkleOffset));
+          ctx.fillStyle = `rgba(248, 250, 252, ${alpha})`;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+        }
+      } else {
+        this.sunPulse += 0.02;
+        const pulse = Math.sin(this.sunPulse) * 8;
+        const sunGrad = ctx.createRadialGradient(w * 0.88, 20, 10, w * 0.88, 20, 100 + pulse);
+        sunGrad.addColorStop(0, isDark ? "rgba(251, 191, 36, 0.2)" : "rgba(251, 191, 36, 0.28)");
+        sunGrad.addColorStop(0.6, isDark ? "rgba(251, 191, 36, 0.07)" : "rgba(251, 191, 36, 0.1)");
+        sunGrad.addColorStop(1, "rgba(251, 191, 36, 0)");
+        ctx.fillStyle = sunGrad;
+        ctx.fillRect(0, 0, w, h);
+
+        for (let p of this.particles) {
+          const grad = ctx.createRadialGradient(p.x, p.y, 0, p.x, p.y, p.radius);
+          grad.addColorStop(0, isDark ? `rgba(253, 230, 138, ${p.opacity * 0.8})` : `rgba(253, 230, 138, ${p.opacity})`);
+          grad.addColorStop(1, "rgba(253, 230, 138, 0)");
+          ctx.fillStyle = grad;
+          ctx.beginPath();
+          ctx.arc(p.x, p.y, p.radius, 0, Math.PI * 2);
+          ctx.fill();
+
+          p.y += p.speedY;
+          p.x += p.speedX;
+          if (p.y < -p.radius) {
+            p.y = h + p.radius;
+            p.x = Math.random() * w;
+          }
+        }
+      }
+    }
+  }
+}
+
+window.initHeroWeatherAtmosphere = initHeroWeatherAtmosphere;
+window.updateHeroWeatherAtmosphere = updateHeroWeatherAtmosphere;
+window.HeroAtmosphereEngine = HeroAtmosphereEngine;
+
+/* ==========================================================================
    FLAGSHIP UPGRADE 2: NEXT 60-MINUTE PRECIPITATION TIMELINE & NOWCAST
    ========================================================================== */
 let minuteRainPoints = [];
@@ -5159,11 +6023,12 @@ function renderMinuteRainTimeline(data) {
   const rainProb = Number(data?.weather?.rain_probability) || 0;
   const isRainingNow = cond.includes("rain") || cond.includes("drizzle") || cond.includes("shower") || cond.includes("thunder");
   
-  // Check if official IMD alert is active
-  const hasOfficialImdAlert = Array.isArray(allCurrentAlerts) && allCurrentAlerts.some(a => 
-    (a.is_official === true || (a.source || "").includes("IMD")) && 
+  // Check if official alert is active and whether it originated from IMD
+  const activeAlert = Array.isArray(allCurrentAlerts) ? allCurrentAlerts.find(a => 
     ((a.severity || "").toLowerCase() === "high" || (a.severity || "").toLowerCase() === "warning" || (a.severity || "").toLowerCase() === "watch")
-  );
+  ) : null;
+  const hasOfficialAlert = Boolean(activeAlert);
+  const isAlertFromImd = hasOfficialAlert && Boolean(activeAlert.source && activeAlert.source.toUpperCase().includes("IMD"));
 
   // Synthesize 60-minute curve based on physical telemetry
   minuteRainPoints = [];
@@ -5175,13 +6040,13 @@ function renderMinuteRainTimeline(data) {
       const baseRate = rainProb > 70 ? 4.5 : 2.2;
       const variation = Math.sin((m / 60) * Math.PI * 1.5) * 1.2;
       rate = Math.max(0, baseRate + variation - (m * 0.04));
-      if (hasOfficialImdAlert) rate *= 1.6;
+      if (hasOfficialAlert) rate *= 1.6;
     } else if (rainProb > 45) {
       const rainStartMin = 18;
       if (m >= rainStartMin) {
         const progress = (m - rainStartMin) / (60 - rainStartMin);
         rate = Math.sin(progress * Math.PI) * (rainProb / 20);
-        if (hasOfficialImdAlert) rate *= 1.4;
+        if (hasOfficialAlert) rate *= 1.4;
       }
     } else if (rainProb > 20) {
       if (m >= 35 && m <= 50) {
@@ -5218,8 +6083,9 @@ function renderMinuteRainTimeline(data) {
   }
 
   if (liveBadge) {
-    if (hasOfficialImdAlert) {
-      liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">warning</span><span>IMD WARNING ACTIVE</span>`;
+    if (hasOfficialAlert) {
+      const alertLabel = isAlertFromImd ? "IMD WARNING ACTIVE" : `${activeAlert.source || 'WEATHER'} WARNING ACTIVE`;
+      liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">warning</span><span>${escapeHTML(alertLabel)}</span>`;
       liveBadge.style.color = "#DC2626";
       liveBadge.style.borderColor = "rgba(220, 38, 38, 0.4)";
       liveBadge.style.background = "#FEE2E2";
@@ -5437,7 +6303,7 @@ function renderLifestyleInsights(data, filter = currentLifestyleFilter) {
   if (hasHeavyAlert || (rainProb > 70 && cond.includes("rain"))) {
     floodStatus = "unfavorable";
     floodStatusText = "Waterlogging Probable";
-    floodDesc = "Official IMD alert indicates localized waterlogging in known subway dips and coastal links.";
+    floodDesc = hasHeavyAlert ? "Active weather alert indicates localized waterlogging in known subway dips and coastal links." : "Heavy rain telemetry indicates localized waterlogging in known subway dips and coastal links.";
   } else if (rainProb > 45) {
     floodStatus = "caution";
     floodStatusText = "Spot Puddles";
@@ -5481,7 +6347,7 @@ function renderLifestyleInsights(data, filter = currentLifestyleFilter) {
     ? "Low rain probability across the metropolitan grid today."
     : umbrellaScore < 50 
     ? "Scattered showers probable in the afternoon; compact umbrella recommended."
-    : "Active rain cells indicated by IMD nowcast telemetry. Do not leave without rain gear.";
+    : "Active rain cells indicated by live radar and nowcast telemetry. Do not leave without rain gear.";
 
   const allCards = [
     {
@@ -5538,7 +6404,7 @@ function renderLifestyleInsights(data, filter = currentLifestyleFilter) {
       statusText: floodStatusText,
       desc: floodDesc,
       metricLabel: "Drainage Risk",
-      metricVal: hasHeavyAlert ? "High (IMD Alert)" : "Normal"
+      metricVal: hasHeavyAlert ? "High (Severe Alert)" : "Normal"
     },
     {
       id: "fitness",
@@ -5682,7 +6548,8 @@ function playAudioWeatherBriefing() {
 
   if (Array.isArray(allCurrentAlerts) && allCurrentAlerts.length > 0) {
     const hero = allCurrentAlerts[0];
-    briefingScript += `Official IMD Advisory in effect: ${hero.title || 'Severe weather notice'}. `;
+    const isImd = (hero.source || "").toUpperCase().includes("IMD");
+    briefingScript += `${isImd ? 'Official IMD Advisory' : 'Severe weather warning'} in effect: ${hero.title || 'Severe weather notice'}. `;
   } else {
     briefingScript += `No severe weather warnings are active for this district. `;
   }
@@ -5802,12 +6669,15 @@ function askCopilotPrompt(question) {
   } else if (q.includes("alert") || q.includes("warning") || q.includes("severe")) {
     if (Array.isArray(allCurrentAlerts) && allCurrentAlerts.length > 0) {
       const hero = allCurrentAlerts[0];
-      answer = `ACTIVE OFFICIAL IMD WARNING for ${loc}: ${hero.title || 'Weather Warning'}. Description: ${hero.description || 'Take safety precautions.'}. Please follow official emergency channels.`;
+      const isImd = (hero.source || "").toUpperCase().includes("IMD");
+      const alertTypeStr = isImd ? "ACTIVE OFFICIAL IMD WARNING" : "ACTIVE WEATHER WARNING";
+      answer = `${alertTypeStr} for ${loc}: ${hero.title || 'Weather Warning'}. Description: ${hero.description || 'Take safety precautions.'}. Please follow official emergency channels.`;
     } else {
       answer = `No severe meteorological alerts currently active for ${loc}. Regional telemetry confirms normal seasonal parameters.`;
     }
   } else {
-    answer = `Based on live MoES/IMD telemetry for ${loc}: Current temperature is ${temp}°C (${cond}), wind speed ${wind} km/h, humidity ${humidity}%, and precipitation chance is ${rainProb}%.`;
+    const srcName = window.lastWeatherData?.source_identity || (window.lastWeatherData?.sources ? window.lastWeatherData.sources.join(" & ") : "OpenWeather & Open-Meteo");
+    answer = `Based on live ${srcName} telemetry for ${loc}: Current temperature is ${temp}°C (${cond}), wind speed ${wind} km/h, humidity ${humidity}%, and precipitation chance is ${rainProb}%.`;
   }
 
   lastCopilotAnswerText = answer;
@@ -5845,6 +6715,10 @@ window.askCopilotPrompt = askCopilotPrompt;
 window.openDeepChatWithCopilot = openDeepChatWithCopilot;
 window.toggleReadAnswerSpeech = toggleReadAnswerSpeech;
 window.activateRadarLayer = activateRadarLayer;
+window.isDesktopBrowserEnvironment = isDesktopBrowserEnvironment;
+window.isMobilePWAEnvironment = isMobilePWAEnvironment;
+window.switchWeatherMapLayer = switchWeatherMapLayer;
+window.ControlledWeatherTileLayer = ControlledWeatherTileLayer;
 
 
 

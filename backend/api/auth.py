@@ -79,6 +79,8 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Admin role self-assignment is forbidden without valid authorization"
             )
+    elif req.role and req.role.lower() == "developer":
+        assigned_role = "developer"
 
     user = User(
         name=req.name,

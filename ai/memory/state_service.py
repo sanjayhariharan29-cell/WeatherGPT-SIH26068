@@ -610,7 +610,7 @@ class ConversationStateService:
                 elif explicit_location:
                     resolved_location = explicit_location
                 else:
-                    resolved_location = current_state.active_location or "Coimbatore"
+                    resolved_location = current_state.active_location
 
             # Resume original domain intent & context from pending clarification
             if pending_clar.pending_intent:
@@ -623,7 +623,7 @@ class ConversationStateService:
 
             is_ambiguous = False
             clarification = ClarificationState(needed=False)
-        elif explicit_location and explicit_location.lower() != "coimbatore":
+        elif explicit_location and explicit_location.lower() != "unspecified":
             resolved_location = explicit_location
         elif extracted_loc:
             resolved_location = extracted_loc
@@ -718,7 +718,7 @@ class ConversationStateService:
             )
             resolved_location = "Unspecified"
 
-        resolved_location = resolved_location or "Coimbatore"
+        resolved_location = resolved_location or "Unspecified"
 
         # 4. Date Resolution (Isolated dimension change)
         resolved_date = extracted_date

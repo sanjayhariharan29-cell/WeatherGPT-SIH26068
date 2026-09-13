@@ -15,6 +15,8 @@ def init_db():
                 columns = [c["name"] for c in inspector.get_columns("users")]
                 if "role" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN role VARCHAR(20) DEFAULT 'user'"))
+                # Ensure all existing users have role set to 'user' if NULL
+                conn.execute(text("UPDATE users SET role = 'user' WHERE role IS NULL"))
                 if "is_verified" not in columns:
                     conn.execute(text("ALTER TABLE users ADD COLUMN is_verified BOOLEAN DEFAULT 0"))
                 if "onboarding_completed" not in columns:

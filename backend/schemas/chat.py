@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field, field_validator
 
 class LocationPayload(BaseModel):
     """Location coordinate and name payload for chat queries."""
-    name: Optional[str] = Field(default="Coimbatore", max_length=100, description="Resolved city or locality name")
+    name: Optional[str] = Field(default=None, max_length=100, description="Resolved city or locality name")
     latitude: Optional[float] = Field(default=None, ge=-90.0, le=90.0, description="Latitude in degrees (-90 to 90)")
     longitude: Optional[float] = Field(default=None, ge=-180.0, le=180.0, description="Longitude in degrees (-180 to 180)")
     source_type: Optional[str] = Field(default="manual", description="Location source: live_gps, last_known, manual, default")

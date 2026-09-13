@@ -5,7 +5,13 @@ from pydantic import BaseModel, Field
 
 try:
     from dotenv import load_dotenv
-    load_dotenv()
+    _root_env = Path(__file__).resolve().parent.parent.parent / ".env"
+    if _root_env.exists():
+        load_dotenv(_root_env, override=False)
+    _backend_env = Path(__file__).resolve().parent.parent / ".env"
+    if _backend_env.exists():
+        load_dotenv(_backend_env, override=False)
+    load_dotenv(override=False)
 except ImportError:
     pass
 

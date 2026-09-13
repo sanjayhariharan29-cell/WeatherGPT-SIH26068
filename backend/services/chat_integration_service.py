@@ -63,7 +63,7 @@ class ChatIntegrationService:
     async def handle_chat_request(
         self,
         message: str,
-        location_name: str = "Coimbatore",
+        location_name: Optional[str] = None,
         lat: Optional[float] = None,
         lon: Optional[float] = None,
         persona: str = "student",
@@ -155,7 +155,7 @@ class ChatIntegrationService:
                 answer=greeting_text,
                 language=ret_lang,
                 intent="GREETING",
-                location="Coimbatore",
+                location=resolved.resolved_location if resolved.resolved_location and resolved.resolved_location != "Unspecified" else (cur_state.active_location if cur_state else None),
                 persona=persona_enum.value,
                 risk={"level": "low", "consistency": "high", "consistency_score": 1.0},
                 weather_summary={"condition": "Clear", "temperature": None},
@@ -419,11 +419,20 @@ class ChatIntegrationService:
                 elif norm_lang in ("hi", "hinglish", "hindi"):
                     expl_text = "जब प्राथमिक और माध्यमिक मौसम पूर्वानुमान स्रोतों में भिन्नता होती है, तो संगति स्कोर कम हो जाता है। लाइव रडार देखने की सलाह दी जाती है।"
             else:
-                expl_text = f"SkyZen's recommendation is deterministically computed based on verified telemetry from {resolved_name}, official IMD alerts, and multi-source consensus."
-                if norm_lang in ("ta", "tanglish", "tamil"):
-                    expl_text = f"இந்த ஆலோசனை {resolved_name} பகுதிக்கான அதிகாரப்பூர்வ IMD எச்சரிக்கைகள் மற்றும் வானிலை ஆதாரங்களின் தரவு அடிப்படையில் உருவாக்கப்பட்டது."
-                elif norm_lang in ("hi", "hinglish", "hindi"):
-                    expl_text = f"यह सलाह {resolved_name} के आधिकारिक IMD अलर्ट और मौसम पूर्वानुमान आंकड़ों के आधार पर तैयार की गई है।"
+                has_imd_alerts = bool(official_alerts and any("imd" in (getattr(a, "source", "") or "").lower() for a in official_alerts))
+                lead_src = getattr(current_resp, "source_identity", None) or getattr(current_resp, "source", None) or "OpenWeather"
+                if has_imd_alerts:
+                    expl_text = f"SkyZen's recommendation is deterministically computed based on verified telemetry from {resolved_name}, official IMD alerts, and multi-source consensus."
+                    if norm_lang in ("ta", "tanglish", "tamil"):
+                        expl_text = f"இந்த ஆலோசனை {resolved_name} பகுதிக்கான அதிகாரப்பூர்வ IMD எச்சரிக்கைகள் மற்றும் வானிலை ஆதாரங்களின் தரவு அடிப்படையில் உருவாக்கப்பட்டது."
+                    elif norm_lang in ("hi", "hinglish", "hindi"):
+                        expl_text = f"यह सलाह {resolved_name} के आधिकारिक IMD अलर्ट और मौसम पूर्वानुमान आंकड़ों के आधार पर तैयार की गई है।"
+                else:
+                    expl_text = f"SkyZen's recommendation is deterministically computed based on verified telemetry from {resolved_name} ({lead_src}) and multi-source consensus."
+                    if norm_lang in ("ta", "tanglish", "tamil"):
+                        expl_text = f"இந்த ஆலோசனை {resolved_name} பகுதிக்கான {lead_src} மற்றும் வானிலை ஆதாரங்களின் தரவு அடிப்படையில் உருவாக்கப்பட்டது."
+                    elif norm_lang in ("hi", "hinglish", "hindi"):
+                        expl_text = f"यह सलाह {resolved_name} के {lead_src} और मौसम पूर्वानुमान आंकड़ों के आधार पर तैयार की गई है।"
 
             return self._finalize_chat_turn(
                 message=message,
@@ -480,7 +489,7 @@ class ChatIntegrationService:
                 rain_probability=current_resp.weather.rain_probability,
                 wind_speed=current_resp.weather.wind_speed,
                 weather_condition=current_resp.weather.condition,
-                source="IMD (Primary)",
+                source=getattr(current_resp, "source_identity", None) or getattr(current_resp, "source", None) or "OpenWeather",
                 rainfall_amount_mm=current_resp.weather.rainfall_mm
             )
 

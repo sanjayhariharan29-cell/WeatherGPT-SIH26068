@@ -43,8 +43,8 @@ class RegisterRequest(BaseModel):
     @field_validator("role")
     def validate_role(cls, v: str) -> str:
         v_clean = v.strip().lower()
-        if v_clean not in ["user", "admin"]:
-            raise ValueError("Role must be 'user' or 'admin'")
+        if v_clean not in ["user", "developer", "admin"]:
+            raise ValueError("Role must be 'user', 'developer', or 'admin'")
         return v_clean
 
 

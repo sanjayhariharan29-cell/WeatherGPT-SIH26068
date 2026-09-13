@@ -1,12 +1,13 @@
 """Master Weather Service Manager.
 
-Orchestrates IMD (Primary), Open-Meteo (Secondary), NASA POWER (Climate/Historical),
+Orchestrates OpenWeather (Primary), Open-Meteo (Secondary), NASA POWER (Climate/Historical),
 CurrentWeatherService, ForecastService, AlertService, and Geocoding services behind a unified architecture.
 """
 
 from typing import Dict, Any, List, Optional, Tuple
 from sqlalchemy.orm import Session
 
+from backend.config.settings import settings
 from backend.services.imd_adapter import IMDAdapter
 from backend.services.open_meteo_adapter import OpenMeteoAdapter
 from backend.services.openweather_adapter import OpenWeatherAdapter
@@ -36,19 +37,37 @@ class WeatherManager:
         historical_provider: Optional[BaseWeatherProvider] = None,
         geocoding_service: Optional[GeocodingService] = None
     ):
-        self.imd = primary_provider or IMDAdapter()
+        # OpenWeather is the active primary live data source.
+        # Open-Meteo is secondary provider.
+        # IMDAdapter remains in codebase as a stub/placeholder implementing BaseWeatherProvider,
+        # but is not called in the active pipeline until a real IMD_API_KEY is present in config.
+        self.openweather = primary_provider if isinstance(primary_provider, OpenWeatherAdapter) else (
+            tertiary_provider if isinstance(tertiary_provider, OpenWeatherAdapter) else OpenWeatherAdapter(authority_level="primary_live")
+        )
         self.open_meteo = secondary_provider or OpenMeteoAdapter()
-        self.openweather = tertiary_provider or OpenWeatherAdapter()
+        self.imd = primary_provider if isinstance(primary_provider, IMDAdapter) else IMDAdapter()
         self.nasa_power = historical_provider or NasaPowerAdapter()
         self.geocoding = geocoding_service or GeocodingService()
+
+        # If an explicit non-default primary_provider was injected (e.g. In unit tests), honor it
+        if primary_provider is not None and not isinstance(primary_provider, IMDAdapter):
+            cur_primary = primary_provider
+            cur_tertiary = tertiary_provider or self.imd
+        elif primary_provider is not None and isinstance(primary_provider, IMDAdapter) and (primary_provider.is_live_configured or getattr(primary_provider, "mode", "") == "test"):
+            cur_primary = primary_provider
+            cur_tertiary = tertiary_provider or self.openweather
+        else:
+            cur_primary = self.openweather
+            cur_tertiary = self.imd
+
         self.current_service = CurrentWeatherService(
-            primary_provider=self.imd,
+            primary_provider=cur_primary,
             secondary_provider=self.open_meteo,
-            tertiary_provider=self.openweather,
+            tertiary_provider=cur_tertiary,
             geocoding_service=self.geocoding
         )
         self.forecast_service = ForecastService(
-            primary_provider=self.imd,
+            primary_provider=cur_primary,
             secondary_provider=self.open_meteo,
             geocoding_service=self.geocoding
         )
@@ -63,11 +82,16 @@ class WeatherManager:
         )
 
         self.providers: Dict[str, BaseWeatherProvider] = {
-            self.imd.name: self.imd,
-            self.open_meteo.name: self.open_meteo,
             self.openweather.name: self.openweather,
+            self.open_meteo.name: self.open_meteo,
+            self.imd.name: self.imd,
             self.nasa_power.name: self.nasa_power
         }
+
+    @property
+    def is_imd_active(self) -> bool:
+        """Returns True only when IMD credentials are configured and active."""
+        return bool(settings.IMD_API_KEY and self.imd and self.imd.is_live_configured)
 
     async def get_current_weather(
         self,
@@ -76,7 +100,7 @@ class WeatherManager:
         location_name: str = "Coimbatore",
         db_session: Optional[Session] = None
     ) -> Dict[str, Any]:
-        """Resolves location and returns primary IMD & secondary Open-Meteo observations."""
+        """Resolves location and returns primary OpenWeather & secondary Open-Meteo observations."""
         res = await self.current_service.fetch_current_weather(lat, lon, location_name, db_session)
         return res.model_dump()
 
@@ -182,6 +206,125 @@ class WeatherManager:
         longitude = lon if lon is not None else loc["longitude"]
 
         now_utc = datetime.now(timezone.utc).isoformat()
+
+        # Check for manual CPCB record in database first
+        try:
+            from backend.db.session import SessionLocal
+            from backend.db.models import AirQualityRecord
+            from backend.services.weather_reliability import evaluate_weather_freshness, FreshnessClassification
+
+            resolved_loc_name = loc.get("name", location_name).strip()
+            with SessionLocal() as db:
+                cpcb_record = db.query(AirQualityRecord).filter(
+                    AirQualityRecord.source == "CPCB_MANUAL",
+                    (AirQualityRecord.station.ilike(f"%{location_name.strip()}%")) |
+                    (AirQualityRecord.station.ilike(f"%{resolved_loc_name}%"))
+                ).order_by(AirQualityRecord.timestamp.desc()).first()
+
+                if cpcb_record:
+                    now_dt = datetime.now(timezone.utc)
+                    freshness_enum, age_mins, meta = evaluate_weather_freshness(
+                        cpcb_record.timestamp,
+                        cpcb_record.uploaded_at,
+                        current_time=now_dt
+                    )
+                    # Never label manual data as automatic, live, or real-time unless genuinely recent (<15 min)
+                    is_recent = (age_mins < 15 and freshness_enum == FreshnessClassification.FRESH)
+                    freshness_state = "LIVE" if is_recent else freshness_enum.value
+
+                    p_pm25 = cpcb_record.pm2_5 if cpcb_record.pm2_5 is not None else 0.0
+                    p_pm10 = cpcb_record.pm10 if cpcb_record.pm10 is not None else 0.0
+                    p_no2 = cpcb_record.no2 if cpcb_record.no2 is not None else 0.0
+                    p_so2 = cpcb_record.so2 if cpcb_record.so2 is not None else 0.0
+                    p_o3 = cpcb_record.o3 if cpcb_record.o3 is not None else 0.0
+                    p_co = cpcb_record.co if cpcb_record.co is not None else 0.0
+
+                    final_aqi = int(cpcb_record.aqi) if cpcb_record.aqi is not None else None
+                    category = "Unavailable"
+                    recs = ["Manual CPCB ground station telemetry available."]
+                    if final_aqi is not None:
+                        if final_aqi <= 50:
+                            category = "Good"
+                            recs = [
+                                "Air quality is ideal for outdoor activities and exercise.",
+                                "Safe for sensitive groups, children, and elderly.",
+                                "Normal ventilation recommended."
+                            ]
+                        elif final_aqi <= 100:
+                            category = "Moderate"
+                            recs = [
+                                "Air quality is acceptable for most outdoor activities.",
+                                "Extremely sensitive individuals should limit prolonged outdoor exertion."
+                            ]
+                        elif final_aqi <= 150:
+                            category = "Unhealthy for Sensitive Groups"
+                            recs = [
+                                "People with respiratory or heart conditions should reduce heavy outdoor exertion.",
+                                "Children and active adults should take frequent breaks during outdoor play."
+                            ]
+                        elif final_aqi <= 200:
+                            category = "Unhealthy"
+                            recs = [
+                                "Everyone may begin to experience minor respiratory discomfort.",
+                                "Wear an N95/pollution mask when outdoors. Keep indoor windows closed."
+                            ]
+                        elif final_aqi <= 300:
+                            category = "Very Unhealthy"
+                            recs = [
+                                "Health alert: The risk of health effects is increased for everyone.",
+                                "Avoid prolonged outdoor activities. Use air purifiers indoors."
+                            ]
+                        else:
+                            category = "Hazardous"
+                            recs = [
+                                "Emergency conditions: Serious risk of respiratory distress.",
+                                "Remain indoors and keep all ventilation closed."
+                            ]
+
+                    return {
+                        "location": resolved_loc_name,
+                        "latitude": latitude,
+                        "longitude": longitude,
+                        "aqi": final_aqi,
+                        "category": category,
+                        "primary_pollutant": cpcb_record.dominant_pollutant or ("PM2.5" if p_pm25 >= (p_pm10 / 2) else "PM10"),
+                        "pollutants": {
+                            "pm2_5": round(p_pm25, 1),
+                            "pm10": round(p_pm10, 1),
+                            "no2": round(p_no2, 1),
+                            "so2": round(p_so2, 1),
+                            "o3": round(p_o3, 1),
+                            "co": round(p_co, 1)
+                        },
+                        "recommendations": recs,
+                        "source": "CPCB_MANUAL",
+                        "source_identity": "CPCB_MANUAL",
+                        "source_type": "manual_cpcb",
+                        "cpcb_status": f"CPCB Ground Station Export: {cpcb_record.station}",
+                        "is_official_cpcb": True,
+                        "is_available": True,
+                        "status": freshness_state,
+                        "freshness": freshness_state,
+                        "is_real_time": is_recent,
+                        "observed_at": cpcb_record.timestamp.isoformat(),
+                        "station": cpcb_record.station,
+                        "methodology": "Manual CPCB Ground Monitoring Station Export",
+                        "retrieved_at": cpcb_record.uploaded_at.isoformat()
+                    }
+        except Exception:
+            pass
+
+        # 2. Active Primary Provider: Query OpenWeather Air Pollution API
+        try:
+            ow_res = await self.openweather.get_air_quality(latitude, longitude, loc.get("name", location_name))
+            if ow_res:
+                is_avail = ow_res.get("is_available") if isinstance(ow_res, dict) else getattr(ow_res, "is_available", True)
+                if is_avail:
+                    return ow_res if isinstance(ow_res, dict) else ow_res.model_dump()
+        except Exception:
+            pass
+
+        # 3. Secondary Provider Fallback: Query Open-Meteo Air Quality API
         aqi_val = None
         pm2_5 = None
         pm10 = None
@@ -236,14 +379,15 @@ class WeatherManager:
                     "Air quality telemetry is currently unavailable from provider.",
                     "Official CPCB monitoring station telemetry not configured."
                 ],
-                "source": "Air-quality model: Open-Meteo",
+                "source": "OpenWeather",
+                "source_identity": "OpenWeather",
                 "source_type": "unavailable",
                 "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
                 "is_official_cpcb": False,
                 "is_available": False,
                 "status": "UNAVAILABLE",
                 "station": None,
-                "methodology": "Open-Meteo Atmospheric Chemistry Model (CAMS)",
+                "methodology": "OpenWeather Air Pollution Chemical Transport Model",
                 "retrieved_at": now_utc
             }
 
@@ -309,9 +453,10 @@ class WeatherManager:
                 "co": round(co, 1) if co is not None else 0.0
             },
             "recommendations": recs,
-            "source": "Air-quality model: Open-Meteo",
+            "source": "Open-Meteo",
+            "source_identity": "Open-Meteo",
             "source_type": "modelled",
-            "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
+            "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED (Served via Open-Meteo)",
             "is_official_cpcb": False,
             "is_available": True,
             "status": "HEALTHY",

@@ -129,12 +129,12 @@ class ContextResolver:
         nlu = parse_query(message)
 
         # 1. Location Resolution & Ambiguity Detection
-        resolved_location = "Coimbatore"
+        resolved_location = None
         curr_extracted_location = nlu.entities.location
         has_ref = cls.has_location_reference(message)
 
         # Check explicit location parameter first
-        if explicit_location and explicit_location.strip().lower() != "coimbatore":
+        if explicit_location and explicit_location.strip().lower() != "unspecified":
             resolved_location = explicit_location.strip()
         elif curr_extracted_location:
             # Explicit location found in current user query overrides everything
@@ -152,13 +152,16 @@ class ContextResolver:
                     )
                     resolved_location = unique_recent_locs[-1]
                 else:
-                    resolved_location = context.location or "Coimbatore"
-                    inherited_fields.append("location")
+                    resolved_location = context.location or None
+                    if resolved_location:
+                        inherited_fields.append("location")
             elif context and context.location:
                 resolved_location = context.location
                 inherited_fields.append("location")
             else:
-                resolved_location = "Coimbatore"
+                resolved_location = None
+                is_ambiguous = True
+                ambiguity_reason = "No previous location found in context for reference. Please specify your city."
         elif context and context.location:
             # Inherit previous location if current query did not specify one
             resolved_location = context.location

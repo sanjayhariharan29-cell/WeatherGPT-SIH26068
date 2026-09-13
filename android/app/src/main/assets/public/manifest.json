@@ -1,13 +1,24 @@
 {
-  "name": "WeatherGPT — IMD Meteorological Assistant",
-  "short_name": "WeatherGPT",
-  "description": "AI-Powered Conversational Weather Forecasting, Official Warnings, and Climate Decision Engine (MoES / IMD)",
-  "start_url": "/",
+  "name": "SkyZen — Weather Intelligence",
+  "short_name": "SkyZen",
+  "description": "AI-Powered Weather Intelligence, Official Alerts, and Decision Engine (MoES / IMD WeatherGPT)",
+  "start_url": "./index.html",
+  "scope": "./",
   "display": "standalone",
-  "background_color": "#0f172a",
-  "theme_color": "#0f172a",
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "background_color": "#FFFFFF",
+  "theme_color": "#FFFFFF",
   "orientation": "portrait-primary",
   "icons": [
+    {
+      "src": "./assets/skyzen_official_logo.png",
+      "sizes": "192x192 512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
     {
       "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🌤️</text></svg>",
       "sizes": "192x192 512x512",
@@ -17,16 +28,16 @@
   ],
   "shortcuts": [
     {
-      "name": "Weather Chat",
-      "short_name": "Chat",
-      "description": "Ask WeatherGPT about weather and safety",
-      "url": "/#chat"
+      "name": "SkyZen AI Assistant",
+      "short_name": "Assistant",
+      "description": "Ask SkyZen about weather and safety",
+      "url": "./index.html#chat"
     },
     {
       "name": "Official Alerts",
       "short_name": "Alerts",
       "description": "View official IMD weather warnings",
-      "url": "/#alerts"
+      "url": "./index.html#alerts"
     }
   ]
 }

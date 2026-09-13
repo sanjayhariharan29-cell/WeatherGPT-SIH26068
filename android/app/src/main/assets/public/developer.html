@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyZen Developer Portal - Manual CPCB AQI Ingestion</title>
+  <meta name="description" content="Developer-only dashboard for managing and ingesting manual CPCB AQI station telemetry.">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="styles.css">
+  <style>
+    :root {
+      --dev-bg: #0b1329;
+      --dev-card-bg: var(--glass-bg);
+      --dev-border: var(--glass-border);
+      --dev-accent: #06b6d4;
+      --dev-accent-glow: rgba(6, 182, 212, 0.25);
+      --dev-success: var(--status-live);
+      --dev-warning: var(--status-warning);
+      --dev-danger: var(--status-danger);
+      --dev-muted: var(--text-muted);
+      --dev-text: var(--text-main);
+      --dev-text-dim: var(--text-secondary);
+    }
+
+    body.dev-body {
+      background: radial-gradient(circle at 50% 0%, #172554 0%, var(--dev-bg) 65%);
+      color: var(--dev-text);
+      font-family: var(--font-family);
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    .dev-container {
+      max-width: 1200px;
+      margin: 0 auto;
+      padding: 24px 20px;
+      width: 100%;
+      box-sizing: border-box;
+      flex: 1;
+    }
+
+    /* Top Nav */
+    .dev-nav {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--dev-card-bg);
+      backdrop-filter: var(--glass-backdrop-filter);
+      -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
+      border-bottom: 1px solid var(--dev-border);
+      padding: 16px 24px;
+      position: sticky;
+      top: 0;
+      z-index: 100;
+    }
+
+    .dev-brand {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      text-decoration: none;
+      color: var(--dev-text);
+    }
+
+    .dev-brand-icon {
+      background: linear-gradient(135deg, #06b6d4, #3b82f6);
+      width: 40px;
+      height: 40px;
+      border-radius: var(--radius-sm, 8px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: #fff;
+      font-size: 22px;
+      box-shadow: 0 4px 12px var(--dev-accent-glow);
+    }
+
+    .dev-brand-title {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.02em;
+    }
+
+    .dev-brand-badge {
+      background: rgba(6, 182, 212, 0.15);
+      color: var(--dev-accent);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      font-size: 11px;
+      font-weight: 700;
+      padding: 2px 8px;
+      border-radius: var(--radius-full, 9999px);
+      letter-spacing: 0.04em;
+      text-transform: uppercase;
+    }
+
+    .dev-nav-actions {
+      display: flex;
+      align-items: center;
+      gap: 16px;
+    }
+
+    .dev-user-chip {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid var(--dev-border);
+      padding: 6px 14px;
+      border-radius: var(--radius-full, 9999px);
+      font-size: 13px;
+    }
+
+    .dev-user-role {
+      background: rgba(16, 185, 129, 0.2);
+      color: var(--dev-success);
+      border: 1px solid rgba(16, 185, 129, 0.3);
+      font-size: 10px;
+      font-weight: 700;
+      padding: 2px 6px;
+      border-radius: 4px;
+      text-transform: uppercase;
+    }
+
+    .dev-btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: var(--radius-sm, 8px);
+      font-size: 13px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      text-decoration: none;
+      border: none;
+    }
+
+    .dev-btn-secondary {
+      background: rgba(255, 255, 255, 0.06);
+      color: var(--dev-text);
+      border: 1px solid var(--dev-border);
+    }
+    .dev-btn-secondary:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+
+    .dev-btn-primary {
+      background: linear-gradient(135deg, #0284c7, #0284c7);
+      color: #fff;
+      border: 1px solid rgba(56, 189, 248, 0.4);
+      box-shadow: 0 4px 14px rgba(2, 132, 199, 0.3);
+    }
+    .dev-btn-primary:hover:not(:disabled) {
+      background: linear-gradient(135deg, #0369a1, #0284c7);
+      box-shadow: 0 6px 18px rgba(2, 132, 199, 0.45);
+      transform: translateY(-1px);
+    }
+    .dev-btn-primary:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    /* Overview Cards */
+    .dev-stats-row {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+      margin-bottom: 24px;
+    }
+
+    .dev-stat-card {
+      background: var(--dev-card-bg);
+      border: 1px solid var(--dev-border);
+      border-radius: var(--radius-card, 24px);
+      padding: 18px 20px;
+      display: flex;
+      align-items: center;
+      gap: 16px;
+      backdrop-filter: var(--glass-backdrop-filter);
+      -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
+      box-shadow: var(--glass-shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dev-stat-card::after,
+    .dev-card::after {
+      content: '';
+      position: absolute;
+      top: 0;
+      left: 0;
+      width: 50%;
+      height: 100%;
+      background: linear-gradient(
+        90deg,
+        rgba(255, 255, 255, 0) 0%,
+        rgba(255, 255, 255, 0.15) 50%,
+        rgba(255, 255, 255, 0) 100%
+      );
+      pointer-events: none;
+      animation: specularSheen 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s 1 forwards;
+      z-index: 2;
+    }
+
+    .dev-stat-icon {
+      width: 48px;
+      height: 48px;
+      border-radius: var(--radius-sm, 12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 24px;
+    }
+
+    .dev-stat-val {
+      font-size: 22px;
+      font-weight: 800;
+      line-height: 1.2;
+    }
+
+    .dev-stat-label {
+      font-size: 12px;
+      color: var(--dev-text-dim);
+      margin-top: 2px;
+    }
+
+    /* Section Cards */
+    .dev-card {
+      background: var(--dev-card-bg);
+      border: 1px solid var(--dev-border);
+      border-radius: var(--radius-card, 24px);
+      padding: 24px;
+      backdrop-filter: var(--glass-backdrop-filter);
+      -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
+      margin-bottom: 24px;
+      box-shadow: var(--glass-shadow);
+      position: relative;
+      overflow: hidden;
+    }
+
+    .dev-card-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 20px;
+      flex-wrap: wrap;
+      gap: 12px;
+    }
+
+    .dev-card-title {
+      font-size: 18px;
+      font-weight: 700;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin: 0;
+    }
+
+    .dev-card-subtitle {
+      font-size: 13px;
+      color: var(--dev-text-dim);
+      margin-top: 4px;
+    }
+
+    /* Upload Area */
+    .dev-upload-zone {
+      border: 2px dashed rgba(6, 182, 212, 0.35);
+      background: rgba(6, 182, 212, 0.03);
+      border-radius: 14px;
+      padding: 36px 20px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      position: relative;
+    }
+
+    .dev-upload-zone:hover, .dev-upload-zone.dragover {
+      border-color: var(--dev-accent);
+      background: rgba(6, 182, 212, 0.08);
+    }
+
+    .dev-upload-icon {
+      font-size: 48px;
+      color: var(--dev-accent);
+      margin-bottom: 12px;
+    }
+
+    .dev-upload-title {
+      font-size: 16px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+
+    .dev-upload-hint {
+      font-size: 13px;
+      color: var(--dev-text-dim);
+      max-width: 500px;
+      margin: 0 auto 16px;
+    }
+
+    .dev-specs-box {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid var(--dev-border);
+      border-radius: 8px;
+      padding: 12px 16px;
+      margin-top: 16px;
+      text-align: left;
+      font-size: 12px;
+      color: var(--dev-text-dim);
+    }
+
+    .dev-specs-list {
+      margin: 6px 0 0 16px;
+      padding: 0;
+      line-height: 1.6;
+    }
+
+    .dev-file-info {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: rgba(6, 182, 212, 0.1);
+      border: 1px solid rgba(6, 182, 212, 0.3);
+      border-radius: 10px;
+      padding: 12px 16px;
+      margin-top: 16px;
+    }
+
+    /* Alert Boxes */
+    .dev-alert {
+      padding: 14px 18px;
+      border-radius: 10px;
+      font-size: 13px;
+      margin-top: 16px;
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+    }
+    .dev-alert-success {
+      background: rgba(16, 185, 129, 0.12);
+      border: 1px solid rgba(16, 185, 129, 0.35);
+      color: #6ee7b7;
+    }
+    .dev-alert-danger {
+      background: rgba(239, 68, 68, 0.12);
+      border: 1px solid rgba(239, 68, 68, 0.35);
+      color: #fca5a5;
+    }
+
+    /* Table */
+    .dev-table-wrapper {
+      overflow-x: auto;
+      border: 1px solid var(--dev-border);
+      border-radius: 12px;
+    }
+
+    .dev-table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+      font-size: 13px;
+    }
+
+    .dev-table th {
+      background: rgba(255, 255, 255, 0.04);
+      padding: 12px 16px;
+      font-weight: 600;
+      color: var(--dev-text-dim);
+      border-bottom: 1px solid var(--dev-border);
+      white-space: nowrap;
+    }
+
+    .dev-table td {
+      padding: 14px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+      vertical-align: middle;
+    }
+
+    .dev-table tr:last-child td {
+      border-bottom: none;
+    }
+
+    .dev-table tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+
+    /* Badges */
+    .badge-source {
+      background: rgba(14, 165, 233, 0.15);
+      color: #38bdf8;
+      border: 1px solid rgba(56, 189, 248, 0.3);
+      font-family: 'JetBrains Mono', monospace;
+      font-size: 11px;
+      font-weight: 600;
+      padding: 2px 8px;
+      border-radius: 4px;
+    }
+
+    .badge-freshness {
+      font-size: 11px;
+      font-weight: 700;
+      padding: 3px 8px;
+      border-radius: 9999px;
+      display: inline-flex;
+      align-items: center;
+      gap: 4px;
+    }
+    .badge-freshness.LIVE {
+      background: rgba(16, 185, 129, 0.2);
+      color: #34d399;
+      border: 1px solid rgba(16, 185, 129, 0.4);
+    }
+    .badge-freshness.AGING {
+      background: rgba(245, 158, 11, 0.2);
+      color: #fbbf24;
+      border: 1px solid rgba(245, 158, 11, 0.4);
+    }
+    .badge-freshness.STALE {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+    }
+    .badge-freshness.UNAVAILABLE {
+      background: rgba(100, 116, 139, 0.2);
+      color: #94a3b8;
+      border: 1px solid rgba(100, 116, 139, 0.4);
+    }
+
+    /* 403 Forbidden Screen */
+    .dev-access-blocked {
+      display: none;
+      text-align: center;
+      padding: 80px 20px;
+      max-width: 540px;
+      margin: 40px auto;
+      background: var(--dev-card-bg);
+      border: 1px solid rgba(239, 68, 68, 0.3);
+      border-radius: 20px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+    }
+
+    .dev-blocked-icon {
+      width: 72px;
+      height: 72px;
+      background: rgba(239, 68, 68, 0.15);
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      color: var(--dev-danger);
+      border-radius: 50%;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 36px;
+      margin: 0 auto 20px;
+    }
+
+    .dev-blocked-title {
+      font-size: 24px;
+      font-weight: 800;
+      color: #fff;
+      margin: 0 0 10px 0;
+    }
+
+    .dev-blocked-desc {
+      font-size: 14px;
+      color: var(--dev-text-dim);
+      line-height: 1.6;
+      margin-bottom: 24px;
+    }
+
+    .dev-hidden {
+      display: none !important;
+    }
+  </style>
+</head>
+<body class="dev-body">
+
+  <!-- Top Navigation Bar -->
+  <header class="dev-nav">
+    <a href="/" class="dev-brand" id="devBrandLink" title="Return to SkyZen Main App">
+      <div class="dev-brand-icon">
+        <span class="material-symbols-rounded">terminal</span>
+      </div>
+      <div>
+        <div class="dev-brand-title">SkyZen Developer Console</div>
+      </div>
+      <span class="dev-brand-badge">Dev Portal</span>
+    </a>
+
+    <div class="dev-nav-actions">
+      <div class="dev-user-chip" id="devUserChip">
+        <span class="material-symbols-rounded icon-sm" style="color:var(--dev-accent);">account_circle</span>
+        <span id="devUserName">Verifying...</span>
+        <span class="dev-user-role" id="devUserRoleTag">DEVELOPER</span>
+      </div>
+      <a href="/" class="dev-btn dev-btn-secondary" id="devReturnBtn">
+        <span class="material-symbols-rounded icon-sm">arrow_back</span>
+        <span>Return to App</span>
+      </a>
+      <button class="dev-btn dev-btn-secondary" id="devLogoutBtn" onclick="handleDevLogout()">
+        <span class="material-symbols-rounded icon-sm">logout</span>
+        <span>Log Out</span>
+      </button>
+    </div>
+  </header>
+
+  <!-- 403 Forbidden Access Blocked Screen (Rendered for normal users) -->
+  <div id="accessBlockedContainer" class="dev-access-blocked">
+    <div class="dev-blocked-icon">
+      <span class="material-symbols-rounded">gpp_bad</span>
+    </div>
+    <h2 class="dev-blocked-title">403 — Developer Access Required</h2>
+    <p class="dev-blocked-desc" id="accessBlockedMessage">
+      Your account does not possess the <code>developer</code> role. Normal users (<code>role: "user"</code>) are strictly blocked from accessing the developer ingestion dashboard and telemetry upload APIs.
+    </p>
+    <div style="display:flex; justify-content:center; gap:12px;">
+      <a href="/" class="dev-btn dev-btn-primary">
+        <span class="material-symbols-rounded icon-sm">home</span>
+        <span>Return to SkyZen Home</span>
+      </a>
+      <button class="dev-btn dev-btn-secondary" onclick="handleDevLogout()">
+        <span class="material-symbols-rounded icon-sm">switch_account</span>
+        <span>Switch Account</span>
+      </button>
+    </div>
+  </div>
+
+  <!-- Main Developer Content (Only visible to authenticated developers) -->
+  <main class="dev-container dev-hidden" id="devDashboardContent">
+
+    <!-- Overview Stats -->
+    <div class="dev-stats-row">
+      <div class="dev-stat-card">
+        <div class="dev-stat-icon" style="background:rgba(6, 182, 212, 0.15); color:var(--dev-accent);">
+          <span class="material-symbols-rounded">cloud_upload</span>
+        </div>
+        <div>
+          <div class="dev-stat-val" id="statTotalUploads">0</div>
+          <div class="dev-stat-label">Ingested Manual Records</div>
+        </div>
+      </div>
+
+      <div class="dev-stat-card">
+        <div class="dev-stat-icon" style="background:rgba(16, 185, 129, 0.15); color:var(--dev-success);">
+          <span class="material-symbols-rounded">location_on</span>
+        </div>
+        <div>
+          <div class="dev-stat-val" id="statActiveStations">0</div>
+          <div class="dev-stat-label">Monitored Ground Stations</div>
+        </div>
+      </div>
+
+      <div class="dev-stat-card">
+        <div class="dev-stat-icon" style="background:rgba(245, 158, 11, 0.15); color:var(--dev-warning);">
+          <span class="material-symbols-rounded">history</span>
+        </div>
+        <div>
+          <div class="dev-stat-val" id="statLatestTimestamp" style="font-size:16px;">--</div>
+          <div class="dev-stat-label">Latest Observation Time</div>
+        </div>
+      </div>
+
+      <div class="dev-stat-card">
+        <div class="dev-stat-icon" style="background:rgba(139, 92, 246, 0.15); color:#a78bfa;">
+          <span class="material-symbols-rounded">verified</span>
+        </div>
+        <div>
+          <div class="dev-stat-val" id="statOverallFreshness" style="font-size:16px;">--</div>
+          <div class="dev-stat-label">Batch Freshness State</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Manual Upload Section -->
+    <section class="dev-card">
+      <div class="dev-card-header">
+        <div>
+          <h2 class="dev-card-title">
+            <span class="material-symbols-rounded" style="color:var(--dev-accent);">upload_file</span>
+            Upload Manual CPCB Station Telemetry
+          </h2>
+          <div class="dev-card-subtitle">
+            Upload CSV or XLSX exported from Central Pollution Control Board (CPCB) monitoring stations.
+          </div>
+        </div>
+        <button class="dev-btn dev-btn-secondary" onclick="loadSampleTemplate()" title="Download sample format guide">
+          <span class="material-symbols-rounded icon-sm">description</span>
+          <span>Sample Spec</span>
+        </button>
+      </div>
+
+      <form id="uploadForm" onsubmit="handleFileUpload(event)">
+        <div class="dev-upload-zone" id="dropZone" onclick="document.getElementById('fileInput').click()">
+          <input type="file" id="fileInput" accept=".csv, .xlsx, .xls" style="display:none" onchange="handleFileSelected(event)">
+          <div class="dev-upload-icon">
+            <span class="material-symbols-rounded">cloud_upload</span>
+          </div>
+          <div class="dev-upload-title" id="dropZoneTitle">Choose a CSV or XLSX file or drag it here</div>
+          <div class="dev-upload-hint">Supported formats: .csv, .xlsx. Files are validated strictly against missing columns and impossible values.</div>
+          <button type="button" class="dev-btn dev-btn-secondary" style="pointer-events:none;">
+            <span class="material-symbols-rounded icon-sm">folder_open</span>
+            <span>Browse Files</span>
+          </button>
+        </div>
+
+        <div id="fileInfoBox" class="dev-file-info dev-hidden">
+          <div style="display:flex; align-items:center; gap:12px;">
+            <span class="material-symbols-rounded" style="color:var(--dev-accent); font-size:28px;">article</span>
+            <div>
+              <div id="selectedFileName" style="font-weight:600; font-size:14px;">--</div>
+              <div id="selectedFileSize" style="font-size:12px; color:var(--dev-text-dim);">--</div>
+            </div>
+          </div>
+          <div style="display:flex; gap:8px;">
+            <button type="button" class="dev-btn dev-btn-secondary" onclick="clearSelectedFile()">
+              <span class="material-symbols-rounded icon-sm">close</span>
+              <span>Remove</span>
+            </button>
+            <button type="submit" id="btnUploadSubmit" class="dev-btn dev-btn-primary">
+              <span class="material-symbols-rounded icon-sm">publish</span>
+              <span id="btnUploadText">Upload & Ingest</span>
+            </button>
+          </div>
+        </div>
+
+        <div id="uploadFeedbackAlert" class="dev-alert dev-hidden"></div>
+
+        <div class="dev-specs-box">
+          <strong>Mandatory Validation Specifications (No Silent Fallback Guessing):</strong>
+          <ul class="dev-specs-list">
+            <li><strong>Station Column:</strong> Must contain <code>station</code> (or <code>station_name</code>). Empty station values are rejected with 400 Bad Request.</li>
+            <li><strong>Timestamp Column:</strong> Must contain <code>timestamp</code> (or <code>datetime</code>, <code>observed_at</code>). Standard ISO 8601 or CPCB DD-MM-YYYY formats accepted.</li>
+            <li><strong>Pollutant Values:</strong> At least one pollutant column (<code>pm2_5</code>, <code>pm10</code>, <code>no2</code>, <code>so2</code>, <code>co</code>, <code>o3</code>, or <code>aqi</code>) is required. Rows with all empty pollutant readings or non-numeric strings are rejected.</li>
+            <li><strong>Freshness Rules:</strong> Data is tagged with <code>source = "CPCB_MANUAL"</code>. Only marked as <code>LIVE</code> if genuine observation is recent (&lt;15m). Otherwise marked as <code>AGING</code>, <code>STALE</code>, or <code>UNAVAILABLE</code>.</li>
+          </ul>
+        </div>
+      </form>
+    </section>
+
+    <!-- Recent Uploads Table -->
+    <section class="dev-card">
+      <div class="dev-card-header">
+        <div>
+          <h2 class="dev-card-title">
+            <span class="material-symbols-rounded" style="color:var(--dev-accent);">table_chart</span>
+            Recent Manual Data Uploads
+          </h2>
+          <div class="dev-card-subtitle">
+            Records tagged with source = "CPCB_MANUAL" and verified against actual observation age.
+          </div>
+        </div>
+
+        <div style="display:flex; gap:10px; align-items:center;">
+          <input type="text" id="stationFilter" placeholder="Filter by station name..." class="auth-input" style="width:220px; padding:8px 12px; font-size:13px;" oninput="debounceFilter()">
+          <button class="dev-btn dev-btn-secondary" onclick="loadManualRecords()">
+            <span class="material-symbols-rounded icon-sm">refresh</span>
+            <span>Refresh</span>
+          </button>
+        </div>
+      </div>
+
+      <div class="dev-table-wrapper">
+        <table class="dev-table">
+          <thead>
+            <tr>
+              <th>Station</th>
+              <th>Source Tag</th>
+              <th>Observation Timestamp</th>
+              <th>Uploaded Timestamp</th>
+              <th>Freshness State</th>
+              <th>Real-Time</th>
+              <th>Pollutants</th>
+              <th>Dominant</th>
+            </tr>
+          </thead>
+          <tbody id="recordsTableBody">
+            <tr>
+              <td colspan="8" style="text-align:center; padding:32px; color:var(--dev-text-dim);">
+                <span class="material-symbols-rounded" style="font-size:32px; vertical-align:middle; margin-bottom:8px; display:block;">hourglass_empty</span>
+                Loading manual CPCB telemetry records...
+              </td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </section>
+
+  </main>
+
+  <script src="mobile/apiClient.js"></script>
+  <script>
+    let selectedFile = null;
+    let filterDebounceTimer = null;
+
+    document.addEventListener("DOMContentLoaded", () => {
+      initDeveloperDashboard();
+    });
+
+    async function initDeveloperDashboard() {
+      // 1. Verify user authentication and developer role
+      if (!window.apiClient.isAuthenticated()) {
+        showAccessBlocked("Authentication Required", "Please log in to SkyZen with a developer account to access this page.");
+        return;
+      }
+
+      try {
+        const user = await window.apiClient.getAuthMe();
+        if (!user || (user.role !== "developer" && user.role !== "admin")) {
+          showAccessBlocked(
+            "403 — Developer Access Required",
+            `Your account (${user.email}) has role "${user.role || 'user'}". Normal users are blocked from developer routes. Only accounts with role="developer" or "admin" may access this portal.`
+          );
+          return;
+        }
+
+        // Render Developer UI
+        document.getElementById("devUserName").textContent = user.name || user.email;
+        document.getElementById("devUserRoleTag").textContent = (user.role || "developer").toUpperCase();
+        document.getElementById("accessBlockedContainer").style.display = "none";
+        document.getElementById("devDashboardContent").classList.remove("dev-hidden");
+
+        setupDragAndDrop();
+        await loadManualRecords();
+      } catch (err) {
+        showAccessBlocked("Authorization Error", err.message || "Failed to verify developer permissions.");
+      }
+    }
+
+    function showAccessBlocked(title, message) {
+      document.getElementById("devDashboardContent").classList.add("dev-hidden");
+      const blockedBox = document.getElementById("accessBlockedContainer");
+      blockedBox.style.display = "block";
+      if (title) document.querySelector(".dev-blocked-title").textContent = title;
+      if (message) document.getElementById("accessBlockedMessage").innerHTML = message;
+    }
+
+    function setupDragAndDrop() {
+      const zone = document.getElementById("dropZone");
+      ["dragenter", "dragover"].forEach(evtName => {
+        zone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          zone.classList.add("dragover");
+        }, false);
+      });
+      ["dragleave", "drop"].forEach(evtName => {
+        zone.addEventListener(evtName, (e) => {
+          e.preventDefault();
+          zone.classList.remove("dragover");
+        }, false);
+      });
+      zone.addEventListener("drop", (e) => {
+        const files = e.dataTransfer.files;
+        if (files.length > 0) {
+          applySelectedFile(files[0]);
+        }
+      });
+    }
+
+    function handleFileSelected(event) {
+      if (event.target.files && event.target.files.length > 0) {
+        applySelectedFile(event.target.files[0]);
+      }
+    }
+
+    function applySelectedFile(file) {
+      selectedFile = file;
+      document.getElementById("selectedFileName").textContent = file.name;
+      document.getElementById("selectedFileSize").textContent = `${(file.size / 1024).toFixed(1)} KB`;
+      document.getElementById("fileInfoBox").classList.remove("dev-hidden");
+      document.getElementById("uploadFeedbackAlert").classList.add("dev-hidden");
+    }
+
+    function clearSelectedFile() {
+      selectedFile = null;
+      document.getElementById("fileInput").value = "";
+      document.getElementById("fileInfoBox").classList.add("dev-hidden");
+      document.getElementById("uploadFeedbackAlert").classList.add("dev-hidden");
+    }
+
+    async function handleFileUpload(event) {
+      event.preventDefault();
+      if (!selectedFile) return;
+
+      const btnText = document.getElementById("btnUploadText");
+      const btnSubmit = document.getElementById("btnUploadSubmit");
+      const feedback = document.getElementById("uploadFeedbackAlert");
+
+      btnSubmit.disabled = true;
+      btnText.textContent = "Ingesting...";
+      feedback.classList.add("dev-hidden");
+
+      try {
+        const result = await window.apiClient.uploadManualAqi(selectedFile);
+        feedback.className = "dev-alert dev-alert-success";
+        feedback.innerHTML = `
+          <span class="material-symbols-rounded">check_circle</span>
+          <div>
+            <strong>Success:</strong> ${result.message}
+            <div style="margin-top:4px; font-size:12px;">
+              Tagged: <code>${result.source}</code> • State: <strong>${result.freshness_state}</strong> (Real-Time: ${result.is_real_time ? 'Yes' : 'No'})
+            </div>
+          </div>
+        `;
+        feedback.classList.remove("dev-hidden");
+        clearSelectedFile();
+        await loadManualRecords();
+      } catch (err) {
+        feedback.className = "dev-alert dev-alert-danger";
+        feedback.innerHTML = `
+          <span class="material-symbols-rounded">error</span>
+          <div>
+            <strong>Upload Rejected (400 Bad Request):</strong> ${err.message}
+          </div>
+        `;
+        feedback.classList.remove("dev-hidden");
+      } finally {
+        btnSubmit.disabled = false;
+        btnText.textContent = "Upload & Ingest";
+      }
+    }
+
+    function debounceFilter() {
+      clearTimeout(filterDebounceTimer);
+      filterDebounceTimer = setTimeout(() => {
+        loadManualRecords();
+      }, 300);
+    }
+
+    async function loadManualRecords() {
+      const tbody = document.getElementById("recordsTableBody");
+      const filter = document.getElementById("stationFilter").value.trim();
+
+      try {
+        const res = await window.apiClient.getDeveloperAqiRecords(filter || null, 100);
+        const records = res.records || [];
+
+        // Update stats
+        document.getElementById("statTotalUploads").textContent = res.count || records.length;
+        const uniqueStations = new Set(records.map(r => r.station));
+        document.getElementById("statActiveStations").textContent = uniqueStations.size;
+
+        if (records.length > 0) {
+          const latest = records[0];
+          document.getElementById("statLatestTimestamp").textContent = formatTimeShort(latest.timestamp);
+          document.getElementById("statOverallFreshness").textContent = latest.freshness_state;
+        } else {
+          document.getElementById("statLatestTimestamp").textContent = "--";
+          document.getElementById("statOverallFreshness").textContent = "--";
+        }
+
+        if (records.length === 0) {
+          tbody.innerHTML = `
+            <tr>
+              <td colspan="8" style="text-align:center; padding:36px; color:var(--dev-text-dim);">
+                <span class="material-symbols-rounded" style="font-size:36px; color:var(--dev-muted); display:block; margin-bottom:8px;">inbox</span>
+                No manual CPCB records found. Upload a CSV or XLSX file above.
+              </td>
+            </tr>
+          `;
+          return;
+        }
+
+        tbody.innerHTML = records.map(r => {
+          const pollutantsList = [];
+          if (r.aqi !== null && r.aqi !== undefined) pollutantsList.push(`AQI: <strong>${r.aqi}</strong>`);
+          if (r.pm2_5 !== null && r.pm2_5 !== undefined) pollutantsList.push(`PM2.5: ${r.pm2_5}`);
+          if (r.pm10 !== null && r.pm10 !== undefined) pollutantsList.push(`PM10: ${r.pm10}`);
+          if (r.no2 !== null && r.no2 !== undefined) pollutantsList.push(`NO₂: ${r.no2}`);
+
+          return `
+            <tr>
+              <td style="font-weight:600; color:#fff;">
+                <div style="display:flex; align-items:center; gap:8px;">
+                  <span class="material-symbols-rounded icon-sm" style="color:var(--dev-accent);">sensors</span>
+                  ${escapeHtml(r.station)}
+                </div>
+              </td>
+              <td><span class="badge-source">${r.source}</span></td>
+              <td style="font-family:'JetBrains Mono', monospace; font-size:12px;">${formatDateTime(r.timestamp)}</td>
+              <td style="font-family:'JetBrains Mono', monospace; font-size:12px; color:var(--dev-text-dim);">${formatDateTime(r.uploaded_at)}</td>
+              <td>
+                <span class="badge-freshness ${r.freshness_state}">
+                  <span style="font-size:8px;">●</span> ${r.freshness_state}
+                </span>
+                <span style="font-size:10px; color:var(--dev-text-dim); display:block; margin-top:2px;">
+                  ${r.observation_age_minutes}m old
+                </span>
+              </td>
+              <td>
+                <span style="font-size:12px; font-weight:600; color:${r.is_real_time ? 'var(--dev-success)' : 'var(--dev-muted)'};">
+                  ${r.is_real_time ? 'Yes (<15m)' : 'No'}
+                </span>
+              </td>
+              <td style="font-size:12px;">${pollutantsList.join(" • ") || "--"}</td>
+              <td>
+                <span style="font-size:11px; font-weight:600; color:var(--dev-accent);">${r.dominant_pollutant || '--'}</span>
+              </td>
+            </tr>
+          `;
+        }).join("");
+      } catch (err) {
+        tbody.innerHTML = `
+          <tr>
+            <td colspan="8" style="text-align:center; padding:24px; color:var(--dev-danger);">
+              Failed to load records: ${err.message}
+            </td>
+          </tr>
+        `;
+      }
+    }
+
+    function formatDateTime(isoStr) {
+      if (!isoStr) return "--";
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleDateString() + " " + d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+      } catch (_) {
+        return isoStr;
+      }
+    }
+
+    function formatTimeShort(isoStr) {
+      if (!isoStr) return "--";
+      try {
+        const d = new Date(isoStr);
+        return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      } catch (_) {
+        return isoStr;
+      }
+    }
+
+    function escapeHtml(str) {
+      if (!str) return "";
+      return String(str).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;");
+    }
+
+    function loadSampleTemplate() {
+      alert("Sample CPCB CSV format:\n\nstation,timestamp,pm2_5,pm10,no2,so2,co,o3,aqi\nSIDCO Kurichi Coimbatore,2026-09-12 10:00:00,35.2,78.5,18.0,9.2,0.5,28.0,85\n\nColumns required: station, timestamp, and at least one pollutant.");
+    }
+
+    function handleDevLogout() {
+      window.apiClient.removeToken();
+      window.location.href = "/";
+    }
+  </script>
+</body>
+</html>

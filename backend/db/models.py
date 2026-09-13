@@ -39,6 +39,17 @@ class User(Base):
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
+    def __init__(self, **kwargs):
+        kwargs.setdefault("role", "user")
+        super().__init__(**kwargs)
+
+    @validates("role")
+    def validate_role(self, key, value):
+        allowed = {"user", "developer", "admin"}
+        if value is not None and value not in allowed:
+            raise ValueError(f"Invalid user role: {value}. Allowed values are: {allowed}")
+        return value or "user"
+
     @property
     def full_name(self) -> str:
         return self.name
@@ -287,3 +298,32 @@ class DeviceToken(Base):
     updated_at = Column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
 
     user = relationship("User", back_populates="device_tokens")
+
+
+class AirQualityRecord(Base):
+    """Stores manual or official air quality station observation records."""
+    __tablename__ = "air_quality_records"
+    __table_args__ = (
+        Index("idx_aqi_station_time", "station", "timestamp"),
+        Index("idx_aqi_source_time", "source", "timestamp"),
+    )
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    station = Column(String(150), nullable=False, index=True)
+    timestamp = Column(DateTime(timezone=True), nullable=False, index=True)
+    source = Column(String(50), default="CPCB_MANUAL", nullable=False)
+    uploaded_at = Column(DateTime(timezone=True), default=utc_now, nullable=False)
+    uploaded_by_id = Column(String(36), ForeignKey("users.id", ondelete="SET NULL"), nullable=True)
+
+    aqi = Column(Float, nullable=True)
+    pm2_5 = Column(Float, nullable=True)
+    pm10 = Column(Float, nullable=True)
+    no2 = Column(Float, nullable=True)
+    so2 = Column(Float, nullable=True)
+    co = Column(Float, nullable=True)
+    o3 = Column(Float, nullable=True)
+    dominant_pollutant = Column(String(20), nullable=True)
+    raw_payload = Column(Text, nullable=True)
+
+    uploader = relationship("User", foreign_keys=[uploaded_by_id])
+
