@@ -12,18 +12,20 @@ import io
 import csv
 import json
 import logging
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from typing import Optional, List, Dict, Any
 
 from fastapi import APIRouter, Depends, HTTPException, status, UploadFile, File, Query
 from fastapi.responses import HTMLResponse
+from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 import openpyxl
 
 from backend.db.session import get_db
-from backend.db.models import User, AirQualityRecord
+from backend.db.models import User, AirQualityRecord, Alert as DBAlert
 from backend.core.security import require_developer_role
 from backend.services.weather_reliability import evaluate_weather_freshness, FreshnessClassification
+from backend.services.geocoding_service import GeocodingService
 
 logger = logging.getLogger("weathergpt.api.developer")
 
@@ -455,6 +457,195 @@ def get_manual_cpcb_records(
     return {
         "count": len(results),
         "records": results
+    }
+
+
+# =========================================================================
+# Developer Manual Weather Warning Endpoints (Single Source of Alert Data)
+# =========================================================================
+
+class CreateDeveloperAlertRequest(BaseModel):
+    location_name: str = Field(..., description="Target Indian city/district name, e.g. Coimbatore, Nagapattinam")
+    alert_type: str = Field(default="heavy_rain", description="Alert category code")
+    severity: str = Field(default="high", description="Standardized severity: low, medium, high, extreme")
+    title: str = Field(..., description="Warning title narrative")
+    description: str = Field(..., description="Detailed official warning description")
+    instructions: Optional[str] = Field(default=None, description="Official protective action recommendations")
+    duration_hours: Optional[float] = Field(default=24.0, description="Alert validity duration in hours")
+    expires_at: Optional[str] = Field(default=None, description="Explicit expiration ISO timestamp")
+    source: Optional[str] = Field(default="IMD Official (Developer Declared)", description="Authority provenance")
+    latitude: Optional[float] = Field(default=None, description="Optional latitude coordinate")
+    longitude: Optional[float] = Field(default=None, description="Optional longitude coordinate")
+
+
+class UpdateDeveloperAlertRequest(BaseModel):
+    alert_type: Optional[str] = None
+    severity: Optional[str] = None
+    title: Optional[str] = None
+    description: Optional[str] = None
+    instructions: Optional[str] = None
+    duration_hours: Optional[float] = None
+    expires_at: Optional[str] = None
+    source: Optional[str] = None
+
+
+@router.post(
+    "/alerts",
+    summary="Declare Active Official Weather Warning",
+    status_code=status.HTTP_201_CREATED
+)
+async def declare_developer_alert(
+    req: CreateDeveloperAlertRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_developer_role)
+) -> Dict[str, Any]:
+    """Developer-only endpoint to declare an official meteorological alert for a specific city."""
+    now_utc = datetime.now(timezone.utc)
+
+    # Resolve coordinates if not supplied
+    lat = req.latitude
+    lon = req.longitude
+    resolved_loc_name = req.location_name.strip()
+
+    if lat is None or lon is None:
+        try:
+            geo_svc = GeocodingService()
+            resolved = await geo_svc.resolve_location(resolved_loc_name)
+            lat = lat if lat is not None else resolved.get("latitude", 0.0)
+            lon = lon if lon is not None else resolved.get("longitude", 0.0)
+            resolved_loc_name = resolved.get("name", resolved_loc_name)
+        except Exception as e:
+            logger.warning(f"Geocoding lookup failed for {resolved_loc_name}: {e}")
+            if lat is None:
+                lat = 0.0
+            if lon is None:
+                lon = 0.0
+
+    # Calculate expiration
+    if req.expires_at:
+        parsed_exp = parse_flexible_timestamp(req.expires_at)
+        expires_dt = parsed_exp or (now_utc + timedelta(hours=req.duration_hours or 24.0))
+    else:
+        expires_dt = now_utc + timedelta(hours=req.duration_hours or 24.0)
+
+    # Normalize severity
+    sev_clean = req.severity.lower().strip()
+    if sev_clean not in ("low", "medium", "high", "extreme"):
+        sev_clean = "high"
+
+    alert_rec = DBAlert(
+        location_name=resolved_loc_name,
+        latitude=lat,
+        longitude=lon,
+        alert_type=req.alert_type.strip(),
+        severity=sev_clean,
+        title=req.title.strip(),
+        description=req.description.strip(),
+        instructions=req.instructions.strip() if req.instructions else None,
+        source=req.source or "IMD Official (Developer Declared)",
+        issued_at=now_utc,
+        expires_at=expires_dt
+    )
+    db.add(alert_rec)
+    db.commit()
+    db.refresh(alert_rec)
+
+    return {
+        "success": True,
+        "message": f"Official warning successfully declared for {resolved_loc_name}.",
+        "alert": {
+            "id": alert_rec.id,
+            "location_name": alert_rec.location_name,
+            "latitude": alert_rec.latitude,
+            "longitude": alert_rec.longitude,
+            "alert_type": alert_rec.alert_type,
+            "severity": alert_rec.severity,
+            "title": alert_rec.title,
+            "description": alert_rec.description,
+            "instructions": alert_rec.instructions,
+            "source": alert_rec.source,
+            "issued_at": alert_rec.issued_at.isoformat() if alert_rec.issued_at else None,
+            "expires_at": alert_rec.expires_at.isoformat() if alert_rec.expires_at else None,
+            "is_active": True
+        }
+    }
+
+
+@router.get(
+    "/alerts",
+    summary="List Developer-Declared Weather Warnings",
+    status_code=status.HTTP_200_OK
+)
+def list_developer_alerts(
+    location: Optional[str] = Query(None, description="Optional city filter"),
+    active_only: bool = Query(False, description="Filter only unexpired active alerts"),
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_developer_role)
+) -> Dict[str, Any]:
+    """Retrieves all developer-declared weather alerts."""
+    now_utc = datetime.now(timezone.utc)
+    query = db.query(DBAlert)
+
+    if location:
+        query = query.filter(DBAlert.location_name.ilike(f"%{location.strip()}%"))
+
+    records = query.order_by(DBAlert.issued_at.desc()).all()
+
+    results = []
+    for a in records:
+        exp = a.expires_at
+        if exp and exp.tzinfo is None:
+            exp = exp.replace(tzinfo=timezone.utc)
+
+        is_active = (exp > now_utc) if exp else True
+        if active_only and not is_active:
+            continue
+
+        results.append({
+            "id": a.id,
+            "location_name": a.location_name,
+            "latitude": a.latitude,
+            "longitude": a.longitude,
+            "alert_type": a.alert_type,
+            "severity": a.severity,
+            "title": a.title,
+            "description": a.description,
+            "instructions": a.instructions,
+            "source": a.source,
+            "issued_at": a.issued_at.isoformat() if a.issued_at else None,
+            "expires_at": a.expires_at.isoformat() if a.expires_at else None,
+            "is_active": is_active,
+            "status": "ACTIVE" if is_active else "EXPIRED"
+        })
+
+    return {
+        "count": len(results),
+        "alerts": results
+    }
+
+
+@router.delete(
+    "/alerts/{alert_id}",
+    summary="Revoke Developer Weather Warning",
+    status_code=status.HTTP_200_OK
+)
+def revoke_developer_alert(
+    alert_id: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(require_developer_role)
+) -> Dict[str, Any]:
+    """Revokes/deletes a developer-declared alert by ID."""
+    alert = db.query(DBAlert).filter(DBAlert.id == alert_id).first()
+    if not alert:
+        raise HTTPException(status_code=404, detail=f"Alert with ID {alert_id} not found.")
+
+    city = alert.location_name
+    db.delete(alert)
+    db.commit()
+    return {
+        "success": True,
+        "message": f"Alert {alert_id} for {city} successfully revoked.",
+        "revoked_id": alert_id
     }
 
 

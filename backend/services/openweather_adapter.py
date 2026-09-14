@@ -25,7 +25,7 @@ from backend.services.cache import provider_cache
 class OpenWeatherAdapter(BaseWeatherProvider):
     """Primary Live Weather Data Adapter (OpenWeather API)."""
 
-    def __init__(self, timeout: Optional[float] = None, authority_level: str = "primary_live"):
+    def __init__(self, timeout: Optional[float] = None, authority_level: str = "secondary_independent"):
         super().__init__(timeout=timeout)
         self._authority_level = authority_level
 

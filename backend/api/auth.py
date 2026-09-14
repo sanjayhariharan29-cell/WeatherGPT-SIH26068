@@ -79,8 +79,7 @@ async def register_user(req: RegisterRequest, db: Session = Depends(get_db)):
                 status_code=status.HTTP_403_FORBIDDEN,
                 detail="Unauthorized: Admin role self-assignment is forbidden without valid authorization"
             )
-    elif req.role and req.role.lower() == "developer":
-        assigned_role = "developer"
+    # Developer role cannot be self-assigned via public signup; all public registrations default to "user"
 
     user = User(
         name=req.name,
@@ -323,6 +322,35 @@ async def logout_user(
     if credentials and credentials.credentials:
         revoke_token(credentials.credentials, db)
     return {"message": "Logout successful"}
+
+
+@router.post("/refresh")
+async def refresh_session_token(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Refreshes an active session token with a new expiration."""
+    access_token = create_access_token(data={
+        "sub": current_user.id,
+        "email": current_user.email,
+        "role": current_user.role
+    })
+    return {
+        "access_token": access_token,
+        "token_type": "bearer",
+        "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
+        "user": {
+            "id": current_user.id,
+            "name": current_user.name,
+            "full_name": current_user.name,
+            "email": current_user.email,
+            "language": current_user.language,
+            "persona": current_user.persona,
+            "role": current_user.role,
+            "is_verified": bool(current_user.is_verified),
+            "onboarding_completed": bool(current_user.onboarding_completed)
+        }
+    }
 
 
 @router.get("/me", response_model=ProfileResponse)

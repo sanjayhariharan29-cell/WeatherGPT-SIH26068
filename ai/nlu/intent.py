@@ -177,9 +177,10 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
         return IntentEnum.TIME_SPECIFIC_WEATHER, 0.94
 
     # 3. Cyclone & Emergency Alerts / Warning Query
+    if any(k in clean for k in ["cyclone", "புயல்", "puyal", "चक्रवात", "toofan", "tufan", "tufaan"]):
+        return IntentEnum.CYCLONE_INQUIRY, 0.94
     if any(k in clean for k in [
-        "cyclone", "புயல்", "puyal", "storm alert", "super cyclone",
-        "चक्रवात", "toofan", "tufan", "tufaan", "warning", "alert", "எச்சரிக்கை",
+        "storm alert", "super cyclone", "warning", "alert", "எச்சரிக்கை",
         "danger", "red alert", "orange alert", "चेतावनी", "khatra", "imd warning", "imd alert"
     ]):
         return IntentEnum.WARNING_QUERY, 0.94
@@ -202,11 +203,26 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
         "rain", "raining", "drizzle", "shower", "மழை", "mazhai", "malai", "mazha",
         "baarish", "barish", "barsaat", "बारिश", "बरसात", "वर्षा"
     ]):
+        is_future_rain = (
+            clean.startswith("will")
+            or any(k in clean for k in [
+                "will it", "going to", "tomorrow", "tonight", "next", "weekend",
+                "heavily today", "chance of rain", "varuma", "வருமா", "பெய்யுமா", "peiyuma",
+                "hogi", "होगी", "kal", "naalaiku", "nalaiku", "நாளை", "कल", "parso"
+            ])
+            or any(k in clean for k in [
+                "monday", "tuesday", "wednesday", "thursday", "friday", "saturday", "sunday"
+            ])
+        )
+        if is_future_rain:
+            return IntentEnum.RAIN_FORECAST, 0.92
         return IntentEnum.RAIN_QUERY, 0.92
 
     # 6. Temperature & Heat Query
+    if "temperature" in clean or "temp" in clean:
+        return IntentEnum.TEMPERATURE, 0.90
     if any(k in clean for k in [
-        "temp", "temperature", "hot", "cold", "heat", "வெப்பநிலை", "veyil", "veiyil",
+        "hot", "cold", "heat", "வெப்பநிலை", "veyil", "veiyil",
         "kulir", "garmi", "thand", "thandi", "sardi", "तापमान", "गर्मी", "ठंड"
     ]):
         return IntentEnum.TEMPERATURE_QUERY, 0.90

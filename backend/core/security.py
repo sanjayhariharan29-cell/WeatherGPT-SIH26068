@@ -58,7 +58,7 @@ def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -
 def decode_access_token(token: str) -> dict:
     """Decodes and validates JWT token."""
     try:
-        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM])
+        payload = jwt.decode(token, settings.SECRET_KEY, algorithms=[settings.JWT_ALGORITHM], leeway=2)
         return payload
     except jwt.ExpiredSignatureError:
         raise HTTPException(

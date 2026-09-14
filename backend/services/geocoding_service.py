@@ -258,18 +258,90 @@ class GeocodingService:
             "source": "device_gps"
         }
 
-    async def search_locations(self, query: str) -> List[Dict[str, Any]]:
-        """Search locations matching query string."""
+    async def search_locations(self, query: str, limit: int = 10) -> List[Dict[str, Any]]:
+        """Search locations matching query string across live Indian geocoding services."""
         if not query or not query.strip():
             return [KNOWN_LOCATIONS["coimbatore"]]
 
         cleaned = query.strip().lower()
-        results = []
+        results: List[Dict[str, Any]] = []
+        seen_keys = set()
+
+        def add_result(loc_dict: Dict[str, Any]) -> None:
+            name = loc_dict.get("name", "").strip()
+            state = loc_dict.get("state", "").strip()
+            key = (name.lower(), state.lower())
+            if key not in seen_keys:
+                seen_keys.add(key)
+                results.append(loc_dict)
+
+        # 1. Check local/regional presets (Coimbatore, Chennai, Madurai, etc. including Tamil names)
         for key, loc in KNOWN_LOCATIONS.items():
-            if cleaned in key or cleaned in loc["name"].lower():
-                if loc not in results:
-                    results.append(loc)
+            if cleaned == key or cleaned == loc["name"].lower() or loc["name"].lower().startswith(cleaned) or cleaned in key:
+                add_result(loc)
+
+        # 2. Live Indian Geocoding lookup via Open-Meteo Geocoding API
+        try:
+            url = f"https://geocoding-api.open-meteo.com/v1/search?name={query.strip()}&count=100&language=en&format=json"
+            async with httpx.AsyncClient(timeout=self.timeout) as client:
+                resp = await client.get(url)
+                if resp.status_code == 200:
+                    raw_data = resp.json().get("results", [])
+                    in_matches = [
+                        x for x in raw_data
+                        if x.get("country_code") == "IN" or (x.get("country") or "").lower() == "india"
+                    ]
+                    for item in in_matches:
+                        lat = float(item["latitude"])
+                        lon = float(item["longitude"])
+                        self.validate_coordinates(lat, lon)
+                        name = item.get("name", "").strip()
+                        state = item.get("admin1") or item.get("admin2") or "India"
+                        district = item.get("admin2") or state
+                        add_result({
+                            "name": name,
+                            "district": district,
+                            "state": state,
+                            "country": "India",
+                            "latitude": lat,
+                            "longitude": lon,
+                            "timezone": item.get("timezone") or "Asia/Kolkata",
+                            "source": "live_geocoding"
+                        })
+        except Exception:
+            pass
+
+        # 3. Fallback to Nominatim OSM if results are still scarce
+        if len(results) < 2:
+            try:
+                url = f"https://nominatim.openstreetmap.org/search?q={query.strip()}&countrycodes=in&format=json&addressdetails=1&limit=10"
+                headers = {"User-Agent": "WeatherGPT-SIH26068/1.0"}
+                async with httpx.AsyncClient(timeout=self.timeout) as client:
+                    resp = await client.get(url, headers=headers)
+                    if resp.status_code == 200 and isinstance(resp.json(), list):
+                        for item in resp.json():
+                            lat = float(item["lat"])
+                            lon = float(item["lon"])
+                            self.validate_coordinates(lat, lon)
+                            addr = item.get("address", {})
+                            name = addr.get("city") or addr.get("town") or addr.get("village") or addr.get("suburb") or item.get("name") or query.strip()
+                            district = addr.get("state_district") or addr.get("county") or name
+                            state = addr.get("state") or "India"
+                            add_result({
+                                "name": name,
+                                "district": district,
+                                "state": state,
+                                "country": "India",
+                                "latitude": lat,
+                                "longitude": lon,
+                                "timezone": "Asia/Kolkata",
+                                "source": "nominatim_geocoding"
+                            })
+            except Exception:
+                pass
+
         if not results:
             resolved = await self.resolve_location(query)
             results.append(resolved)
-        return results
+
+        return results[:limit]

@@ -13,6 +13,7 @@ from ai.models import (
     WeatherRecord,
     HistoricalWeatherDataset,
     WeatherDataType,
+    IntentStr,
 )
 from ai.nlu import parse_query, normalize_query
 from ai.rag import retrieve_safety_guidance
@@ -74,6 +75,7 @@ class WeatherGPTPipeline:
                 if ContextResolver.is_reset_query(message):
                     memory_manager.reset_context(conversation_id)
                     state_service.reset_state(conversation_id)
+                ctx = memory_manager.get_context(conversation_id)
                 cur_state = state_service.get_state(conversation_id)
                 turn_analysis = state_service.analyze_turn(message, cur_state)
                 if not resolved_context_summary:
@@ -81,7 +83,6 @@ class WeatherGPTPipeline:
                 if turn_analysis.resolved_location and turn_analysis.resolved_location != "Unspecified":
                     resolved_mem_location = turn_analysis.resolved_location
                 else:
-                    ctx = memory_manager.get_context(conversation_id)
                     resolved = ContextResolver.resolve_query(message, context=ctx)
                     if resolved.resolved_location:
                         resolved_mem_location = resolved.resolved_location
@@ -810,7 +811,7 @@ class WeatherGPTPipeline:
             "conversation_id": conversation_id,
             "answer": final_answer,
             "language": nlu.detected_language.value,
-            "intent": nlu.intent.value,
+            "intent": IntentStr(nlu.intent.value if hasattr(nlu.intent, "value") else str(nlu.intent)),
             "location": reasoning.location,
             "persona": resolved_persona.value,
             "risk": {

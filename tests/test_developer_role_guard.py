@@ -184,3 +184,36 @@ def test_normal_signup_defaults_to_user_role():
             # Cleanup
             db.query(User).filter(User.email == email).delete(synchronize_session=False)
             db.commit()
+
+
+def test_signup_with_developer_role_request_still_defaults_to_user_role():
+    """Verify that attempting to self-assign role='developer' via public signup endpoint still defaults to 'user'."""
+    from backend.main import app as main_app
+    with TestClient(main_app) as main_client:
+        email = "self_dev_signup_test@example.com"
+        with SessionLocal() as db:
+            db.query(User).filter(User.email == email).delete(synchronize_session=False)
+            db.commit()
+
+        payload = {
+            "name": "Attacker Trying Dev Role",
+            "email": email,
+            "password": "Password123!",
+            "confirm_password": "Password123!",
+            "language": "en",
+            "persona": "student",
+            "role": "developer"
+        }
+        resp = main_client.post("/api/v1/auth/register", json=payload)
+        assert resp.status_code == 200, f"Register failed: {resp.text}"
+        data = resp.json()
+        assert data["role"] == "user", f"Expected role 'user', got '{data['role']}'"
+
+        with SessionLocal() as db:
+            created_u = db.query(User).filter(User.email == email).first()
+            assert created_u is not None
+            assert created_u.role == "user"
+
+            db.query(User).filter(User.email == email).delete(synchronize_session=False)
+            db.commit()
+

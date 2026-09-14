@@ -168,6 +168,8 @@ class ContextResolver:
             inherited_fields.append("location")
         elif explicit_location:
             resolved_location = explicit_location.strip()
+        elif not is_ambiguous:
+            resolved_location = "Coimbatore"
 
         # 2. Temporal Context Resolution (Date & Time-of-day / Schedule)
         curr_date = nlu.entities.date  # e.g. "tomorrow", "today", "yesterday"

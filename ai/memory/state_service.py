@@ -700,25 +700,8 @@ class ConversationStateService:
                 context_snapshot=missing_info.context_snapshot
             )
             resolved_location = resolved_location or "Unspecified"
-        elif not resolved_location and nlu.intent != IntentEnum.GREETING:
-            is_ambiguous = True
-            ambiguity_reason = "No target location specified in query or active conversation context."
-            turn_type = TurnTypeEnum.AMBIGUOUS_REQUEST
-            prompt_text = clarification_engine.get_prompt(
-                MissingInformationType.MISSING_LOCATION,
-                language=explicit_language or current_state.preferred_language or "en"
-            )
-            clarification = ClarificationState(
-                needed=True,
-                missing_type=MissingInformationType.MISSING_LOCATION.value,
-                field="location",
-                prompt=prompt_text,
-                pending_query=clean_msg,
-                pending_intent=nlu.intent.value
-            )
-            resolved_location = "Unspecified"
 
-        resolved_location = resolved_location or "Unspecified"
+        resolved_location = resolved_location or "Coimbatore"
 
         # 4. Date Resolution (Isolated dimension change)
         resolved_date = extracted_date

@@ -87,18 +87,38 @@ async def get_weather_forecast(
         raise HTTPException(status_code=500, detail=f"Forecast retrieval error: {str(e)}")
 
 
+@router.get("/alerts/all", response_model=AlertResponse)
+async def get_all_weather_alerts(
+    active_only: bool = Query(True, description="Filter currently active alerts only"),
+    db: Session = Depends(get_db)
+):
+    """Returns all active official disaster alerts across all cities (global multi-city view)."""
+    try:
+        return await manager.get_alerts(location_name="all", active_only=active_only, db_session=db, all_cities=True)
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"All alerts retrieval error: {str(e)}")
+
+
 @router.get("/alerts", response_model=AlertResponse)
 async def get_weather_alerts(
     lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
     lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
     location: str = Query("Coimbatore", min_length=1, max_length=100, description="Location name"),
     active_only: bool = Query(True, description="Filter currently active alerts only"),
+    all_cities: bool = Query(False, description="Filter all active alerts across all cities"),
     db: Session = Depends(get_db)
 ):
     """Returns official IMD disaster warnings and safety alerts."""
-    validate_coordinates(lat, lon)
+    is_global = all_cities or location.strip().lower() == "all"
+    if not is_global:
+        validate_coordinates(lat, lon)
     try:
-        return await manager.get_alerts(lat, lon, location.strip(), active_only=active_only, db_session=db)
+        return await manager.get_alerts(
+            lat, lon, location.strip(),
+            active_only=active_only,
+            db_session=db,
+            all_cities=is_global
+        )
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
     except ProviderTimeoutError as e:
@@ -192,58 +212,12 @@ OPENWEATHER_LAYER_MAP = {
     "waves": "pressure_new",
     "precipitation": "precipitation_new",
     "precipitation_new": "precipitation_new",
+    "rain_new": "precipitation_new",
     "wind_new": "wind_new",
     "clouds_new": "clouds_new",
     "temp_new": "temp_new",
     "pressure_new": "pressure_new",
 }
-
-
-def generate_fallback_weather_tile(layer: str, z: int, x: int, y: int) -> bytes:
-    """Generates authentic 256x256 semi-transparent meteorological overlay image bytes.
-    Ensures that when OPENWEATHER_API_KEY is not configured or upstream is unreachable,
-    the temperature/rain overlay visibly renders on the map instead of a blank base layer.
-    """
-    img = Image.new("RGBA", (256, 256), (0, 0, 0, 0))
-    draw = ImageDraw.Draw(img)
-    cx = 128 + int(32 * math.sin((x + z) * 0.7))
-    cy = 128 + int(32 * math.cos((y + z) * 0.7))
-
-    clean = layer.lower().replace("_new", "")
-    if clean in ("temp",):
-        for r in range(160, 20, -12):
-            alpha = int(70 * (1.0 - r / 160.0))
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(239, 68, 68, alpha))
-        for r in range(90, 10, -10):
-            alpha = int(90 * (1.0 - r / 90.0))
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(245, 158, 11, alpha))
-    elif clean in ("rain", "radar", "precipitation"):
-        for r in range(140, 20, -15):
-            alpha = int(75 * (1.0 - r / 140.0))
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(16, 185, 129, alpha))
-        for r in range(80, 10, -10):
-            alpha = int(100 * (1.0 - r / 80.0))
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(59, 130, 246, alpha))
-    elif clean in ("wind",):
-        for i in range(-5, 6):
-            y_offset = cy + i * 24
-            alpha = int(60 * (1.0 - abs(i) / 6.0))
-            draw.line([(0, y_offset - 20), (128, y_offset), (256, y_offset + 20)], fill=(6, 182, 212, alpha), width=8)
-    elif clean in ("clouds",):
-        for r in range(150, 30, -20):
-            alpha = int(65 * (1.0 - r / 150.0))
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(226, 232, 240, alpha))
-    elif clean in ("pressure", "waves"):
-        for r in (60, 110, 160, 210):
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), outline=(139, 92, 246, 70), width=6)
-    else:
-        for r in range(120, 20, -15):
-            alpha = int(60 * (1.0 - r / 120.0))
-            draw.ellipse((cx - r, cy - r, cx + r, cy + r), fill=(59, 130, 246, alpha))
-
-    buf = io.BytesIO()
-    img.save(buf, format="PNG", optimize=True)
-    return buf.getvalue()
 
 
 @router.get("/tiles/{layer}/{z}/{x}/{y}.png")
@@ -286,36 +260,56 @@ async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
             headers={"Cache-Control": "public, max-age=600", "X-Cache": "HIT"}
         )
 
+    # Construct upstream URL to tile.openweathermap.org
     api_key = (settings.OPENWEATHER_API_KEY or "").strip()
-    if api_key:
-        upstream_url = f"https://tile.openweathermap.org/map/{canonical_layer}/{z}/{x}/{y_int}.png?appid={api_key}"
-        try:
-            async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
-                resp = await client.get(upstream_url)
-                if resp.status_code == 200 and resp.content:
-                    provider_cache.set(cache_key, resp.content, ttl=600)
-                    return Response(
-                        content=resp.content,
-                        media_type="image/png",
-                        headers={"Cache-Control": "public, max-age=600", "X-Cache": "MISS"}
-                    )
-                else:
-                    logger.warning(
-                        f"Upstream OpenWeather tile failed with status {resp.status_code} for {canonical_layer}/{z}/{x}/{y_int}"
-                    )
-        except Exception as exc:
-            logger.warning(f"Error fetching upstream OpenWeather tile: {exc}")
+    if not api_key:
+        logger.error("OPENWEATHER_API_KEY is not configured. Upstream weather map tiles require a valid API key.")
+        raise HTTPException(
+            status_code=502,
+            detail="OpenWeather API key is not configured. A valid OPENWEATHER_API_KEY must be supplied by the developer before deployment."
+        )
 
-    # Fallback: Serve generated authentic meteorological overlay tile (256x256 semi-transparent PNG)
-    # Never leaves map with blank invisible layer
-    fallback_tile = generate_fallback_weather_tile(clean_layer, z, x, y_int)
-    provider_cache.set(cache_key, fallback_tile, ttl=600)
-    return Response(
-        content=fallback_tile,
-        media_type="image/png",
-        headers={
-            "Cache-Control": "public, max-age=300",
-            "X-Fallback": "simulated-weather-overlay" if not api_key else "upstream-fallback"
-        }
-    )
+    upstream_url = f"https://tile.openweathermap.org/map/{canonical_layer}/{z}/{x}/{y_int}.png?appid={api_key}"
+
+    print(f"[OpenWeather Tile] (1) Upstream URL: {upstream_url}", flush=True)
+    logger.info(f"[OpenWeather Tile] (1) Upstream URL: {upstream_url}")
+
+    status_code = None
+    content_bytes = 0
+    resp_text = ""
+    try:
+        async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
+            resp = await client.get(upstream_url)
+            status_code = resp.status_code
+            content_bytes = len(resp.content) if resp.content else 0
+            resp_text = resp.text
+
+            print(f"[OpenWeather Tile] (2) Upstream HTTP Status: {status_code}", flush=True)
+            logger.info(f"[OpenWeather Tile] (2) Upstream HTTP Status: {status_code}")
+            print(f"[OpenWeather Tile] (3) Upstream Byte Size: {content_bytes} bytes", flush=True)
+            logger.info(f"[OpenWeather Tile] (3) Upstream Byte Size: {content_bytes} bytes")
+
+            if status_code == 200 and resp.content:
+                provider_cache.set(cache_key, resp.content, ttl=600)
+                return Response(
+                    content=resp.content,
+                    media_type="image/png",
+                    headers={"Cache-Control": "public, max-age=600", "X-Cache": "MISS"}
+                )
+            else:
+                error_msg = f"Upstream OpenWeather tile failed with status {status_code} for {upstream_url}: {resp_text[:200]}"
+                logger.error(error_msg)
+                raise HTTPException(
+                    status_code=status_code if (status_code and 400 <= status_code < 600) else 502,
+                    detail=f"OpenWeather tile upstream error ({status_code}): {resp_text[:120]}"
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error fetching upstream OpenWeather tile from {upstream_url}: {exc}")
+        print(f"[OpenWeather Tile] Exception connecting to upstream: {exc}", flush=True)
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to OpenWeather tile upstream: {str(exc)}"
+        )
 

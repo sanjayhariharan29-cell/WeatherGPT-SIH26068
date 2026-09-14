@@ -44,13 +44,23 @@ app.add_middleware(RequestIDMiddleware)
 app.add_middleware(RateLimiterMiddleware, max_requests=60, window_seconds=60)
 
 # Configurable CORS Middleware Setup
-app.add_middleware(
-    CORSMiddleware,
-    allow_origins=settings.ALLOWED_ORIGINS,
-    allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
-)
+_raw_cors = os.getenv("ALLOWED_ORIGINS", "").strip()
+if _raw_cors == "*" or "*" in settings.ALLOWED_ORIGINS:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origin_regex=r".*",
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
+else:
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=settings.ALLOWED_ORIGINS,
+        allow_credentials=True,
+        allow_methods=["*"],
+        allow_headers=["*"],
+    )
 
 # Include API Routers under /api/v1 and root health probes
 app.include_router(health.router) # Root health probes (/health, /health/liveness, /health/readiness)
@@ -66,6 +76,7 @@ app.include_router(developer.router, prefix=settings.API_V1_PREFIX)
 
 # Developer Portal Web Entrypoints (Guarded by require_developer_role)
 @app.get("/developer", response_class=HTMLResponse, tags=["developer"])
+@app.get("/developer/", response_class=HTMLResponse, tags=["developer"])
 @app.get("/dashboard/developer", response_class=HTMLResponse, tags=["developer"])
 @app.get("/developer.html", response_class=HTMLResponse, tags=["developer"])
 def developer_portal_entry(current_user: User = Depends(require_developer_role)):

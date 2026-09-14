@@ -218,7 +218,16 @@ def build_grounded_context(
         lines.append(f"Verdict: {personal_dec.get('verdict')}")
         lines.append(f"Recommended Action: {personal_dec.get('recommended_action')}")
         lines.append(f"Primary Factor: {personal_dec.get('primary_factor')}")
-        lines.append(f"Direct Action Directive: {personal_dec.get('concise_answer')}")
+        t_lang = (target_language.value if hasattr(target_language, "value") else str(target_language or "")).lower()
+        if not t_lang and nlu and nlu.detected_language:
+            t_lang = (nlu.detected_language.value if hasattr(nlu.detected_language, "value") else str(nlu.detected_language)).lower()
+        if t_lang in ("ta", "tanglish"):
+            dir_act = personal_dec.get("concise_answer_ta") or personal_dec.get("concise_answer")
+        elif t_lang in ("hi", "hinglish"):
+            dir_act = personal_dec.get("concise_answer_hi") or personal_dec.get("concise_answer")
+        else:
+            dir_act = personal_dec.get("concise_answer")
+        lines.append(f"Direct Action Directive: {dir_act or personal_dec.get('recommended_action')}")
         lines.append("CRITICAL MANDATE: Address the user's personal decision (verdict and action) directly in the first sentence. Never override or contradict this deterministic decision.")
     lines.extend([
         f"Overall Weather Risk: {advisory_facts['risk_level']}",

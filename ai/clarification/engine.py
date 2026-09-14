@@ -154,7 +154,7 @@ class IntelligentClarificationEngine:
         # 2. College Commute (Direct answer if context exists, minimal clarification if missing)
         is_college_query = (
             intent_val == IntentEnum.COLLEGE_COMMUTE.value
-            or any(k in lower for k in ["college", "lecture", "campus"])
+            or (any(k in lower for k in ["college", "lecture", "campus"]) and any(k in lower for k in ["go", "leave", "attend", "reach", "travel", "commute", "trip"]))
         )
         if is_college_query:
             # If system already has current location + known college context, answer directly!
@@ -260,17 +260,16 @@ class IntelligentClarificationEngine:
                 context_snapshot={}
             )
 
-        # 7. General Weather without Location
-        is_general_weather = (
+        # 7. Ambiguous Weather Inquiries without Location Context
+        is_weather_inquiry = (
             intent_val in [
-                IntentEnum.WEATHER_INFORMATION.value, IntentEnum.RAIN_QUERY.value,
-                IntentEnum.UMBRELLA_DECISION.value, IntentEnum.TEMPERATURE_QUERY.value,
-                IntentEnum.FORECAST_QUERY.value, IntentEnum.WARNING_QUERY.value,
-                IntentEnum.AQI_QUERY.value, IntentEnum.CLOTHING_ADVICE.value
+                IntentEnum.RAIN_QUERY.value,
+                IntentEnum.WEATHER_ALERT.value,
+                IntentEnum.WARNING_QUERY.value,
             ]
-            or any(k in lower for k in ["weather", "rain", "temperature", "temp", "umbrella", "forecast", "aqi"])
+            or any(k in lower for k in ["rain heavily", "will it rain heavily", "weather like there", "how is the weather there"])
         )
-        if is_general_weather and not has_active_loc and intent_val != IntentEnum.GREETING.value:
+        if is_weather_inquiry and not has_active_loc and not explicit_location:
             prompt_text = self.get_prompt(MissingInformationType.MISSING_LOCATION, language=language)
             return MissingInformation(
                 missing_type=MissingInformationType.MISSING_LOCATION,

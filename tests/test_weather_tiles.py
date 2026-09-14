@@ -12,13 +12,42 @@ Validates:
 
 import os
 import pytest
+import httpx
 from fastapi.testclient import TestClient
 from backend.main import app
+from backend.config.settings import settings
 
 client = TestClient(app)
 
 ROOT_DIR = os.path.dirname(os.path.dirname(__file__))
 FRONTEND_DIR = os.path.join(ROOT_DIR, "frontend")
+
+# 1x1 test PNG image bytes for mocking upstream response
+DUMMY_TILE_PNG = (
+    b"\x89PNG\r\n\x1a\n\x00\x00\x00\rIHDR\x00\x00\x00\x01\x00\x00\x00\x01"
+    b"\x08\x06\x00\x00\x00\x1f\x15c4\x00\x00\x00\rIDATx\x9cc\xf8\xff\xff?"
+    b"\x00\x05\xfe\x02\xfe\xa7T9b\x00\x00\x00\x00IEND\xaeB`\x82"
+)
+
+
+@pytest.fixture(autouse=True)
+def mock_openweather_tile_upstream(monkeypatch):
+    """Mocks upstream OpenWeather tile HTTP request with a mock developer key and PNG bytes."""
+    monkeypatch.setattr(settings, "OPENWEATHER_API_KEY", "mock_developer_test_key")
+
+    original_get = httpx.AsyncClient.get
+
+    async def mock_get(self, url, *args, **kwargs):
+        if "tile.openweathermap.org" in str(url):
+            return httpx.Response(
+                status_code=200,
+                content=DUMMY_TILE_PNG,
+                headers={"Content-Type": "image/png"},
+                request=httpx.Request("GET", str(url))
+            )
+        return await original_get(self, url, *args, **kwargs)
+
+    monkeypatch.setattr(httpx.AsyncClient, "get", mock_get)
 
 
 def test_01_backend_tile_proxy_all_layers():
@@ -151,3 +180,14 @@ def test_10_i18n_tile_layer_labels():
     ]
     for k in keys:
         assert f'"{k}"' in js, f"Missing i18n key: {k}"
+
+
+def test_11_unconfigured_api_key_returns_clear_error(monkeypatch):
+    """11. Test that missing API key returns a clear 502 error, never a fake 200 success."""
+    monkeypatch.setattr(settings, "OPENWEATHER_API_KEY", "")
+    from backend.services.cache import provider_cache
+    provider_cache.clear()
+    res = client.get("/api/v1/weather/tiles/temp/7/93/60.png")
+    assert res.status_code == 502
+    assert "OpenWeather API key is not configured" in res.json().get("detail", "")
+

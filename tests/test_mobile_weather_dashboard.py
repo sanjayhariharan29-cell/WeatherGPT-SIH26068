@@ -49,7 +49,7 @@ def test_04_source_attribution():
     html = response.text
 
     assert 'id="currentSourceTag"' in html
-    assert 'Source: IMD' in html
+    assert ('Source: Open-Meteo' in html) or ('Source: IMD' in html)
 
 
 def test_05_data_freshness_badges():

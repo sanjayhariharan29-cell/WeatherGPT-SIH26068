@@ -163,13 +163,16 @@ class GroqLLMProvider(BaseLLMProvider):
         return None
 
 
+_UNSET = object()
+
+
 class MockLLMProvider(BaseLLMProvider):
     """Deterministic mock provider for automated testing, offline demos, and failure simulation."""
     name: str = "mock"
 
     def __init__(
         self,
-        canned_response: Optional[str] = None,
+        canned_response: Any = _UNSET,
         should_fail: bool = False,
         simulate_timeout: bool = False,
         failure_exception: Optional[Exception] = None,
@@ -186,7 +189,177 @@ class MockLLMProvider(BaseLLMProvider):
             if self.failure_exception:
                 raise self.failure_exception
             return None
-        return self.canned_response
+        if self.canned_response is None:
+            return None
+        if self.canned_response is not _UNSET:
+            return self.canned_response
+
+        # Deterministic grounded mock text generation for testing / offline
+        import re
+        sys_low = system_prompt.lower()
+        usr_low = user_prompt.lower()
+
+        is_ta = (
+            "target output language (ta)" in sys_low
+            or "target_language=ta" in sys_low
+            or "output_language: ta" in usr_low
+            or "detected language: ta" in usr_low
+            or bool(re.search(r"[\u0B80-\u0BFF]", user_prompt))
+        )
+        is_hi = (
+            "target output language (hi)" in sys_low
+            or "target_language=hi" in sys_low
+            or "output_language: hi" in usr_low
+            or "detected language: hi" in usr_low
+            or bool(re.search(r"[\u0900-\u097F]", user_prompt))
+        )
+
+        loc_match = re.search(r"Target Location:\s*([^\n\r]+)", user_prompt)
+        loc = loc_match.group(1).strip() if loc_match else "Coimbatore"
+
+        temp_match = re.search(r"Current Temperature:\s*([0-9.]+)", user_prompt)
+        temp_val = f"{float(temp_match.group(1)):.1f}" if temp_match else "31.5"
+        temp_int = f"{round(float(temp_val))}" if temp_match else "32"
+
+        rain_match = re.search(r"Precipitation Probability:\s*([0-9.]+)", user_prompt) or re.search(r"Rain Prob(?:ability)?:\s*([0-9.]+)", user_prompt)
+        rain_val = f"{round(float(rain_match.group(1)))}" if rain_match else "80"
+
+        cond_match = re.search(r"Sky Condition:\s*([^\n\r]+)", user_prompt)
+        cond = cond_match.group(1).strip() if cond_match else "Heavy Rain"
+
+        src_match = re.search(r"Data Source:\s*([^\n\r]+)", user_prompt) or re.search(r"Source:\s*([^\n\r]+)", user_prompt)
+        src = src_match.group(1).strip() if src_match else "IMD"
+
+        score_match = re.search(r"Forecast Consistency Score:\s*([0-9]+)", user_prompt) or re.search(r"Consistency Score:\s*([0-9]+)", user_prompt)
+        score = score_match.group(1).strip() if score_match else "85"
+
+        adv_match = re.search(r"Advisory Guidance:\s*([^\n\r]+)", user_prompt) or re.search(r"Headline:\s*([^\n\r]+)", user_prompt)
+        adv_text = adv_match.group(1).strip() if adv_match else "Moderate rain expected. Commute with care."
+
+        has_warning = "[OFFICIAL WARNINGS]" in user_prompt and "Official Warnings: NONE_ACTIVE" not in user_prompt
+        if has_warning:
+            warn_match = re.search(r"⚠️ \[URGENT OFFICIAL ALERT\] ([^|(]+)", user_prompt)
+            warn_title = warn_match.group(1).strip() if warn_match else "Cyclone Warning"
+            if is_ta:
+                return (
+                    f"⚠️ [அதிகாரப்பூர்வ IMD எச்சரிக்கை: {warn_title}] {loc} பகுதியில் தீவிர வானிலை எச்சரிக்கை செயலில் உள்ளது.\n"
+                    f"ஆலோசனை: {adv_text}\n"
+                    f"(மூலம்: {src} | முன்னறிவிப்பு நிலைத்தன்மை: {score}/100)"
+                )
+            elif is_hi:
+                return (
+                    f"⚠️ [आधिकारिक IMD चेतावनी: {warn_title}] {loc} में गंभीर मौसम चेतावनी सक्रिय है।\n"
+                    f"सलाह: {adv_text}\n"
+                    f"(स्रोत: {src} | पूर्वानुमान संगति स्कोर: {score}/100)"
+                )
+            else:
+                return (
+                    f"[OFFICIAL IMD WARNING] CRITICAL ALERT: {warn_title}\n"
+                    f"Affected Area: {loc}\n"
+                    f"Critical Safety Instruction: Stay indoors and avoid travel.\n"
+                    f"Explanation: Official alert in effect.\n"
+                    f"Advisory: {adv_text}\n"
+                    f"(Source: {src} | Forecast Consistency Score: {score}/100)"
+                )
+
+        user_prefix = ""
+        name_match = re.search(r"User Profile:\s*Name=([A-Za-z0-9_ -]+?)(?:,|$|\.|\n)", user_prompt)
+        if name_match:
+            fname = name_match.group(1).strip().split()[0]
+            if fname:
+                user_prefix = f"{fname}, "
+
+        direct_action_match = re.search(r"Direct Action Directive:\s*([^\n\r]+)", user_prompt)
+        direct_action = direct_action_match.group(1).strip() if direct_action_match else ""
+
+        if direct_action:
+            if "unavailable" in direct_action.lower() or "not recommended" in direct_action.lower() or "தவிர்க்கவும்" in direct_action:
+                return f"{user_prefix}{direct_action}"
+            if is_ta:
+                return (
+                    f"{user_prefix}{direct_action}\n"
+                    f"{loc}ல் தற்போதைய வெப்பநிலை {temp_val}°C ({temp_int}°C) மற்றும் மழை வாய்ப்பு {rain_val}% ஆகும்.\n"
+                    f"ஆலோசனை: {adv_text}\n"
+                    f"(மூலம்: {src} | தர நம்பகத்தன்மை: முன்னறிவிப்பு நிலைத்தன்மை: {score}/100)"
+                )
+            elif is_hi:
+                return (
+                    f"{user_prefix}{direct_action}\n"
+                    f"{loc} में वर्तमान तापमान {temp_val}°C ({temp_int}°C) और बारिश की संभावना {rain_val}% है।\n"
+                    f"सलाह: {adv_text}\n"
+                    f"(स्रोत: {src} | डेटा गुणवत्ता स्कोर: पूर्वानुमान संगति स्कोर: {score}/100)"
+                )
+            return f"{user_prefix}{direct_action}"
+
+        if "Historical Archive Status: UNAVAILABLE" in user_prompt:
+            return f"{user_prefix}Historical weather records for {loc} are currently unavailable in official archives. SkyZen does not fabricate historical statistics."
+
+        hist_scope = re.search(r"Dataset Scope: Historical meteorological observations for ([^ ]+) from ([0-9-]+) to ([0-9-]+)", user_prompt)
+        if hist_scope:
+            h_loc = hist_scope.group(1)
+            h_start = hist_scope.group(2)
+            h_end = hist_scope.group(3)
+            h_rain_match = re.search(r"Historical Average Annual Rainfall:\s*([0-9.]+)", user_prompt)
+            h_rain = h_rain_match.group(1) if h_rain_match else "1340.5"
+            return (
+                f"{user_prefix}Historically in {h_loc} ({h_start} to {h_end}), recorded total rainfall was {h_rain} mm "
+                f"compared to a typical normal baseline of 1200.0 mm. Current conditions should be evaluated using live forecasts."
+            )
+
+        uq_match = re.search(r"User Query:\s*([^\n\r]+)", user_prompt)
+        uq_text = uq_match.group(1).strip().lower() if uq_match else ""
+
+        cs_match = re.search(r"Consistency Summary:\s*([^\n\r]+)", user_prompt)
+        if cs_match and any(w in uq_text for w in ["disagree", "consistency", "conflict", "sources agree", "difference"]):
+            cs_text = cs_match.group(1).strip()
+            if is_ta:
+                return (
+                    f"{user_prefix}{cs_text}\n"
+                    f"{loc}ல் தற்போதைய வெப்பநிலை {temp_val}°C ({temp_int}°C) மற்றும் மழை வாய்ப்பு {rain_val}% ஆகும்.\n"
+                    f"ஆலோசனை: {adv_text}\n"
+                    f"(மூலம்: {src} | தர நம்பகத்தன்மை: முன்னறிவிப்பு நிலைத்தன்மை: {score}/100)"
+                )
+            elif is_hi:
+                return (
+                    f"{user_prefix}{cs_text}\n"
+                    f"{loc} में वर्तमान तापमान {temp_val}°C ({temp_int}°C) और बारिश की संभावना {rain_val}% है।\n"
+                    f"सलाह: {adv_text}\n"
+                    f"(स्रोत: {src} | डेटा गुणवत्ता स्कोर: पूर्वानुमान संगति स्कोर: {score}/100)"
+                )
+            else:
+                return (
+                    f"{user_prefix}{cs_text}\n"
+                    f"In {loc}, current temperature is {temp_val}°C with a {rain_val}% chance of precipitation. Available sources disagree on forecast conditions.\n"
+                    f"Advisory: {adv_text}\n"
+                    f"(Source: {src} | Data Quality Score: Forecast Consistency Score: {score}/100)"
+                )
+
+        if "Current Weather Observation: UNAVAILABLE" in user_prompt or "status: UNAVAILABLE" in user_prompt.lower():
+            if is_ta:
+                return f"{user_prefix}{loc} பகுதிக்கான தற்போதைய வானிலை தரவு கிடைக்கவில்லை (unavailable). தயவுசெய்து அதிகாரப்பூர்வ முன்னறிவிப்பை பார்க்கவும்."
+            elif is_hi:
+                return f"{user_prefix}{loc} के लिए वर्तमान मौसम डेटा उपलब्ध नहीं है (unavailable)। कृपया आधिकारिक पूर्वानुमान देखें।"
+            else:
+                return f"{user_prefix}Current weather observation is unavailable for {loc}. Please check official local forecasts."
+
+        if is_ta:
+            return (
+                f"{user_prefix}{loc}ல் தற்போதைய வெப்பநிலை {temp_val}°C ({temp_int}°C) மற்றும் மழை வாய்ப்பு {rain_val}% ஆகும் (வானிலை: {cond}).\n"
+                f"ஆலோசனை: {adv_text}\n"
+                f"(மூலம்: {src} | தர நம்பகத்தன்மை: முன்னறிவிப்பு நிலைத்தன்மை: {score}/100)"
+            )
+        elif is_hi:
+            return (
+                f"{user_prefix}{loc} में वर्तमान तापमान {temp_val}°C ({temp_int}°C) है और बारिश की संभावना {rain_val}% है (मौसम: {cond})।\n"
+                f"सलाह: {adv_text}\n"
+                f"(स्रोत: {src} | डेटा गुणवत्ता स्कोर: पूर्वानुमान संगति स्कोर: {score}/100)"
+            )
+        else:
+            return (
+                f"{user_prefix}In {loc}, current temperature is {temp_val}°C ({temp_int}°C) with a {rain_val}% chance of precipitation ({cond}).\n"
+                f"Advisory: {adv_text}\n"
+                f"(Source: {src} | Data Quality Score: Forecast Consistency Score: {score}/100)"
+            )
 
 
 class RoutingLLMProvider(BaseLLMProvider):
@@ -204,7 +377,7 @@ class RoutingLLMProvider(BaseLLMProvider):
         fallback_provider: Optional[BaseLLMProvider] = None
     ):
         self.providers = [p for p in providers if p]
-        self.fallback_provider = fallback_provider or MockLLMProvider()
+        self.fallback_provider = fallback_provider
         self.last_provider_used: Optional[str] = None
 
     def is_available(self) -> bool:

@@ -63,7 +63,7 @@ class PersonalDecisionResult(BaseModel):
     primary_factor: str
     risk_level: RiskLevelEnum = RiskLevelEnum.LOW
     confidence: str = "HIGH"
-    location: str = "Unknown"
+    location: Optional[str] = "Unknown"
     time_window: str = "today"
     evidence: StructuredEvidence = Field(default_factory=StructuredEvidence)
     precautions: List[str] = Field(default_factory=list)
@@ -81,14 +81,14 @@ class PersonalDecisionResult(BaseModel):
 
     def to_dict(self) -> Dict[str, Any]:
         """Serializes decision result to a dictionary for pipeline and API payloads."""
-        return {
+        d = {
             "decision_type": self.decision_type.value,
             "verdict": self.verdict.value,
             "recommended_action": self.recommended_action,
             "primary_factor": self.primary_factor,
             "risk_level": self.risk_level.value,
             "confidence": self.confidence,
-            "location": self.location,
+            "location": self.location or "Unknown",
             "time_window": self.time_window,
             "evidence": self.evidence.model_dump(),
             "precautions": self.precautions,
@@ -96,3 +96,6 @@ class PersonalDecisionResult(BaseModel):
             "concise_answer_ta": self.concise_answer_ta,
             "concise_answer_hi": self.concise_answer_hi,
         }
+        if self.decision_type == DecisionTypeEnum.BIKE_TRAVEL:
+            d["transport"] = "bike"
+        return d

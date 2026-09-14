@@ -66,14 +66,36 @@ class WeatherGPTApiClient {
     localStorage.removeItem(this.tokenKey);
   }
 
+  isTokenExpired(token = null) {
+    const t = token || this.getToken();
+    if (!t) return true;
+    try {
+      const parts = t.split(".");
+      if (parts.length !== 3) return false;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (!payload.exp) return false;
+      // Consider expired if current time in seconds is past exp claim (with 5-second buffer)
+      return (Date.now() / 1000) >= (payload.exp - 5);
+    } catch (e) {
+      return false;
+    }
+  }
+
   isAuthenticated() {
-    return Boolean(this.getToken());
+    const token = this.getToken();
+    if (!token) return false;
+    if (this.isTokenExpired(token)) {
+      this.removeToken();
+      return false;
+    }
+    return true;
   }
 
   // Request Headers Helper
   getHeaders(customHeaders = {}, isFormData = false) {
     const headers = {
       "X-Request-ID": `mob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
+      "Bypass-Tunnel-Reminder": "true",
       ...customHeaders
     };
     if (!isFormData && !headers["Content-Type"]) {
@@ -171,6 +193,22 @@ class WeatherGPTApiClient {
       this.setToken(res.access_token);
     }
     return res;
+  }
+
+  async refreshToken() {
+    try {
+      const res = await this.request("/auth/refresh", {
+        method: "POST",
+        body: JSON.stringify({})
+      });
+      if (res && res.access_token) {
+        this.setToken(res.access_token);
+      }
+      return res;
+    } catch (err) {
+      this.removeToken();
+      throw err;
+    }
   }
 
   async verifyEmail(token) {
@@ -288,16 +326,27 @@ class WeatherGPTApiClient {
     return await this.request(endpoint, options);
   }
 
-  async getForecast(locationName, date = "tomorrow") {
-    return await this.request(`/weather/forecast?location=${encodeURIComponent(locationName)}&date=${encodeURIComponent(date)}`);
+  async getForecast(locationName, date = "tomorrow", lat = null, lon = null) {
+    let endpoint = `/weather/forecast?location=${encodeURIComponent(locationName)}&date=${encodeURIComponent(date)}`;
+    if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+      endpoint += `&lat=${lat}&lon=${lon}`;
+    }
+    return await this.request(endpoint);
   }
 
   async getAlerts(locationName, lat = null, lon = null, options = {}) {
+    if (options && options.all_cities) {
+      return await this.request('/weather/alerts?all_cities=true', options);
+    }
     let endpoint = `/weather/alerts?location=${encodeURIComponent(locationName || 'Selected Location')}`;
     if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
       endpoint += `&lat=${lat}&lon=${lon}`;
     }
     return await this.request(endpoint, options);
+  }
+
+  async getAllAlerts(options = {}) {
+    return await this.request('/weather/alerts?all_cities=true', options);
   }
 
   async getAirQuality(locationName, lat = null, lon = null) {
@@ -408,7 +457,46 @@ class WeatherGPTApiClient {
       body: JSON.stringify({ title, body, device_token: deviceToken })
     });
   }
+
+  // Developer APIs
+  async uploadManualAqi(file) {
+    const formData = new FormData();
+    formData.append("file", file);
+    return await this.request("/developer/aqi/upload", {
+      method: "POST",
+      body: formData
+    });
+  }
+
+  async getDeveloperAqiRecords(station = null, limit = 50) {
+    let endpoint = `/developer/aqi/records?limit=${limit}`;
+    if (station) {
+      endpoint += `&station=${encodeURIComponent(station)}`;
+    }
+    return await this.request(endpoint);
+  }
+
+  async createDeveloperAlert(alertData) {
+    return await this.request('/developer/alerts', {
+      method: 'POST',
+      body: JSON.stringify(alertData)
+    });
+  }
+
+  async getDeveloperAlerts(location = null, activeOnly = false) {
+    let url = '/developer/alerts?';
+    if (location) url += `location=${encodeURIComponent(location)}&`;
+    if (activeOnly) url += 'active_only=true&';
+    return await this.request(url);
+  }
+
+  async deleteDeveloperAlert(alertId) {
+    return await this.request(`/developer/alerts/${encodeURIComponent(alertId)}`, {
+      method: 'DELETE'
+    });
+  }
 }
+
 
 // Export singleton instance
 const apiClient = new WeatherGPTApiClient();

@@ -122,10 +122,11 @@ class WeatherManager:
         lon: Optional[float] = None,
         location_name: str = "Coimbatore",
         active_only: bool = True,
-        db_session: Optional[Session] = None
+        db_session: Optional[Session] = None,
+        all_cities: bool = False
     ) -> Dict[str, Any]:
         """Returns official meteorological alerts."""
-        res = await self.alert_service.fetch_alerts(lat, lon, location_name, active_only, db_session)
+        res = await self.alert_service.fetch_alerts(lat, lon, location_name, active_only, db_session, all_cities=all_cities)
         return res.model_dump()
 
     async def get_history(
@@ -453,10 +454,10 @@ class WeatherManager:
                 "co": round(co, 1) if co is not None else 0.0
             },
             "recommendations": recs,
-            "source": "Open-Meteo",
+            "source": "Air-quality model: Open-Meteo",
             "source_identity": "Open-Meteo",
             "source_type": "modelled",
-            "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED (Served via Open-Meteo)",
+            "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
             "is_official_cpcb": False,
             "is_available": True,
             "status": "HEALTHY",

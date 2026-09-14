@@ -81,7 +81,10 @@ def evaluate_nlu(dataset: Optional[List[NLUEvalCase]] = None) -> NLUMetrics:
             correct_lang += 1
 
         # 2. Intent
-        intent_match = nlu.intent.value.lower() == case.expected_intent.lower()
+        intent_match = (
+            nlu.intent == case.expected_intent
+            or nlu.intent.value.lower() == case.expected_intent.lower()
+        )
         if intent_match:
             correct_intent += 1
 

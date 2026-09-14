@@ -194,23 +194,4 @@ def get_test_fixture_alerts(
                 status="ACTIVE"
             )
         ]
-    elif "coimbatore" in loc_lower or "கோயம்புத்தூர்" in loc_lower:
-        return [
-            NormalizedAlertItem(
-                alert_id="IMD-FIXTURE-COIMBATORE",
-                alert_type="thunderstorm_warning",
-                severity="medium",
-                title="IMD Rain & Thunderstorm Advisory",
-                description="Moderate to heavy rain with thunderstorm expected in Coimbatore district during morning hours.",
-                instructions="Avoid open ground and under isolated trees during thunderstorm activity.",
-                area="Coimbatore District",
-                source="IMD",
-                product_type="district_warning",
-                state="FIXTURE",
-                issued_at=(dt - timedelta(hours=1)).isoformat(),
-                expires_at=expires_12h,
-                retrieved_at=now_utc,
-                status="ACTIVE"
-            )
-        ]
     return []

@@ -1,0 +1,44 @@
+# =============================================================================
+# Render Blueprint (Infrastructure-as-Code) Specification
+# Deploy by selecting "New Blueprint Instance" in Render and linking this repo.
+# =============================================================================
+services:
+  - type: web
+    name: weathergpt-backend
+    runtime: python
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn backend.main:app --host 0.0.0.0 --port $PORT
+    plan: free
+    healthCheckPath: /api/v1/health
+    autoDeploy: true
+    envVars:
+      - key: ENVIRONMENT
+        value: production
+      - key: DEBUG
+        value: false
+      - key: LOG_LEVEL
+        value: INFO
+      - key: PYTHON_VERSION
+        value: 3.11.9
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      # The following sensitive credentials should be supplied via the Render Dashboard:
+      - key: SECRET_KEY
+        generateValue: true
+      - key: GEMINI_API_KEY
+        sync: false
+      - key: GROQ_API_KEY
+        sync: false
+      - key: OPENWEATHER_API_KEY
+        sync: false
+      - key: IMD_API_KEY
+        sync: false
+      # Database persistence note:
+      # On Render Free Tier, filesystem is ephemeral.
+      # For persistent SQLite data, upgrade to a paid disk mount at /data or use Render PostgreSQL:
+      # - key: DATABASE_URL
+      #   value: sqlite:////data/weathergpt.db
+      # disk:
+      #   name: weathergpt-data
+      #   mountPath: /data
+      #   sizeGB: 1

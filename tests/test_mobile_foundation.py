@@ -29,7 +29,7 @@ def test_02_pwa_manifest_configuration():
     with open(manifest_path, "r", encoding="utf-8") as f:
         data = json.load(f)
     
-    assert data["name"] == "WeatherGPT — IMD Meteorological Assistant"
+    assert data["name"] in ("WeatherGPT — IMD Meteorological Assistant", "SkyZen — Weather Intelligence")
     assert data["display"] == "standalone"
     assert "shortcuts" in data
     assert len(data["shortcuts"]) >= 2

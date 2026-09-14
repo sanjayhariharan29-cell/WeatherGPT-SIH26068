@@ -21,6 +21,15 @@ if raw_db_url.startswith("sqlite:///") and not raw_db_url.startswith("sqlite:///
 else:
     DATABASE_URL = raw_db_url
 
+# Ensure parent directory exists for SQLite files (especially on persistent volumes like /data)
+if DATABASE_URL.startswith("sqlite:///"):
+    try:
+        path_part = DATABASE_URL.replace("sqlite:///", "")
+        # On Windows, path_part might be C:/path/to/file.db, on Linux /data/file.db
+        Path(path_part).parent.mkdir(parents=True, exist_ok=True)
+    except Exception:
+        pass
+
 # SQLite specific connect_args
 connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
 

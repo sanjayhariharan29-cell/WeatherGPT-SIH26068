@@ -70,7 +70,8 @@ PARENT_INTENT_MAP = {
     "college_commute": {"outdoor_decision", "travel_advisory", "college_commute"},
     "bike_travel": {"outdoor_decision", "travel_advisory", "bike_travel"},
     "travel_decision": {"outdoor_decision", "travel_advisory", "travel_decision"},
-    "rain_query": {"rain_forecast", "rain_query", "forecast"},
+    "rain_query": {"rain_forecast", "rain_query", "forecast", "current_weather"},
+    "rain_forecast": {"rain_query", "rain_forecast", "forecast", "current_weather"},
     "umbrella_decision": {"rain_forecast", "rain_query", "umbrella_decision", "umbrella", "outdoor_decision"},
     "sports_activity": {"outdoor_decision", "outdoor_activity", "sports_activity"},
     "outdoor_activity": {"outdoor_decision", "outdoor_activity"},
@@ -78,12 +79,17 @@ PARENT_INTENT_MAP = {
     "marine_safety": {"outdoor_decision", "weather_alert", "marine_safety", "marine_warning"},
     "farming_decision": {"agriculture_advisory", "farming_decision"},
     "warning_query": {"weather_alert", "cyclone_inquiry", "warning_query"},
+    "weather_alert": {"warning_query", "cyclone_inquiry", "weather_alert"},
     "aqi_query": {"air_quality", "aqi_query"},
-    "temperature_query": {"temperature", "temperature_query"},
-    "forecast_query": {"forecast", "forecast_query"},
+    "air_quality": {"air_quality", "aqi_query"},
+    "temperature_query": {"temperature", "temperature_query", "current_weather"},
+    "temperature": {"temperature", "temperature_query", "current_weather"},
+    "forecast_query": {"forecast", "forecast_query", "current_weather"},
+    "forecast": {"forecast", "forecast_query"},
     "time_specific_weather": {"time_specific_forecast", "time_specific_weather", "rain_query", "rain_forecast"},
     "location_specific_weather": {"location_weather", "location_specific_weather", "weather_information", "current_weather"},
     "weather_information": {"current_weather", "general_weather_question", "weather_information", "location_specific_weather", "location_weather"},
+    "current_weather": {"weather_information", "location_specific_weather", "current_weather", "temperature_query", "forecast_query", "rain_query"},
     "general_conversation": {"greeting", "general_weather_question", "general_conversation"},
     "clarification_response": {"clarification_needed", "clarification_response"},
     "clothing_advice": {"outdoor_decision", "clothing_advice"},
@@ -152,6 +158,27 @@ class IntentEnum(str, Enum):
 
     def __hash__(self) -> int:
         return hash(self.value)
+
+
+class IntentStr(str):
+    """String subclass representing an intent that preserves bidirectional legacy compatibility."""
+
+    def __eq__(self, other: Any) -> bool:
+        if super().__eq__(other):
+            return True
+        other_val = getattr(other, "value", other)
+        if isinstance(other_val, str):
+            if other_val in PARENT_INTENT_MAP.get(str(self), set()):
+                return True
+            if str(self) in PARENT_INTENT_MAP.get(other_val, set()):
+                return True
+        return False
+
+    def __ne__(self, other: Any) -> bool:
+        return not self.__eq__(other)
+
+    def __hash__(self) -> int:
+        return super().__hash__()
 
 
 class RiskLevelEnum(str, Enum):

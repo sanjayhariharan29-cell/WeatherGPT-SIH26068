@@ -91,7 +91,7 @@ class ChatIntegrationService:
                     user_name = authed_user.name
                     if (not persona or persona == "student") and authed_user.persona:
                         persona = authed_user.persona
-                    if (not language or language == "ta") and authed_user.language:
+                    if not language and authed_user.language:
                         language = authed_user.language
             except Exception:
                 pass
@@ -127,7 +127,11 @@ class ChatIntegrationService:
         # =========================================================================
         # FAST PATH 1: GREETING (Requirement 21: No weather API call on 'Hello')
         # =========================================================================
-        if pre_nlu.intent == IntentEnum.GREETING:
+        is_greeting = (
+            pre_nlu.intent in (IntentEnum.GREETING, IntentEnum.GENERAL_CONVERSATION)
+            or lower_msg in ("hello", "hi", "hey", "vanakkam", "வணக்கம்", "namaste", "नमस्ते")
+        )
+        if is_greeting:
             if norm_lang in ("ta", "tanglish", "tamil"):
                 greeting_text = (
                     "வணக்கம்! நான் ஸ்கைசென் (SkyZen) வானிலை நுண்ணறிவு உதவியாளர். "
@@ -304,19 +308,22 @@ class ChatIntegrationService:
                     now_dt=now_dt
                 )
 
-        # Resolve primary location coordinates (GPS coordinates are authoritative source of truth)
+        # Resolve primary location coordinates (GPS coordinates are authoritative source of truth,
+        # unless an explicit city is specified in the current query text e.g. "Will it rain in Madurai?")
         target_loc_name = resolved.resolved_location
-        if not lat and not lon and (not location_name or location_name.lower() == "coimbatore"):
-            nlu_loc = pre_nlu.entities.location
-            if nlu_loc:
-                target_loc_name = nlu_loc
+        query_loc = pre_nlu.entities.location if (pre_nlu and pre_nlu.entities and pre_nlu.entities.location and pre_nlu.entities.location.lower() not in ("here", "current location", "my location")) else None
 
-        if lat is not None and lon is not None:
+        if query_loc:
+            loc = await self.weather_mgr.geocoding.resolve_location(query_loc)
+            resolved_lat = loc["latitude"]
+            resolved_lon = loc["longitude"]
+            resolved_name = loc["name"]
+        elif lat is not None and lon is not None:
             try:
                 geo_res = await self.weather_mgr.geocoding.reverse_geocode(lat, lon)
                 resolved_lat = lat
                 resolved_lon = lon
-                resolved_name = target_loc_name if (pre_nlu.entities.location and pre_nlu.entities.location.lower() not in ("coimbatore", "here", "current location")) else geo_res["name"]
+                resolved_name = geo_res["name"]
             except Exception:
                 loc = await self.weather_mgr.geocoding.resolve_location(target_loc_name)
                 resolved_lat = lat
@@ -419,6 +426,13 @@ class ChatIntegrationService:
                 elif norm_lang in ("hi", "hinglish", "hindi"):
                     expl_text = "जब प्राथमिक और माध्यमिक मौसम पूर्वानुमान स्रोतों में भिन्नता होती है, तो संगति स्कोर कम हो जाता है। लाइव रडार देखने की सलाह दी जाती है।"
             else:
+                official_alerts = []
+                try:
+                    official_alerts = await self.weather_mgr.alert_service.get_ai_official_alerts(
+                        lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
+                    )
+                except Exception:
+                    pass
                 has_imd_alerts = bool(official_alerts and any("imd" in (getattr(a, "source", "") or "").lower() for a in official_alerts))
                 lead_src = getattr(current_resp, "source_identity", None) or getattr(current_resp, "source", None) or "OpenWeather"
                 if has_imd_alerts:
@@ -462,39 +476,67 @@ class ChatIntegrationService:
 
         try:
             import asyncio
-            current_resp, forecast_items, official_alerts = await asyncio.gather(
-                self.weather_mgr.current_service.fetch_current_weather(
-                    lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
-                ),
-                self.weather_mgr.forecast_service.get_ai_forecast_items(
-                    lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
-                ),
-                self.weather_mgr.alert_service.get_ai_official_alerts(
-                    lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
-                )
+            import inspect
+
+            fetch_t = self.weather_mgr.current_service.fetch_current_weather(
+                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
             )
+            fc_t = self.weather_mgr.forecast_service.get_ai_forecast_items(
+                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name
+            )
+            al_t = self.weather_mgr.alert_service.get_ai_official_alerts(
+                lat=resolved_lat, lon=resolved_lon, location_name=resolved_name, db_session=db_session
+            )
+
+            current_resp = await fetch_t if inspect.isawaitable(fetch_t) else fetch_t
+            forecast_items = await fc_t if inspect.isawaitable(fc_t) else fc_t
+            official_alerts = await al_t if inspect.isawaitable(al_t) else al_t
+
+            loc_name = current_resp.location.name if isinstance(getattr(current_resp.location, "name", None), str) else (
+                getattr(current_resp.location, "_mock_name", None) or resolved_name
+            )
+            loc_dist = current_resp.location.district if isinstance(getattr(current_resp.location, "district", None), str) else None
+            loc_state = current_resp.location.state if isinstance(getattr(current_resp.location, "state", None), str) else None
+
+            obs_at = datetime.fromisoformat(current_resp.observed_at) if isinstance(current_resp.observed_at, str) else current_resp.observed_at
+            ret_at = datetime.fromisoformat(current_resp.retrieved_at) if isinstance(current_resp.retrieved_at, str) else current_resp.retrieved_at
+
+            src_val = getattr(current_resp, "source_identity", None)
+            if not isinstance(src_val, str):
+                src_val = getattr(current_resp, "source", None)
+            if not isinstance(src_val, str):
+                src_val = "OpenWeather"
 
             primary_obs = AIWeatherRecord(
                 location=AILocationInfo(
-                    name=current_resp.location.name,
-                    latitude=current_resp.location.latitude,
-                    longitude=current_resp.location.longitude,
-                    district=current_resp.location.district,
-                    state=current_resp.location.state
+                    name=loc_name,
+                    latitude=float(current_resp.location.latitude),
+                    longitude=float(current_resp.location.longitude),
+                    district=loc_dist,
+                    state=loc_state
                 ),
-                observed_at=datetime.fromisoformat(current_resp.observed_at),
-                retrieved_at=datetime.fromisoformat(current_resp.retrieved_at),
-                temperature=current_resp.weather.temperature,
-                humidity=current_resp.weather.humidity,
-                rain_probability=current_resp.weather.rain_probability,
-                wind_speed=current_resp.weather.wind_speed,
-                weather_condition=current_resp.weather.condition,
-                source=getattr(current_resp, "source_identity", None) or getattr(current_resp, "source", None) or "OpenWeather",
-                rainfall_amount_mm=current_resp.weather.rainfall_mm
+                observed_at=obs_at,
+                retrieved_at=ret_at,
+                temperature=float(current_resp.weather.temperature),
+                humidity=float(current_resp.weather.humidity),
+                rain_probability=float(current_resp.weather.rain_probability),
+                wind_speed=float(current_resp.weather.wind_speed),
+                weather_condition=str(current_resp.weather.condition),
+                source=src_val,
+                rainfall_amount_mm=float(getattr(current_resp.weather, "rainfall_mm", 0.0) or 0.0)
             )
 
             # Check secondary source (Open-Meteo or OpenWeather)
-            sec_temp = current_resp.comparison.secondary_temperature if current_resp.comparison else None
+            sec_temp = None
+            sec_rain = 20.0
+            if getattr(current_resp, "comparison", None):
+                val_t = getattr(current_resp.comparison, "secondary_temperature", None)
+                if isinstance(val_t, (int, float)):
+                    sec_temp = float(val_t)
+                val_r = getattr(current_resp.comparison, "secondary_rain_probability", None)
+                if isinstance(val_r, (int, float)):
+                    sec_rain = float(val_r)
+
             secondary_obs = None
             if sec_temp is not None:
                 secondary_obs = AIWeatherRecord(
@@ -503,9 +545,9 @@ class ChatIntegrationService:
                     retrieved_at=primary_obs.retrieved_at,
                     temperature=sec_temp,
                     humidity=70.0,
-                    rain_probability=current_resp.comparison.secondary_rain_probability or 20.0,
+                    rain_probability=sec_rain,
                     wind_speed=15.0,
-                    weather_condition=current_resp.weather.condition,
+                    weather_condition=str(current_resp.weather.condition),
                     source="Open-Meteo (Secondary)"
                 )
 

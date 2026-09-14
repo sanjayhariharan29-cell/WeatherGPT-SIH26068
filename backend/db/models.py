@@ -200,6 +200,7 @@ class Alert(Base):
     severity = Column(String(20), nullable=False, index=True)
     title = Column(String(255), nullable=False)
     description = Column(Text, nullable=False)
+    instructions = Column(Text, nullable=True)
     source = Column(String(50), default="IMD")
     issued_at = Column(DateTime(timezone=True), default=utc_now)
     expires_at = Column(DateTime(timezone=True), nullable=True)

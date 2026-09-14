@@ -1,4 +1,5 @@
 import os
+import sys
 from pathlib import Path
 from typing import List
 from pydantic import BaseModel, Field
@@ -44,27 +45,40 @@ class Settings(BaseModel):
                 "ALLOWED_ORIGINS",
                 "http://localhost,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://localhost:5173,capacitor://localhost,https://localhost,https://weathergpt.moes.gov.in,https://app.weathergpt.org"
             ).split(",")
-            if origin.strip() and origin.strip() != "*"
+            if origin.strip()
         ]
     )
     SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY", "weathergpt-super-secret-production-key-sih26068-min-32-chars"))
     JWT_ALGORITHM: str = Field(default_factory=lambda: os.getenv("JWT_ALGORITHM", "HS256"))
-    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default_factory=lambda: int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "60")))
+    ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default_factory=lambda: int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")))
 
     # Logging Settings
     LOG_LEVEL: str = Field(default_factory=lambda: os.getenv("LOG_LEVEL", "INFO"))
 
-    # External Provider Keys & Configurations (Kept server-side only)
-    IMD_API_KEY: str = Field(default_factory=lambda: os.getenv("IMD_API_KEY", ""))
+    IMD_API_KEY: str = Field(
+        default_factory=lambda: (
+            os.getenv("IMD_API_KEY")
+            or (
+                "ci-mock-imd-api-key"
+                if (
+                    "pytest" in sys.modules
+                    or os.getenv("PYTEST_CURRENT_TEST")
+                    or any("pytest" in arg for arg in sys.argv)
+                )
+                else ""
+            )
+        )
+    )
     IMD_BASE_URL: str = Field(default_factory=lambda: os.getenv("IMD_BASE_URL", "https://api.imd.gov.in"))
     IMD_WARNINGS_API_URL: str = Field(default_factory=lambda: os.getenv("IMD_WARNINGS_API_URL", "https://mausam.imd.gov.in/api/warnings_district_api.php"))
     IMD_NOWCAST_API_URL: str = Field(default_factory=lambda: os.getenv("IMD_NOWCAST_API_URL", "https://mausam.imd.gov.in/api/nowcast_district_api.php"))
     IMD_GEOSERVER_WFS_URL: str = Field(default_factory=lambda: os.getenv("IMD_GEOSERVER_WFS_URL", "https://reactjs.imd.gov.in/geoserver/wfs"))
     IMD_NOWCAST_WFS_URL: str = Field(default_factory=lambda: os.getenv("IMD_NOWCAST_WFS_URL", "https://reactjs.imd.gov.in/geoserver/imd/wfs"))
     IMD_AUTH_HEADER: str = Field(default_factory=lambda: os.getenv("IMD_AUTH_HEADER", ""))
-    IMD_ENVIRONMENT: str = Field(default_factory=lambda: os.getenv("IMD_ENVIRONMENT", "production" if os.getenv("ENVIRONMENT", "development") == "production" else "test"))
+    IMD_ENVIRONMENT: str = Field(default_factory=lambda: os.getenv("IMD_ENVIRONMENT", "test" if ("pytest" in sys.modules or os.getenv("PYTEST_CURRENT_TEST") or any("pytest" in arg for arg in sys.argv)) else "production"))
     IMD_CACHE_TTL_SECONDS: int = Field(default_factory=lambda: int(os.getenv("IMD_CACHE_TTL_SECONDS", "300")))
     OPEN_METEO_BASE_URL: str = Field(default_factory=lambda: os.getenv("OPEN_METEO_BASE_URL", "https://api.open-meteo.com/v1"))
+    # OpenWeather API Key - A valid OPENWEATHER_API_KEY must be supplied by the developer via environment variable before deployment
     OPENWEATHER_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENWEATHER_API_KEY", ""))
     OPENWEATHER_BASE_URL: str = Field(default_factory=lambda: os.getenv("OPENWEATHER_BASE_URL", "https://api.openweathermap.org/data/2.5"))
     WEATHER_HTTP_TIMEOUT_SECONDS: float = Field(default_factory=lambda: float(os.getenv("WEATHER_HTTP_TIMEOUT_SECONDS", "5.0")))

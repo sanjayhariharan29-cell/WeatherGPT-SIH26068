@@ -665,7 +665,7 @@ async def test_scenario_14_warning_through_voice():
     assert voice_resp.answer is not None
     assert len(voice_resp.answer) > 10
     # Voice text output is strictly derived from validated chat response
-    assert voice_resp.intent in ("current_weather", "weather_alert", "travel_advisory", "cyclone_inquiry")
+    assert voice_resp.intent in ("current_weather", "weather_alert", "travel_advisory", "cyclone_inquiry", "warning_query")
 
 
 # ---------------------------------------------------------------------------

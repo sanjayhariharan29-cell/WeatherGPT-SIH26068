@@ -15,6 +15,7 @@ from backend.services.geocoding_service import GeocodingService
 from backend.services.base_provider import BaseWeatherProvider
 from backend.services.exceptions import ProviderError
 from backend.services.schemas import NormalizedWeatherObservation
+from backend.config.settings import settings
 from backend.schemas.weather import (
     CurrentWeatherResponse,
     LocationDataSchema,
@@ -42,9 +43,14 @@ class CurrentWeatherService:
         # Open-Meteo is the secondary live data source.
         # IMDAdapter remains in the codebase as a placeholder until institutional approval completes.
         if primary_provider is None:
-            self.primary = OpenWeatherAdapter(authority_level="primary_live")
-            self.secondary = secondary_provider or OpenMeteoAdapter()
-            self.tertiary = tertiary_provider or IMDAdapter()
+            if settings.IMD_API_KEY and settings.IMD_API_KEY.strip():
+                self.primary = IMDAdapter()
+                self.secondary = secondary_provider or OpenMeteoAdapter()
+                self.tertiary = tertiary_provider or OpenWeatherAdapter()
+            else:
+                self.primary = OpenWeatherAdapter(authority_level="primary_live")
+                self.secondary = secondary_provider or OpenMeteoAdapter()
+                self.tertiary = tertiary_provider or IMDAdapter()
         elif isinstance(primary_provider, IMDAdapter) and not primary_provider.is_live_configured and getattr(primary_provider, "mode", "") != "test":
             self.primary = OpenWeatherAdapter(authority_level="primary_live")
             self.secondary = secondary_provider or OpenMeteoAdapter()
@@ -52,7 +58,7 @@ class CurrentWeatherService:
         else:
             self.primary = primary_provider
             self.secondary = secondary_provider or OpenMeteoAdapter()
-            self.tertiary = tertiary_provider or OpenWeatherAdapter()
+            self.tertiary = tertiary_provider
         self.geocoding = geocoding_service or GeocodingService()
 
     def validate_coordinates(self, lat: Optional[float], lon: Optional[float]) -> None:
@@ -97,7 +103,7 @@ class CurrentWeatherService:
         # Check if tertiary provider is IMD and whether it should be queried
         should_query_tertiary = True
         if isinstance(self.tertiary, IMDAdapter):
-            should_query_tertiary = bool(self.tertiary.is_live_configured or getattr(self.tertiary, "mode", "") == "test")
+            should_query_tertiary = bool(self.tertiary.is_live_configured)
 
         # Attempt Primary (OpenWeather by default)
         try:
@@ -106,7 +112,7 @@ class CurrentWeatherService:
         except ProviderError as e:
             is_primary_healthy = False
             primary_diag = {
-                "failed_provider": self.primary.name,
+                "failed_provider": getattr(e, "provider_name", None) or self.primary.name,
                 "error_type": type(e).__name__,
                 "error_message": str(e),
                 "timestamp": getattr(e, "timestamp", datetime.now(timezone.utc).isoformat()),
@@ -197,7 +203,10 @@ class CurrentWeatherService:
         if is_secondary_healthy and sec_obs:
             sources_list.append(self.secondary.name)
         if is_tertiary_healthy and tertiary_obs:
-            sources_list.append(self.tertiary.name)
+            if isinstance(self.tertiary, IMDAdapter) and not self.tertiary.is_live_configured:
+                pass
+            else:
+                sources_list.append(self.tertiary.name)
 
         if not sources_list and getattr(lead_obs, "is_cached", False):
             sources_list.append(f"{lead_obs.source} (Cached)")
@@ -211,10 +220,12 @@ class CurrentWeatherService:
             source_label = f"{p_src} (Primary), {s_src} (Secondary)"
         elif is_primary_healthy:
             source_label = f"{p_src} (Primary)"
+        elif is_secondary_healthy and is_tertiary_healthy:
+            source_label = f"{s_src} (Secondary), {t_src} (Tertiary)"
         elif is_secondary_healthy:
             source_label = f"{s_src} (Fallback)"
-        elif is_tertiary_healthy:
-            source_label = f"{t_src} (Fallback)"
+        elif is_tertiary_healthy and (not isinstance(self.tertiary, IMDAdapter) or self.tertiary.is_live_configured or getattr(self.tertiary, "mode", "") == "test"):
+            source_label = t_src
         else:
             source_label = f"{lead_obs.source} (Cached Telemetry)"
 

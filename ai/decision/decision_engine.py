@@ -367,16 +367,18 @@ class DecisionEngine:
 
             from ai.decision.personal_decision import PersonalDecisionEngine
             raw_msg = (nlu.original_text if nlu else "")
-            unavail_dec = PersonalDecisionEngine.evaluate(
-                nlu=nlu,
-                weather=weather,
-                forecast=forecast,
-                reasoning=reasoning,
-                target_language=target_language,
-                message=raw_msg,
-                schedule_decision=None,
-            )
-            unavail_dec_dict = unavail_dec.to_dict()
+            unavail_dec_dict = None
+            if PersonalDecisionEngine.identify_decision_type(nlu, raw_msg) is not None:
+                unavail_dec = PersonalDecisionEngine.evaluate(
+                    nlu=nlu,
+                    weather=weather,
+                    forecast=forecast,
+                    reasoning=reasoning,
+                    target_language=target_language,
+                    message=raw_msg,
+                    schedule_decision=None,
+                )
+                unavail_dec_dict = unavail_dec.to_dict()
 
             return DecisionAdvisory(
                 persona=resolved_persona,
@@ -451,17 +453,21 @@ class DecisionEngine:
 
         from ai.decision.personal_decision import PersonalDecisionEngine
         raw_msg = (nlu.original_text if nlu else "")
-        personal_decision_res = PersonalDecisionEngine.evaluate(
-            nlu=nlu,
-            weather=weather,
-            forecast=forecast,
-            reasoning=reasoning,
-            target_language=target_language,
-            message=raw_msg,
-            schedule_decision=schedule_decision,
-        )
-        personal_decision_dict = personal_decision_res.to_dict()
-        evidence.append(f"Personal Decision: {personal_decision_res.verdict.value} - {personal_decision_res.recommended_action}")
+        identified_dec = PersonalDecisionEngine.identify_decision_type(nlu, raw_msg)
+        personal_decision_res = None
+        personal_decision_dict = None
+        if identified_dec is not None:
+            personal_decision_res = PersonalDecisionEngine.evaluate(
+                nlu=nlu,
+                weather=weather,
+                forecast=forecast,
+                reasoning=reasoning,
+                target_language=target_language,
+                message=raw_msg,
+                schedule_decision=schedule_decision,
+            )
+            personal_decision_dict = personal_decision_res.to_dict()
+            evidence.append(f"Personal Decision: {personal_decision_res.verdict.value} - {personal_decision_res.recommended_action}")
 
         # ---------------- STUDENT PERSONA ----------------
         if resolved_persona == PersonaEnum.STUDENT:

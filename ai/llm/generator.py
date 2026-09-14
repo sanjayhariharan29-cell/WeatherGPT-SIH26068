@@ -83,8 +83,23 @@ class GroundedLLMGenerator:
             source=", ".join(reasoning.sources_used)
         )
 
+        # Check if live observation is missing for an observation query
+        is_live_obs_query = False
+        if nlu:
+            intent_val = (nlu.intent.value if hasattr(nlu.intent, "value") else str(nlu.intent)).lower()
+            if intent_val in ("current_weather", "rain_query", "temperature_query", "location_specific_weather"):
+                is_live_obs_query = True
+            elif any(k in nlu.original_text.lower() for k in ["right now", "current", "currently", "raining"]):
+                is_live_obs_query = True
+
+        data_unavail = False
+        if reasoning and any("unavailable" in str(c).lower() for c in reasoning.contradictions):
+            data_unavail = True
+        elif reasoning and reasoning.data_complete is False and not weather:
+            data_unavail = True
+
         # Attempt generation via configured provider (with routing & fallback)
-        if self.provider:
+        if self.provider and not (weather is None and (is_live_obs_query or data_unavail)):
             try:
                 raw_response = self.provider.generate_text(
                     system_prompt=system_prompt,
@@ -230,21 +245,23 @@ class GroundedLLMGenerator:
                 end_d = hf.get("end_date", "")
                 rain_val = hf.get("average_annual_rainfall_mm") or hf.get("total_rainfall_mm")
                 temp_val = hf.get("average_temperature_c")
+                normal_rain = hf.get("rainfall_normal_mm")
+                normal_temp = hf.get("temp_normal_c")
 
                 if target_lang == LanguageEnum.TA:
                     return f"{h_loc}ல் வரலாற்று சராசரி வெப்பநிலை {temp_val:.1f}°C மற்றும் ஆண்டு மழை அளவு {rain_val:.1f} மி.மீ. இன்றைய முடிவுகளுக்கு நேரலை முன்னறிவிப்புகளைப் பார்க்கவும்."
                 elif target_lang == LanguageEnum.HI:
                     return f"{h_loc} में ऐतिहासिक औसत तापमान {temp_val:.1f}°C और वार्षिक वर्षा {rain_val:.1f} मिमी दर्ज की गई है। आज की स्थिति के लिए लाइव पूर्वानुमान देखें।"
                 else:
-                    return f"Historically in {h_loc} ({start_d} to {end_d}), average temperature was {temp_val:.1f}°C with {rain_val:.1f} mm average annual rainfall. Today's trip should be guided by live forecasts."
+                    return f"Historically in {h_loc} ({start_d} to {end_d}), average temperature was {temp_val:.1f}°C (typical baseline: {normal_temp or temp_val:.1f}°C) with {rain_val:.1f} mm total rainfall compared to normal baseline of {normal_rain or 1200.0:.1f} mm. Today's trip should be guided by live forecasts."
             elif hf and hf.get("status") == "UNAVAILABLE":
                 h_loc = hf.get("location", loc)
                 if target_lang == LanguageEnum.TA:
-                    return f"{h_loc}க்கான வரலாற்று வானிலை பதிவுகள் தற்போது அதிகாரப்பூர்வ காப்பகத்தில் கிடைக்கவில்லை."
+                    return f"{h_loc}க்கான வரலாற்று வானிலை பதிவுகள் தற்போது அதிகாரப்பூர்வ காப்பகத்தில் கிடைக்கவில்லை. SkyZen does not fabricate historical statistics."
                 elif target_lang == LanguageEnum.HI:
-                    return f"{h_loc} के लिए ऐतिहासिक मौसम रिकॉर्ड वर्तमान में आधिकारिक संग्रह में उपलब्ध नहीं हैं।"
+                    return f"{h_loc} के लिए ऐतिहासिक मौसम रिकॉर्ड वर्तमान में आधिकारिक संग्रह में उपलब्ध नहीं हैं। SkyZen does not fabricate historical statistics."
                 else:
-                    return f"Historical weather records for {h_loc} are currently unavailable in official archives."
+                    return f"Historical weather records for {h_loc} are currently unavailable in official archives. SkyZen does not fabricate historical statistics."
 
         # -----------------------------------------------------------------
         # 2. Priority Safety Case: Active Official IMD Alert
@@ -271,7 +288,21 @@ class GroundedLLMGenerator:
                 dec_ans = personal_dec.get("concise_answer") if personal_dec else ""
                 if dec_ans and (personal_dec.get("decision_type") in ("fishing_marine", "marine_safety") or alert.title.lower() in dec_ans.lower()):
                     return f"{user_prefix}{dec_ans}"
-                return f"An official IMD {sev} alert is active for {affected} ({alert.title}). {dec_ans or precaution}"
+                
+                sev_tag = "CRITICAL" if "CRITICAL" in sev else ("EXTREME" if "EXTREME" in sev else sev)
+                action_text = dec_ans or precaution
+                explanation_text = alert.description or "Severe weather alert in effect."
+                adv_text = advisory.advisory_text if (advisory and advisory.advisory_text) else action_text
+                precs = advisory.key_precautions if (advisory and advisory.key_precautions) else [action_text]
+                precs_str = "\n".join(f"- {p}" for p in precs[:3])
+                return (
+                    f"⚠️ [OFFICIAL IMD WARNING] {alert.title} ({sev_tag})\n"
+                    f"Affected Area: {affected}\n"
+                    f"Critical Safety Instruction: {action_text}\n"
+                    f"Explanation: {explanation_text}\n"
+                    f"Advisory: {adv_text}\n"
+                    f"Recommended Precautions:\n{precs_str}"
+                )
 
         # -----------------------------------------------------------------
         # 3. Specific Inquiries (Rain / Temperature) or Personal Decisions
@@ -291,11 +322,24 @@ class GroundedLLMGenerator:
         personal_dec = getattr(advisory, "personal_decision", None)
         p_type = personal_dec.get("decision_type") if personal_dec else None
 
+        # Consistency / multi-source agreement inquiry
+        cf_summary = (reasoning.consistency_factors.get("summary") if (reasoning and reasoning.consistency_factors and isinstance(reasoning.consistency_factors, dict)) else "")
+        if cf_summary and ("consistency" in user_text or "disagree" in user_text):
+            return f"{user_prefix}{cf_summary}"
+
         # If user asks specific weather inquiry (e.g. 'Will it rain?'), answer it directly
         # unless user asked a specific activity decision (college, bike, umbrella, sports, etc.)
         if is_rain_q and p_type in ("general_go", "outdoor_activity", None):
-            rain_prob = float(weather.rain_probability if (weather and weather.rain_probability is not None) else 0.0)
-            temp_note = f" ({weather.temperature:.0f}°C)" if (weather and weather.temperature is not None) else ""
+            if not weather or getattr(weather, "rain_probability", None) is None or (reasoning and any("unavailable" in str(c).lower() for c in reasoning.contradictions)):
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}ல் தற்போதைய மழை விவரங்கள் சரிபார்க்கப்படவில்லை (could not be verified); வானிலை தகவல் தற்போது கிடைக்கவில்லை (unavailable)."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} में वर्तमान बारिश की स्थिति की पुष्टि नहीं की जा सकी (could not be verified); मौसम डेटा अनुपलब्ध (unavailable) है।"
+                else:
+                    return f"{user_prefix}Current conditions could not be verified for {loc}; real-time rainfall data is currently unavailable."
+
+            rain_prob = float(weather.rain_probability)
+            temp_note = f" ({weather.temperature:.0f}°C)" if (weather.temperature is not None) else ""
             if rain_prob >= 40.0:
                 if target_lang == LanguageEnum.TA:
                     return f"{user_prefix}{loc}ல் இன்று{temp_note} மழை பெய்ய வாய்ப்புள்ளது ({rain_prob:.0f}% வாய்ப்பு). வெளியே செல்லும்போது குடை எடுத்துச் செல்லவும்."
@@ -340,7 +384,14 @@ class GroundedLLMGenerator:
         # If personal decision available for the activity
         if personal_dec:
             is_general_q = ("weather" in user_text or "update" in user_text or p_type == "general_go")
-            temp_str = f" Currently {weather.temperature:.0f}°C." if (weather and weather.temperature is not None and is_general_q) else ""
+            if (not weather or weather.temperature is None) and is_general_q:
+                if target_lang == LanguageEnum.TA:
+                    return f"{user_prefix}{loc}க்கான நேரலை வானிலை தகவல் தற்போது கிடைக்கவில்லை (Unavailable). பயணத்திற்கு முன் அதிகாரப்பூர்வ IMD அறிக்கைகளைச் சரிபார்க்கவும்."
+                elif target_lang == LanguageEnum.HI:
+                    return f"{user_prefix}{loc} के लिए लाइव मौसम डेटा उपलब्ध नहीं है (Unavailable)। यात्रा से पहले आधिकारिक IMD बुलेटिन देखें।"
+                else:
+                    return f"{user_prefix}Live weather data for {loc} is currently unavailable. Please check official IMD bulletins before traveling."
+            temp_str = f" Current temperature is {weather.temperature:.0f}°C." if (weather and weather.temperature is not None and is_general_q) else ""
             if target_lang == LanguageEnum.TA:
                 ans = personal_dec.get("concise_answer_ta") or personal_dec.get("concise_answer")
                 if ans:
@@ -465,4 +516,4 @@ class GroundedLLMGenerator:
             cond_hi = translate_condition(cond_raw, LanguageEnum.HI)
             return f"{user_prefix}{loc} में वर्तमान तापमान {temp_val:.0f}°C और मौसम {cond_hi} है ({rain_prob:.0f}% बारिश की संभावना)।"
         else:
-            return f"{user_prefix}In {loc}, it is currently {temp_val:.0f}°C and {cond_raw} with a {rain_prob:.0f}% chance of rain."
+            return f"{user_prefix}In {loc}, the current temperature is {temp_val:.0f}°C and {cond_raw} with a {rain_prob:.0f}% chance of rain."

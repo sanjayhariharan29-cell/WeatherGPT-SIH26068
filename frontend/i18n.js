@@ -83,7 +83,7 @@ const I18N_DICT = {
     "auth.welcome.signup": "Create Account",
     "auth.welcome.tagline": "Clearer Skies. Brighter Days.",
     "auth.welcome.title": "SkyZen.",
-    "brand.grounded": "MoES & IMD Grounded",
+    "brand.grounded": "Weather Intelligence Active",
     "brand.name": "SkyZen",
     "brand.subtitle": "WeatherGPT MoES IMD Decision Engine",
     "brand.tagline": "Personal Weather Intelligence",
@@ -144,13 +144,6 @@ const I18N_DICT = {
     "climate.trend_desc_2": "over the decade with an increase in high-intensity monsoonal precipitation events.",
     "climate.trend_title": "10-Year Temperature Trend (2015 – 2025)",
     "common.save": "Save",
-    "copilot.ask_followup": "Ask Follow-up in Full AI Chat",
-    "copilot.briefing_tag": "DAILY AUDIO BRIEFING",
-    "copilot.briefing_title": "Listen to localized meteorological summary",
-    "copilot.guidance": "Instant Actionable Guidance:",
-    "copilot.play": "Play Briefing",
-    "copilot.subtitle": "MoES & IMD Decision Intelligence",
-    "copilot.title": "SkyZen AI Copilot",
     "dashboard.advisories": "AI Advisories",
     "dashboard.ask_skyzen": "Ask SkyZen",
     "dashboard.ask_sub": "Get weather-aware answers for your daily plans",
@@ -283,7 +276,6 @@ const I18N_DICT = {
     "more.tools_heading": "Weather Intelligence Tools",
     "more.travel_item": "Inter-District Travel Advisory",
     "nav.ai": "AI",
-    "nav.ai_copilot": "AI Copilot",
     "nav.alerts": "Alerts",
     "nav.aqi": "AQI",
     "nav.back_to_home": "Back to Home",
@@ -343,6 +335,9 @@ const I18N_DICT = {
     "role.general_desc": "General User — Everyday weather overview",
     "role.student_desc": "Student — Daily commute & campus weather",
     "role.traveller": "Traveller",
+    "search.clear": "Clear search",
+    "search.placeholder": "Search city or district (e.g. Coimbatore, Chennai)...",
+    "search.recent_popular": "Popular Cities",
     "settings.about_title": "About SkyZen v1.0.0",
     "settings.custom_backend_label": "Custom Backend URL (e.g. https://api.example.com/api/v1)",
     "settings.env_custom_server": "Custom Production Server (HTTPS)...",
@@ -357,6 +352,8 @@ const I18N_DICT = {
     "settings.logout": "Sign Out",
     "settings.moes_imd_full": "Ministry of Earth Sciences (MoES) / India Meteorological Department (IMD)",
     "settings.notifications": "Emergency Warnings & FCM Notifications",
+    "settings.persona_hint": "Tailors lifestyle insights, chat advisories, and weather impact recommendations.",
+    "settings.persona_label": "Role / Meteorological Persona",
     "settings.profile_desc": "Manage name, role persona & language",
     "settings.profile_persona": "Profile & Role Persona",
     "settings.push_active": "Active (FCM)",
@@ -381,7 +378,84 @@ const I18N_DICT = {
     "weather.offline": "Network Offline. Displaying cached weather telemetry.",
     "weather.today_hourly": "Today's Hourly Forecast",
     "weather.today_sub": "24-Hour Horizon",
-    "weather.tomorrow_hourly": "Tomorrow's Hourly Forecast"
+    "weather.tomorrow_hourly": "Tomorrow's Hourly Forecast",
+    "dashboard.now": "Now",
+    "chat.reasoning": "SkyZen is reasoning over weather data",
+    "chat.chip_rain_query": "Will it rain tomorrow?",
+    "chat.chip_college_query": "Can I go to college today?",
+    "chat.chip_bike_query": "Should I take my bike?",
+    "chat.chip_umbrella_query": "Do I need an umbrella?",
+    "lifestyle.unavailable": "Lifestyle insights are unavailable due to degraded weather telemetry.",
+    "lifestyle.cat_home_daily": "Home & Daily",
+    "lifestyle.cat_agriculture": "Agriculture",
+    "lifestyle.cat_commute": "Commute",
+    "lifestyle.cat_transit": "Transit",
+    "lifestyle.cat_fitness": "Fitness & Sport",
+    "lifestyle.cat_farming": "Farming",
+    "lifestyle.cat_daily_life": "Daily Life",
+    "lifestyle.title_laundry": "Outdoor Laundry Drying",
+    "lifestyle.title_spray": "Pesticide Spray Window",
+    "lifestyle.title_bike": "Two-Wheeler & Bike Safety",
+    "lifestyle.title_flood": "Road Flooding & Subways",
+    "lifestyle.title_fitness": "Outdoor Running & Jogging",
+    "lifestyle.title_harvest": "Crop Harvest & Sun-Drying",
+    "lifestyle.title_umbrella": "Umbrella Necessity Score",
+    "lifestyle.status_fast_dry": "Fast Dry",
+    "lifestyle.status_indoor_drying": "Indoor Drying Advised",
+    "lifestyle.status_slow_dry": "Slow Dry (~4-5h)",
+    "lifestyle.status_ideal_spray": "Ideal Spray Window",
+    "lifestyle.status_no_spray": "Do Not Spray Today",
+    "lifestyle.status_drift_caution": "Moderate Drift Caution",
+    "lifestyle.status_smooth_ride": "Smooth Ride",
+    "lifestyle.status_skid_risk": "High Skidding Risk",
+    "lifestyle.status_wet_asphalt": "Wet Asphalt Caution",
+    "lifestyle.status_clear_roads": "Clear Roads",
+    "lifestyle.status_waterlogging": "Waterlogging Probable",
+    "lifestyle.status_spot_puddles": "Spot Puddles",
+    "lifestyle.status_great_workout": "Great Workout Window",
+    "lifestyle.status_indoor_cardio": "Indoor Cardio Recommended",
+    "lifestyle.status_hydration_caution": "Hydration Caution",
+    "lifestyle.status_safe_harvest": "Safe for Harvest",
+    "lifestyle.status_delay_harvest": "Delay Harvest / Cover Produce",
+    "lifestyle.status_monitor_grain": "Monitor Grain Moisture",
+    "lifestyle.status_not_needed": "Not Needed",
+    "lifestyle.status_keep_in_bag": "Keep in Bag",
+    "lifestyle.status_must_carry": "Must Carry",
+    "lifestyle.metric_drying_index": "Drying Index",
+    "lifestyle.metric_wind_runoff": "Wind & Runoff",
+    "lifestyle.metric_road_traction": "Road Traction",
+    "lifestyle.metric_drainage_risk": "Drainage Risk",
+    "lifestyle.metric_heat_index": "Heat Index",
+    "lifestyle.metric_solar_radiation": "Solar Radiation",
+    "lifestyle.metric_rain_prob": "Rain Probability",
+    "lifestyle.unit_hrs": "hrs",
+    "lifestyle.unit_rain": "rain",
+    "lifestyle.unit_wind": "wind",
+    "lifestyle.unit_hum": "hum",
+    "lifestyle.val_high_severe": "High (Severe Alert)",
+    "lifestyle.val_normal": "Normal",
+    "lifestyle.desc_laundry_opt": "Optimal outdoor drying conditions. Clothes will dry in approximately {h} hours.",
+    "lifestyle.desc_laundry_rain": "Precipitation expected. Hang clothes indoors or under sheltered balcony.",
+    "lifestyle.desc_laundry_slow": "High ambient moisture. Drying takes longer (~4-5 hours); good air circulation needed.",
+    "lifestyle.desc_spray_opt": "Low wind and zero rain hazard. Ideal morning window for crop spraying.",
+    "lifestyle.desc_spray_rain": "High runoff and drift hazard. Postpone chemical spray to prevent loss.",
+    "lifestyle.desc_spray_caution": "Breezy conditions. Use drift-reduction nozzles or spray during early morning.",
+    "lifestyle.desc_commute_opt": "Dry asphalt and favorable visibility. Safe two-wheeler riding conditions.",
+    "lifestyle.desc_commute_rain": "Slick pavement and low friction. Reduce speed and maintain safe distance.",
+    "lifestyle.desc_commute_caution": "Damp road surfaces. Take caution at turns and sudden braking.",
+    "lifestyle.desc_flood_opt": "Subways and major road corridors clear. Normal traffic flow expected.",
+    "lifestyle.desc_flood_alert": "Severe alert active: Potential low-lying subway inundation. Plan alternate routes.",
+    "lifestyle.desc_flood_heavy": "Heavy downpour risk. Avoid arterial underpasses prone to quick water accumulation.",
+    "lifestyle.desc_flood_caution": "Scattered roadside puddles. Watch out for potholes hidden beneath water.",
+    "lifestyle.desc_fitness_opt": "Pleasant outdoor running window ({t}°C). Excellent air quality and thermal comfort.",
+    "lifestyle.desc_fitness_heat": "Excessive heat and thermal strain. Switch to air-conditioned gym or indoor cardio.",
+    "lifestyle.desc_fitness_caution": "Warm and humid. Hydrate adequately before, during, and after your workout.",
+    "lifestyle.desc_harvest_opt": "Dry weather with strong sunlight. Safe window for harvesting and open-field grain drying.",
+    "lifestyle.desc_harvest_rain": "Rain risk detected. Cover harvested crops immediately with tarpaulins to prevent mold.",
+    "lifestyle.desc_harvest_caution": "Elevated humidity may slow drying. Turn grain piles frequently for uniform sun-drying.",
+    "lifestyle.desc_umbrella_low": "Minimal precipitation chance. No umbrella required for regular outdoor errands.",
+    "lifestyle.desc_umbrella_mid": "Isolated showers possible. Keep a compact folding umbrella in your backpack.",
+    "lifestyle.desc_umbrella_high": "High probability of rain. Carry a sturdy umbrella and water-resistant footwear."
   },
   "ta": {
     "alerts.coastal_warning_desc": "கடலோர எச்சரிக்கை விடுக்கப்பட்டுள்ளது. மீனவர்கள் ஆழ்கடலுக்குச் செல்ல வேண்டாம் என அறிவுறுத்தப்படுகிறார்கள்.",
@@ -463,7 +537,7 @@ const I18N_DICT = {
     "auth.welcome.signup": "கணக்கை உருவாக்கு",
     "auth.welcome.tagline": "தெளிவான வானம். பிரகாசமான நாட்கள்.",
     "auth.welcome.title": "ஸ்கைசென்.",
-    "brand.grounded": "புவி அறிவியல் அமைச்சகம் & ஐஎம்டி அடிப்படையிலானது",
+    "brand.grounded": "வானிலை நுண்ணறிவு செயல்படுகிறது",
     "brand.name": "ஸ்கைசென்",
     "brand.subtitle": "வானிலை ஜிபிடி புவி அறிவியல் அமைச்சகம் ஐஎம்டி முடிவு இயந்திரம்",
     "brand.tagline": "தனிப்பயனாக்கப்பட்ட வானிலை நுண்ணறிவு",
@@ -524,13 +598,6 @@ const I18N_DICT = {
     "climate.trend_desc_2": "கடந்த தசாப்தத்தில் அதிக தீவிர பருவமழை நிகழ்வுகளின் அதிகரிப்புடன்.",
     "climate.trend_title": "10 ஆண்டு வெப்பநிலை போக்கு (2015 – 2025)",
     "common.save": "சேமி",
-    "copilot.ask_followup": "முழு ஏஐ அரட்டையில் கூடுதல் கேள்விகளைக் கேளுங்கள்",
-    "copilot.briefing_tag": "தினசரி ஒலி விளக்கம்",
-    "copilot.briefing_title": "உள்ளூர் வானிலை சுருக்கத்தைக் கேளுங்கள்",
-    "copilot.guidance": "உடனடி செயல்படக்கூடிய வழிகாட்டுதல்:",
-    "copilot.play": "விளக்கத்தைக் கேளுங்கள்",
-    "copilot.subtitle": "புவி அறிவியல் அமைச்சகம் & ஐஎம்டி முடிவு நுண்ணறிவு",
-    "copilot.title": "ஸ்கைசென் ஏஐ துணை பைலட்",
     "dashboard.advisories": "செயற்கை நுண்ணறிவு ஆலோசனைகள்",
     "dashboard.ask_skyzen": "ஸ்கைசென்-இடம் கேளுங்கள்",
     "dashboard.ask_sub": "உங்கள் தினசரி திட்டங்களுக்கான வானிலை பதில்களைப் பெறுங்கள்",
@@ -663,7 +730,6 @@ const I18N_DICT = {
     "more.tools_heading": "வானிலை நுண்ணறிவு கருவிகள்",
     "more.travel_item": "மாவட்டங்களுக்கு இடையிலான பயண ஆலோசனை",
     "nav.ai": "செயற்கை நுண்ணறிவு",
-    "nav.ai_copilot": "ஏஐ துணை பைலட்",
     "nav.alerts": "எச்சரிக்கைகள்",
     "nav.aqi": "காற்று தரம்",
     "nav.back_to_home": "முகப்பிற்கு செல்",
@@ -723,6 +789,9 @@ const I18N_DICT = {
     "role.general_desc": "பொதுப் பயனர் — அன்றாட வானிலை கண்ணோட்டம்",
     "role.student_desc": "மாணவர் — தினசரி பயணம் & வளாக வானிலை",
     "role.traveller": "பயணி",
+    "search.clear": "தேடலை அழி",
+    "search.placeholder": "நகரம் அல்லது மாவட்டத்தைத் தேடுங்கள்...",
+    "search.recent_popular": "பிரபல நகரங்கள்",
     "settings.about_title": "ஸ்கைசென் பதிப்பு 1.0.0 பற்றி",
     "settings.custom_backend_label": "தனிப்பயன் பின்நிலை முகவரி",
     "settings.env_custom_server": "தனிப்பயன் உற்பத்தி சேவையகம் (பாதுகாப்பான)...",
@@ -737,6 +806,8 @@ const I18N_DICT = {
     "settings.logout": "வெளியேறு",
     "settings.moes_imd_full": "புவி அறிவியல் அமைச்சகம் (புவி அறிவியல் அமைச்சகம்) / இந்திய வானிலை ஆய்வு மையம் (ஐஎம்டி)",
     "settings.notifications": "அவசரகால எச்சரிக்கைகள் & எஃப்சிஎம் அறிவிப்புகள்",
+    "settings.persona_hint": "வாழ்க்கை முறை மற்றும் வானிலை பரிந்துரைகளைத் தனிப்பயனாக்குகிறது.",
+    "settings.persona_label": "பங்கு / வானிலை நபர் முறை",
     "settings.profile_desc": "பெயர், பயனர் வகை & மொழியை நிர்வகி",
     "settings.profile_persona": "சுயவிவரம் & பயனர் வகை",
     "settings.push_active": "செயலில் உள்ளது (எஃப்சிஎம்)",
@@ -761,7 +832,84 @@ const I18N_DICT = {
     "weather.offline": "இணைய இணைப்பு இல்லை. சேமிக்கப்பட்ட வானிலை காட்டப்படுகிறது.",
     "weather.today_hourly": "இன்றைய மணிநேர முன்னறிவிப்பு",
     "weather.today_sub": "24-மணிநேர எல்லை",
-    "weather.tomorrow_hourly": "நாளைக்கான மணிநேர முன்னறிவிப்பு"
+    "weather.tomorrow_hourly": "நாளைக்கான மணிநேர முன்னறிவிப்பு",
+    "dashboard.now": "இப்போது",
+    "chat.reasoning": "ஸ்கைசென் வானிலை தரவுகளை ஆய்வு செய்கிறது",
+    "chat.chip_rain_query": "நாளை மழை பெய்யுமா?",
+    "chat.chip_college_query": "இன்று கல்லூரி செல்லலாமா?",
+    "chat.chip_bike_query": "பைக் எடுக்கலாமா?",
+    "chat.chip_umbrella_query": "குடை தேவையா?",
+    "lifestyle.unavailable": "வானிலை தொலைத்தொடர்பு குறைவு காரணமாக வாழ்க்கைமுறை நுண்ணறிவு கிடைக்கவில்லை.",
+    "lifestyle.cat_home_daily": "வீடு & தினசரி",
+    "lifestyle.cat_agriculture": "விவசாயம்",
+    "lifestyle.cat_commute": "பயணம்",
+    "lifestyle.cat_transit": "போக்குவரத்து",
+    "lifestyle.cat_fitness": "உடற்பயிற்சி & விளையாட்டு",
+    "lifestyle.cat_farming": "பண்ணை & விவசாயம்",
+    "lifestyle.cat_daily_life": "தினசரி வாழ்க்கை",
+    "lifestyle.title_laundry": "வெளியில் துணி உலர்த்துதல்",
+    "lifestyle.title_spray": "பூச்சிக்கொல்லி தெளிப்பு நேரம்",
+    "lifestyle.title_bike": "இருசக்கர வாகன பாதுகாப்பு",
+    "lifestyle.title_flood": "சாலை வெள்ளம் & சுரங்கப்பாதைகள்",
+    "lifestyle.title_fitness": "வெளியில் ஓட்டம் & நடைபயிற்சி",
+    "lifestyle.title_harvest": "பயிர் அறுவடை & களம் உலர்த்துதல்",
+    "lifestyle.title_umbrella": "குடை தேவை மதிப்பீடு",
+    "lifestyle.status_fast_dry": "விரைவில் உலரும்",
+    "lifestyle.status_indoor_drying": "உள்ளே உலர்த்த பரிந்துரை",
+    "lifestyle.status_slow_dry": "மெதுவாக உலரும் (~4-5 மணி)",
+    "lifestyle.status_ideal_spray": "தெளிக்க உகந்த நேரம்",
+    "lifestyle.status_no_spray": "இன்று தெளிக்க வேண்டாம்",
+    "lifestyle.status_drift_caution": "மிதமான காற்று எச்சரிக்கை",
+    "lifestyle.status_smooth_ride": "சீரான பயணம்",
+    "lifestyle.status_skid_risk": "வழுக்கும் அபாயம் அதிகம்",
+    "lifestyle.status_wet_asphalt": "ஈரமான சாலை எச்சரிக்கை",
+    "lifestyle.status_clear_roads": "தெளிவான சாலைகள்",
+    "lifestyle.status_waterlogging": "நீர் தேங்க வாய்ப்பு",
+    "lifestyle.status_spot_puddles": "சாலைகளில் சிறு நீர்நிலைகள்",
+    "lifestyle.status_great_workout": "சிறந்த உடற்பயிற்சி நேரம்",
+    "lifestyle.status_indoor_cardio": "உள்ளரங்க உடற்பயிற்சி சிறந்தது",
+    "lifestyle.status_hydration_caution": "நீரேற்ற எச்சரிக்கை",
+    "lifestyle.status_safe_harvest": "அறுவடைக்கு பாதுகாப்பானது",
+    "lifestyle.status_delay_harvest": "அறுவடையை தள்ளிப்போடுக / பயிரை மூடுக",
+    "lifestyle.status_monitor_grain": "தானிய ஈரப்பதத்தை கண்காணிக்கவும்",
+    "lifestyle.status_not_needed": "தேவையில்லை",
+    "lifestyle.status_keep_in_bag": "பையில் வைத்திருக்கவும்",
+    "lifestyle.status_must_carry": "கட்டாயம் எடுத்துச் செல்லவும்",
+    "lifestyle.metric_drying_index": "உலர்த்தல் குறியீடு",
+    "lifestyle.metric_wind_runoff": "காற்று & மழைநீர் ஓட்டம்",
+    "lifestyle.metric_road_traction": "சாலை பிடிப்பு",
+    "lifestyle.metric_drainage_risk": "வடிகால் ஆபத்து",
+    "lifestyle.metric_heat_index": "வெப்பக் குறியீடு",
+    "lifestyle.metric_solar_radiation": "சூரிய கதிர்வீச்சு",
+    "lifestyle.metric_rain_prob": "மழை சாத்தியக்கூறு",
+    "lifestyle.unit_hrs": "மணி",
+    "lifestyle.unit_rain": "மழை",
+    "lifestyle.unit_wind": "காற்று",
+    "lifestyle.unit_hum": "ஈரப்பதம்",
+    "lifestyle.val_high_severe": "அதிகம் (தீவிர எச்சரிக்கை)",
+    "lifestyle.val_normal": "இயல்பு",
+    "lifestyle.desc_laundry_opt": "சிறந்த வெளிப்புற உலர்த்தும் சூழல். துணிகள் சுமார் {h} மணி நேரத்தில் உலர்ந்துவிடும்.",
+    "lifestyle.desc_laundry_rain": "மழை பெய்ய வாய்ப்புள்ளது. துணிகளை உள்ளே அல்லது கூரையுள்ள பால்கனியில் உலர்த்தவும்.",
+    "lifestyle.desc_laundry_slow": "காற்றில் அதிக ஈரப்பதம். துணிகள் உலர அதிக நேரம் எடுக்கும் (~4-5 மணி); நல்ல காற்றோட்டம் தேவை.",
+    "lifestyle.desc_spray_opt": "குறைந்த காற்று மற்றும் மழை ஆபத்து இல்லை. பயிர்களுக்கு மருந்து தெளிக்க உகந்த காலை நேரம்.",
+    "lifestyle.desc_spray_rain": "அதிக மழைநீர் ஓட்டம் மற்றும் காற்று வீச்சு ஆபத்து. மருந்து வீணாவதைத் தவிர்க்க தெளிப்பை தள்ளிப்போடவும்.",
+    "lifestyle.desc_spray_caution": "மிதமான காற்று வீசுகிறது. மருந்து சிதறலைத் தடுக்கும் முனைகளைப் பயன்படுத்தவும் அல்லது அதிகாலையில் தெளிக்கவும்.",
+    "lifestyle.desc_commute_opt": "உலர்ந்த சாலை மற்றும் சிறந்த பார்வை தூரம். இருசக்கர வாகனம் ஓட்ட பாதுகாப்பான நிலை.",
+    "lifestyle.desc_commute_rain": "வழுக்கும் சாலை மற்றும் குறைந்த பிடிப்பு. வேகத்தைக் குறைத்து பாதுகாப்பான இடைவெளியை பராமரிக்கவும்.",
+    "lifestyle.desc_commute_caution": "ஈரமான சாலைப் பகுதிகள். திருப்பங்களிலும் திடீர் பிரேக்கிங்கிலும் எச்சரிக்கையாக இருக்கவும்.",
+    "lifestyle.desc_flood_opt": "சுரங்கப்பாதைகள் மற்றும் முக்கிய சாலைகள் சீராக உள்ளன. சாதாரண போக்குவரத்து எதிர்பார்க்கப்படுகிறது.",
+    "lifestyle.desc_flood_alert": "கடுமையான எச்சரிக்கை செயலில்: தாழ்வான சுரங்கப்பாதைகளில் நீர் தேங்க வாய்ப்பு. மாற்று வழிகளைத் திட்டமிடுங்கள்.",
+    "lifestyle.desc_flood_heavy": "கனமழை ஆபத்து. விரைவாக நீர் தேங்கக்கூடிய முக்கிய சுரங்கப்பாதைகளைத் தவிர்க்கவும்.",
+    "lifestyle.desc_flood_caution": "சாலையோரங்களில் ஆங்காங்கே நீர் தேக்கம். தண்ணீரில் மறைந்துள்ள பள்ளங்கள் குறித்து எச்சரிக்கையாக இருக்கவும்.",
+    "lifestyle.desc_fitness_opt": "வெளியில் ஓட இனிமையான சூழல் ({t}°C). சிறந்த காற்று தரம் மற்றும் வசதியான வெப்பநிலை.",
+    "lifestyle.desc_fitness_heat": "அதிக வெப்பம் மற்றும் உடல் சோர்வு அபாயம். உட்புற உடற்பயிற்சி அல்லது குளிர்சாதன ஜிம்மிற்கு மாறவும்.",
+    "lifestyle.desc_fitness_caution": "மிதமான வெப்பம் மற்றும் ஈரப்பதம். உடற்பயிற்சிக்கு முன்னும் பின்னும் போதுமான அளவு தண்ணீர் குடிக்கவும்.",
+    "lifestyle.desc_harvest_opt": "வறண்ட வானிலை மற்றும் நல்ல சூரிய ஒளி. பயிர் அறுவடை மற்றும் களம் உலர்த்துவதற்கு பாதுகாப்பான நேரம்.",
+    "lifestyle.desc_harvest_rain": "மழை பெய்ய வாய்ப்புள்ளது. தானியங்கள் பாழாகாமல் இருக்க அறுவடை செய்த பயிர்களை உடனடியாக தார்பாய் கொண்டு மூடவும்.",
+    "lifestyle.desc_harvest_caution": "அதிக ஈரப்பதம் உலர்தலை மெதுவாக்கலாம். சீராக உலர தானியக் குவியல்களை அடிக்கடி திருப்பிவிடவும்.",
+    "lifestyle.desc_umbrella_low": "மழை பெய்ய மிகக் குறைந்த வாய்ப்பு. வழக்கமான வெளிப்புற பணிகளுக்கு குடை தேவையில்லை.",
+    "lifestyle.desc_umbrella_mid": "ஆங்காங்கே லேசான மழை பெய்ய வாய்ப்புள்ளது. பையில் ஒரு சிறிய மடிப்பு குடையை வைத்திருக்கவும்.",
+    "lifestyle.desc_umbrella_high": "மழை பெய்ய அதிக சாத்தியக்கூறு. உறுதியான குடை மற்றும் மழைக்கால காலணிகளை எடுத்துச் செல்லவும்."
   },
   "hi": {
     "alerts.coastal_warning_desc": "तटीय चेतावनी जारी। मछुआरों को गहरे समुद्र में न जाने की सलाह दी गई है।",
@@ -843,7 +991,7 @@ const I18N_DICT = {
     "auth.welcome.signup": "खाता बनाएं",
     "auth.welcome.tagline": "साफ आसमान। उज्जवल दिन।",
     "auth.welcome.title": "स्काईज़ेन.",
-    "brand.grounded": "पृथ्वी विज्ञान मंत्रालय और आईएमडी आधारित",
+    "brand.grounded": "मौसम बुद्धिमत्ता सक्रिय",
     "brand.name": "स्काईज़ेन",
     "brand.subtitle": "मौसम जीपीटी पृथ्वी विज्ञान मंत्रालय आईएमडी निर्णय इंजन",
     "brand.tagline": "व्यक्तिगत मौसम बुद्धिमत्ता",
@@ -904,13 +1052,6 @@ const I18N_DICT = {
     "climate.trend_desc_2": "दशक भर में उच्च तीव्रता वाले मानसूनी वर्षा की घटनाओं में वृद्धि के साथ।",
     "climate.trend_title": "10-वर्षीय तापमान रुझान (2015 – 2025)",
     "common.save": "सहेजें",
-    "copilot.ask_followup": "पूर्ण एआई चैट में आगे पूछें",
-    "copilot.briefing_tag": "दैनिक ऑडियो ब्रीफिंग",
-    "copilot.briefing_title": "स्थानीयकृत मौसम सारांश सुनें",
-    "copilot.guidance": "त्वरित कार्रवाई योग्य मार्गदर्शन:",
-    "copilot.play": "ब्रीफिंग चलाएं",
-    "copilot.subtitle": "पृथ्वी विज्ञान मंत्रालय और आईएमडी निर्णय बुद्धिमत्ता",
-    "copilot.title": "स्काईज़ेन एआई सह-पायलट",
     "dashboard.advisories": "एआई सलाह",
     "dashboard.ask_skyzen": "स्काईज़ेन से पूछें",
     "dashboard.ask_sub": "अपनी दैनिक योजनाओं के लिए मौसम संबंधी उत्तर प्राप्त करें",
@@ -1043,7 +1184,6 @@ const I18N_DICT = {
     "more.tools_heading": "मौसम खुफिया उपकरण",
     "more.travel_item": "अंतर-जिला यात्रा सलाह",
     "nav.ai": "एआई",
-    "nav.ai_copilot": "एआई सह-पायलट",
     "nav.alerts": "अलर्ट",
     "nav.aqi": "एक्यूआई",
     "nav.back_to_home": "होम पर वापस जाएं",
@@ -1103,6 +1243,9 @@ const I18N_DICT = {
     "role.general_desc": "सामान्य उपयोगकर्ता — दैनिक मौसम अवलोकन",
     "role.student_desc": "छात्र — दैनिक आवागमन और परिसर का मौसम",
     "role.traveller": "यात्री",
+    "search.clear": "खोज साफ़ करें",
+    "search.placeholder": "शहर या जिला खोजें (जैसे कोयंबटूर, दिल्ली)...",
+    "search.recent_popular": "प्रमुख शहर",
     "settings.about_title": "स्काईज़ेन संस्करण 1.0.0 के बारे में",
     "settings.custom_backend_label": "कस्टम बैकएंड यूआरएल",
     "settings.env_custom_server": "कस्टम उत्पादन सर्वर (सुरक्षित)...",
@@ -1117,6 +1260,8 @@ const I18N_DICT = {
     "settings.logout": "साइन आउट",
     "settings.moes_imd_full": "पृथ्वी विज्ञान मंत्रालय (पृथ्वी विज्ञान मंत्रालय) / भारत मौसम विज्ञान विभाग (आईएमडी)",
     "settings.notifications": "आपातकालीन चेतावनियां और एफसीएम सूचनाएं",
+    "settings.persona_hint": "जीवनशैली सुझावों और मौसम अनुशंसाओं को अनुकूलित करता है।",
+    "settings.persona_label": "भूमिका / मौसम व्यक्तित्व",
     "settings.profile_desc": "नाम, भूमिका और भाषा प्रबंधित करें",
     "settings.profile_persona": "प्रोफ़ाइल और भूमिका",
     "settings.push_active": "सक्रिय (एफसीएम)",
@@ -1141,7 +1286,84 @@ const I18N_DICT = {
     "weather.offline": "नेटवर्क ऑफ़लाइन है। सहेजा गया मौसम डेटा दिखा रहा है।",
     "weather.today_hourly": "आज का प्रति घंटा पूर्वानुमान",
     "weather.today_sub": "24-घंटे का क्षितिज",
-    "weather.tomorrow_hourly": "कल का प्रति घंटा पूर्वानुमान"
+    "weather.tomorrow_hourly": "कल का प्रति घंटा पूर्वानुमान",
+    "dashboard.now": "अब",
+    "chat.reasoning": "स्काईज़ेन मौसम डेटा का विश्लेषण कर रहा है",
+    "chat.chip_rain_query": "क्या कल बारिश होगी?",
+    "chat.chip_college_query": "क्या आज कॉलेज जा सकते हैं?",
+    "chat.chip_bike_query": "क्या बाइक ले जाऊं?",
+    "chat.chip_umbrella_query": "क्या छाते की जरूरत है?",
+    "lifestyle.unavailable": "सीमित मौसम टेलीमेट्री के कारण जीवनशैली संबंधी सुझाव उपलब्ध नहीं हैं।",
+    "lifestyle.cat_home_daily": "घर और दैनिक",
+    "lifestyle.cat_agriculture": "कृषि",
+    "lifestyle.cat_commute": "आवागमन",
+    "lifestyle.cat_transit": "पारगमन",
+    "lifestyle.cat_fitness": "फिटनेस और खेल",
+    "lifestyle.cat_farming": "खेती",
+    "lifestyle.cat_daily_life": "दैनिक जीवन",
+    "lifestyle.title_laundry": "बाहर कपड़े सुखाना",
+    "lifestyle.title_spray": "कीटनाशक छिड़काव समय",
+    "lifestyle.title_bike": "दोपहिया और बाइक सुरक्षा",
+    "lifestyle.title_flood": "सड़क जलभराव और सबवे",
+    "lifestyle.title_fitness": "बाहरी दौड़ और जॉगिंग",
+    "lifestyle.title_harvest": "फसल कटाई और धूप में सुखाना",
+    "lifestyle.title_umbrella": "छाता आवश्यकता स्कोर",
+    "lifestyle.status_fast_dry": "तेज़ी से सूखेंगे",
+    "lifestyle.status_indoor_drying": "अंदर सुखाने की सलाह",
+    "lifestyle.status_slow_dry": "धीमी सुखाई (~4-5 घंटे)",
+    "lifestyle.status_ideal_spray": "छिड़काव के लिए आदर्श समय",
+    "lifestyle.status_no_spray": "आज छिड़काव न करें",
+    "lifestyle.status_drift_caution": "मध्यम हवा बहाव सावधानी",
+    "lifestyle.status_smooth_ride": "सुगम यात्रा",
+    "lifestyle.status_skid_risk": "फिसलन का उच्च जोखिम",
+    "lifestyle.status_wet_asphalt": "गीली सड़क सावधानी",
+    "lifestyle.status_clear_roads": "साफ़ सड़कें",
+    "lifestyle.status_waterlogging": "जलभराव की संभावना",
+    "lifestyle.status_spot_puddles": "सड़क पर छोटे गड्ढे/पानी",
+    "lifestyle.status_great_workout": "उत्कृष्ट वर्कआउट समय",
+    "lifestyle.status_indoor_cardio": "घर के अंदर व्यायाम अनुशंसित",
+    "lifestyle.status_hydration_caution": "जलयोजन सावधानी",
+    "lifestyle.status_safe_harvest": "कटाई के लिए सुरक्षित",
+    "lifestyle.status_delay_harvest": "कटाई स्थगित करें / उपज ढकें",
+    "lifestyle.status_monitor_grain": "अनाज की नमी की निगरानी करें",
+    "lifestyle.status_not_needed": "आवश्यकता नहीं",
+    "lifestyle.status_keep_in_bag": "बैग में रखें",
+    "lifestyle.status_must_carry": "अवश्य साथ रखें",
+    "lifestyle.metric_drying_index": "सुखाने का सूचकांक",
+    "lifestyle.metric_wind_runoff": "हवा और बहाव",
+    "lifestyle.metric_road_traction": "सड़क कर्षण",
+    "lifestyle.metric_drainage_risk": "जल निकासी जोखिम",
+    "lifestyle.metric_heat_index": "ताप सूचकांक",
+    "lifestyle.metric_solar_radiation": "सौर विकिरण",
+    "lifestyle.metric_rain_prob": "बारिश की संभावना",
+    "lifestyle.unit_hrs": "घंटे",
+    "lifestyle.unit_rain": "बारिश",
+    "lifestyle.unit_wind": "हवा",
+    "lifestyle.unit_hum": "नमी",
+    "lifestyle.val_high_severe": "उच्च (गंभीर चेतावनी)",
+    "lifestyle.val_normal": "सामान्य",
+    "lifestyle.desc_laundry_opt": "कपड़े बाहर सुखाने के लिए आदर्श स्थिति। कपड़े लगभग {h} घंटे में सूख जाएंगे।",
+    "lifestyle.desc_laundry_rain": "बारिश की संभावना है। कपड़े घर के अंदर या ढकी हुई बालकनी में सुखाएं।",
+    "lifestyle.desc_laundry_slow": "हवा में अधिक नमी। सूखने में अधिक समय लगेगा (~4-5 घंटे); अच्छे वेंटिलेशन की आवश्यकता है।",
+    "lifestyle.desc_spray_opt": "धीमी हवा और बारिश का कोई खतरा नहीं। फसल पर छिड़काव के लिए आदर्श समय।",
+    "lifestyle.desc_spray_rain": "तेज़ बहाव और बहाव का जोखिम। दवा की बर्बादी रोकने के लिए छिड़काव टालें।",
+    "lifestyle.desc_spray_caution": "हवा चल रही है। बहाव-रोधी नोजल का उपयोग करें या सुबह जल्दी छिड़काव करें।",
+    "lifestyle.desc_commute_opt": "सूखी सड़कें और अच्छा दृश्य। दोपहिया वाहन चलाने के लिए सुरक्षित स्थिति।",
+    "lifestyle.desc_commute_rain": "फिसलन भरी सड़क और कम घर्षण। गति धीमी रखें और सुरक्षित दूरी बनाए रखें।",
+    "lifestyle.desc_commute_caution": "सड़क की सतह गीली है। मोड़ों पर और अचानक ब्रेक लगाने में सावधानी बरतें।",
+    "lifestyle.desc_flood_opt": "सबवे और प्रमुख सड़कें साफ हैं। सामान्य यातायात की उम्मीद है।",
+    "lifestyle.desc_flood_alert": "गंभीर चेतावनी सक्रिय: निचले इलाकों और सबवे में जलभराव की संभावना। वैकल्पिक मार्ग चुनें।",
+    "lifestyle.desc_flood_heavy": "भारी बारिश का जोखिम। जलभराव वाले अंडरपास से बचें।",
+    "lifestyle.desc_flood_caution": "सड़क किनारे पानी जमा हो सकता है। पानी में छिपे गड्ढों से सावधान रहें।",
+    "lifestyle.desc_fitness_opt": "दौड़ने के लिए सुखद मौसम ({t}°C)। उत्तम वायु गुणवत्ता और अनुकूल तापमान।",
+    "lifestyle.desc_fitness_heat": "अत्यधिक गर्मी और थकान का जोखिम। इनडोर वर्कआउट या जिम का विकल्प चुनें।",
+    "lifestyle.desc_fitness_caution": "गर्म और उमस भरा मौसम। कसरत से पहले, दौरान और बाद में पर्याप्त पानी पिएं।",
+    "lifestyle.desc_harvest_opt": "शुष्क मौसम और तेज धूप। फसल कटाई और अनाज को धूप में सुखाने के लिए सुरक्षित समय।",
+    "lifestyle.desc_harvest_rain": "बारिश का खतरा। फसल को भीगने से बचाने के लिए तिरपाल से तुरंत ढकें।",
+    "lifestyle.desc_harvest_caution": "अधिक नमी के कारण सूखने में समय लग सकता है। अनाज को बराबर सुखाने के लिए पलटते रहें।",
+    "lifestyle.desc_umbrella_low": "बारिश की बहुत कम संभावना। सामान्य बाहरी कामों के लिए छाते की जरूरत नहीं है।",
+    "lifestyle.desc_umbrella_mid": "कहीं-कहीं हल्की बारिश संभव है। अपने बैग में एक छोटा छाता जरूर रखें।",
+    "lifestyle.desc_umbrella_high": "बारिश की अधिक संभावना। मजबूत छाता साथ रखें और वाटरप्रूफ जूते पहनें।"
   }
 };
 
@@ -1271,6 +1493,38 @@ const DYNAMIC_LABELS = {
     "ta": "காற்று தர மாதிரி:",
     "hi": "वायु गुणवत्ता मॉडल:"
   },
+  "CURRENT LIVE LOCATION": {
+    "ta": "தற்போதைய நேரலை இருப்பிடம்",
+    "hi": "वर्तमान लाइव स्थान"
+  },
+  "LAST KNOWN LOCATION": {
+    "ta": "கடைசியாக அறியப்பட்ட இருப்பிடம்",
+    "hi": "अंतिम ज्ञात स्थान"
+  },
+  "PERMISSION DENIED": {
+    "ta": "அனுமதி மறுக்கப்பட்டது",
+    "hi": "अनुमति अस्वीकृत"
+  },
+  "GPS UNAVAILABLE": {
+    "ta": "ஜிபிஎஸ் கிடைக்கவில்லை",
+    "hi": "जीपीएस अनुपलब्ध"
+  },
+  "GPS TIMEOUT": {
+    "ta": "ஜிபிஎஸ் காலாவதியானது",
+    "hi": "जीपीएस समय समाप्त"
+  },
+  "COORDINATES ONLY": {
+    "ta": "ஒருங்கிணைப்புகள் மட்டும்",
+    "hi": "केवल निर्देशांक"
+  },
+  "MANUAL LOCATION": {
+    "ta": "கைமுறை இருப்பிடம்",
+    "hi": "मैन्युअल स्थान"
+  },
+  "Visibility": {
+    "ta": "பார்வை தூரம்",
+    "hi": "दृश्यता"
+  },
   "Fresh Telemetry": {
     "ta": "புதிய தரவு",
     "hi": "ताज़ा डेटा"
@@ -1334,6 +1588,334 @@ const DYNAMIC_LABELS = {
   "CPCB Ground Monitoring API Not Configured": {
     "ta": "சிபிசிபி தரை கண்காணிப்பு ஏபிஐ கட்டமைக்கப்படவில்லை",
     "hi": "सीपीसीबी ग्राउंड मॉनिटरिंग एपीआई कॉन्फ़िगर नहीं है"
+  },
+  "Today": {
+    "ta": "இன்று",
+    "hi": "आज"
+  },
+  "Tomorrow": {
+    "ta": "நாளை",
+    "hi": "कल"
+  },
+  "Wednesday": {
+    "ta": "புதன்",
+    "hi": "बुधवार"
+  },
+  "Thursday": {
+    "ta": "வியாழன்",
+    "hi": "गुरुवार"
+  },
+  "Friday": {
+    "ta": "வெள்ளி",
+    "hi": "शुक्रवार"
+  },
+  "Saturday": {
+    "ta": "சனி",
+    "hi": "शनिवार"
+  },
+  "Sunday": {
+    "ta": "ஞாயிறு",
+    "hi": "रविवार"
+  },
+  "Monday": {
+    "ta": "திங்கள்",
+    "hi": "सोमवार"
+  },
+  "Tuesday": {
+    "ta": "செவ்வாய்",
+    "hi": "मंगलवार"
+  },
+  "Partly Cloudy": {
+    "ta": "பகுதி மேகமூட்டம்",
+    "hi": "आंशिक रूप से बादल"
+  },
+  "Moderate Rain": {
+    "ta": "மிதமான மழை",
+    "hi": "मध्यम बारिश"
+  },
+  "Scattered Showers": {
+    "ta": "சிதறிய மழை",
+    "hi": "छिटपुट बौछारें"
+  },
+  "Sunny": {
+    "ta": "வெயில்",
+    "hi": "धूप"
+  },
+  "Thunderstorm": {
+    "ta": "இடியுடன் கூடிய மழை",
+    "hi": "गरज के साथ बारिश"
+  },
+  "Cloudy": {
+    "ta": "மேகமூட்டம்",
+    "hi": "बादल छाए रहेंगे"
+  },
+  "Clear Skies": {
+    "ta": "தெளிவான வானம்",
+    "hi": "साफ़ आसमान"
+  },
+  "Clear": {
+    "ta": "தெளிவான வானம்",
+    "hi": "साफ़"
+  },
+  "Rain": {
+    "ta": "மழை",
+    "hi": "बारिश"
+  },
+  "Heavy Rain": {
+    "ta": "கனமழை",
+    "hi": "भारी बारिश"
+  },
+  "Drizzle": {
+    "ta": "தூறல்",
+    "hi": "बूंदाबांदी"
+  },
+  "Light Rain": {
+    "ta": "லேசான மழை",
+    "hi": "हल्की बारिश"
+  },
+  "Overcast": {
+    "ta": "முழு மேகமூட்டம்",
+    "hi": "घने बादल"
+  },
+  "Mist": {
+    "ta": "பனிமூட்டம்",
+    "hi": "धुंध"
+  },
+  "Haze": {
+    "ta": "புகைமூட்டம்",
+    "hi": "धुंध"
+  },
+  "Heavy Rain Underway": {
+    "ta": "கனமழை பெய்து கொண்டிருக்கிறது",
+    "hi": "भारी बारिश जारी है"
+  },
+  "Light Rain Continuing": {
+    "ta": "லேசான மழை தொடர்கிறது",
+    "hi": "हल्की बारिश जारी है"
+  },
+  "Rain Expected in ~18 Min": {
+    "ta": "~18 நிமிடங்களில் மழை எதிர்பார்க்கப்படுகிறது",
+    "hi": "~18 मिनट में बारिश की संभावना"
+  },
+  "Low Chance of Light Drizzle": {
+    "ta": "லேசான தூறலுக்கான குறைந்த வாய்ப்பு",
+    "hi": "हल्की बूंदाबांदी की कम संभावना"
+  },
+  "Clear & Dry Next 60 Minutes": {
+    "ta": "அடுத்த 60 நிமிடங்களுக்கு தெளிவான வானிலை",
+    "hi": "अगले 60 मिनट साफ़ और शुष्क"
+  },
+  "MODELLED NOWCAST PROJECTION": {
+    "ta": "கணிக்கப்பட்ட நேரடி முன்னறிவிப்பு",
+    "hi": "मॉडल किया गया नाउकास्ट प्रक्षेपण"
+  },
+  "IMD WARNING ACTIVE": {
+    "ta": "ஐஎம்டி எச்சரிக்கை செயலில் உள்ளது",
+    "hi": "आईएमडी चेतावनी सक्रिय"
+  },
+  "WEATHER WARNING ACTIVE": {
+    "ta": "வானிலை எச்சரிக்கை செயலில் உள்ளது",
+    "hi": "मौसम चेतावनी सक्रिय"
+  },
+  "Home & Daily": {
+    "ta": "வீடு & தினசரி",
+    "hi": "घर और दैनिक"
+  },
+  "Agriculture": {
+    "ta": "விவசாயம்",
+    "hi": "कृषि"
+  },
+  "Commute": {
+    "ta": "பயணம்",
+    "hi": "आवागमन"
+  },
+  "Transit": {
+    "ta": "போக்குவரத்து",
+    "hi": "पारगमन"
+  },
+  "Fitness & Sport": {
+    "ta": "உடற்பயிற்சி & விளையாட்டு",
+    "hi": "फिटनेस और खेल"
+  },
+  "Farming": {
+    "ta": "பண்ணை & விவசாயம்",
+    "hi": "खेती"
+  },
+  "Daily Life": {
+    "ta": "தினசரி வாழ்க்கை",
+    "hi": "दैनिक जीवन"
+  },
+  "Outdoor Laundry Drying": {
+    "ta": "வெளியில் துணி உலர்த்துதல்",
+    "hi": "बाहर कपड़े सुखाना"
+  },
+  "Pesticide Spray Window": {
+    "ta": "பூச்சிக்கொல்லி தெளிப்பு நேரம்",
+    "hi": "कीटनाशक छिड़काव समय"
+  },
+  "Two-Wheeler & Bike Safety": {
+    "ta": "இருசக்கர வாகன பாதுகாப்பு",
+    "hi": "दोपहिया और बाइक सुरक्षा"
+  },
+  "Road Flooding & Subways": {
+    "ta": "சாலை வெள்ளம் & சுரங்கப்பாதைகள்",
+    "hi": "सड़क जलभराव और सबवे"
+  },
+  "Outdoor Running & Jogging": {
+    "ta": "வெளியில் ஓட்டம் & நடைபயிற்சி",
+    "hi": "बाहरी दौड़ और जॉगिंग"
+  },
+  "Crop Harvest & Sun-Drying": {
+    "ta": "பயிர் அறுவடை & களம் உலர்த்துதல்",
+    "hi": "फसल कटाई और धूप में सुखाना"
+  },
+  "Umbrella Necessity Score": {
+    "ta": "குடை தேவை மதிப்பீடு",
+    "hi": "छाता आवश्यकता स्कोर"
+  },
+  "Fast Dry": {
+    "ta": "விரைவில் உலரும்",
+    "hi": "तेज़ी से सूखेंगे"
+  },
+  "Indoor Drying Advised": {
+    "ta": "உள்ளே உலர்த்த பரிந்துரை",
+    "hi": "अंदर सुखाने की सलाह"
+  },
+  "Slow Dry (~4-5h)": {
+    "ta": "மெதுவாக உலரும் (~4-5 மணி)",
+    "hi": "धीमी सुखाई (~4-5 घंटे)"
+  },
+  "Ideal Spray Window": {
+    "ta": "தெளிக்க உகந்த நேரம்",
+    "hi": "छिड़काव के लिए आदर्श समय"
+  },
+  "Do Not Spray Today": {
+    "ta": "இன்று தெளிக்க வேண்டாம்",
+    "hi": "आज छिड़काव न करें"
+  },
+  "Moderate Drift Caution": {
+    "ta": "மிதமான காற்று எச்சரிக்கை",
+    "hi": "मध्यम हवा बहाव सावधानी"
+  },
+  "Smooth Ride": {
+    "ta": "சீரான பயணம்",
+    "hi": "सुगम यात्रा"
+  },
+  "High Skidding Risk": {
+    "ta": "வழுக்கும் அபாயம் அதிகம்",
+    "hi": "फिसलन का उच्च जोखिम"
+  },
+  "Wet Asphalt Caution": {
+    "ta": "ஈரமான சாலை எச்சரிக்கை",
+    "hi": "गीली सड़क सावधानी"
+  },
+  "Clear Roads": {
+    "ta": "தெளிவான சாலைகள்",
+    "hi": "साफ़ सड़कें"
+  },
+  "Waterlogging Probable": {
+    "ta": "நீர் தேங்க வாய்ப்பு",
+    "hi": "जलभराव की संभावना"
+  },
+  "Spot Puddles": {
+    "ta": "சாலைகளில் சிறு நீர்நிலைகள்",
+    "hi": "सड़क पर छोटे गड्ढे/पानी"
+  },
+  "Great Workout Window": {
+    "ta": "சிறந்த உடற்பயிற்சி நேரம்",
+    "hi": "उत्कृष्ट वर्कआउट समय"
+  },
+  "Indoor Cardio Recommended": {
+    "ta": "உள்ளரங்க உடற்பயிற்சி சிறந்தது",
+    "hi": "घर के अंदर व्यायाम अनुशंसित"
+  },
+  "Hydration Caution": {
+    "ta": "நீரேற்ற எச்சரிக்கை",
+    "hi": "जलयोजन सावधानी"
+  },
+  "Safe for Harvest": {
+    "ta": "அறுவடைக்கு பாதுகாப்பானது",
+    "hi": "कटाई के लिए सुरक्षित"
+  },
+  "Delay Harvest / Cover Produce": {
+    "ta": "அறுவடையை தள்ளிப்போடுக / பயிரை மூடுக",
+    "hi": "कटाई स्थगित करें / उपज ढकें"
+  },
+  "Monitor Grain Moisture": {
+    "ta": "தானிய ஈரப்பதத்தை கண்காணிக்கவும்",
+    "hi": "अनाज की नमी की निगरानी करें"
+  },
+  "Not Needed": {
+    "ta": "தேவையில்லை",
+    "hi": "आवश्यकता नहीं"
+  },
+  "Keep in Bag": {
+    "ta": "பையில் வைத்திருக்கவும்",
+    "hi": "बैग में रखें"
+  },
+  "Must Carry": {
+    "ta": "கட்டாயம் எடுத்துச் செல்லவும்",
+    "hi": "अवश्य साथ रखें"
+  },
+  "Drying Index": {
+    "ta": "உலர்த்தல் குறியீடு",
+    "hi": "सुखाने का सूचकांक"
+  },
+  "Wind & Runoff": {
+    "ta": "காற்று & மழைநீர் ஓட்டம்",
+    "hi": "हवा और बहाव"
+  },
+  "Road Traction": {
+    "ta": "சாலை பிடிப்பு",
+    "hi": "सड़क कर्षण"
+  },
+  "Drainage Risk": {
+    "ta": "வடிகால் ஆபத்து",
+    "hi": "जल निकासी जोखिम"
+  },
+  "Heat Index": {
+    "ta": "வெப்பக் குறியீடு",
+    "hi": "ताप सूचकांक"
+  },
+  "Solar Radiation": {
+    "ta": "சூரிய கதிர்வீச்சு",
+    "hi": "सौर विकिरण"
+  },
+  "Rain Probability": {
+    "ta": "மழை சாத்தியக்கூறு",
+    "hi": "बारिश की संभावना"
+  },
+  "hrs": {
+    "ta": "மணி",
+    "hi": "घंटे"
+  },
+  "rain": {
+    "ta": "மழை",
+    "hi": "बारिश"
+  },
+  "wind": {
+    "ta": "காற்று",
+    "hi": "हवा"
+  },
+  "hum": {
+    "ta": "ஈரப்பதம்",
+    "hi": "नमी"
+  },
+  "High (Severe Alert)": {
+    "ta": "அதிகம் (தீவிர எச்சரிக்கை)",
+    "hi": "उच्च (गंभीर चेतावनी)"
+  },
+  "Normal": {
+    "ta": "இயல்பு",
+    "hi": "सामान्य"
+  },
+  "Active": {
+    "ta": "செயலில்",
+    "hi": "सक्रिय"
+  },
+  "Offline Cached Record": {
+    "ta": "ஆஃப்லைன் சேமிக்கப்பட்ட பதிவு",
+    "hi": "ऑफ़लाइन सहेजा गया रिकॉर्ड"
   }
 };
 
@@ -1383,9 +1965,15 @@ window.I18N = {
     const lang = this.currentLanguage;
     if (lang === "en") return label;
     
-    const entry = DYNAMIC_LABELS[label];
-    if (entry && entry[lang]) {
-      return entry[lang];
+    const trimmed = String(label).trim();
+    if (DYNAMIC_LABELS[trimmed] && DYNAMIC_LABELS[trimmed][lang]) {
+      return DYNAMIC_LABELS[trimmed][lang];
+    }
+    const lower = trimmed.toLowerCase();
+    for (const [k, v] of Object.entries(DYNAMIC_LABELS)) {
+      if (k.toLowerCase() === lower && v[lang]) {
+        return v[lang];
+      }
     }
     return label;
   },
@@ -1436,6 +2024,27 @@ window.I18N = {
           } else {
             el.textContent = text;
           }
+        }
+      }
+    });
+
+    // Ensure all bottom navigation and sidebar items are guaranteed translated by data-screen
+    const screenKeyMap = {
+      'home': 'nav.home',
+      'map': 'nav.radar',
+      'alerts': 'nav.alerts',
+      'weather': 'nav.forecast',
+      'chat': 'nav.ai',
+      'air-quality': 'nav.aqi',
+      'settings': 'nav.settings'
+    };
+    document.querySelectorAll('.app-bottom-nav [data-screen], .sidebar-nav-group [data-screen]').forEach(btn => {
+      const screen = btn.getAttribute('data-screen');
+      const key = screenKeyMap[screen];
+      if (key && dict[key]) {
+        const label = btn.querySelector('.nav-label') || Array.from(btn.querySelectorAll('span')).find(s => !s.classList.contains('material-symbols-rounded'));
+        if (label) {
+          label.textContent = dict[key];
         }
       }
     });

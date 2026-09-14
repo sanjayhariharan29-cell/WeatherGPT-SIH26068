@@ -109,7 +109,7 @@ class PersonalDecisionEngine:
 
         # 9. General "Can I go?" decisions
         if intent_str == "outdoor_activity" or any(k in clean for k in [
-            "can i go", "should i go", "safe to go", "pogalama", "polama", "poga mudiyuma",
+            "can i go", "should i go", "safe to go", "is it safe", "pogalama", "polama", "poga mudiyuma",
             "போகலாமா", "போலாமா", "செல்லலாமா", "ja sakte", "jaana chahiye", "जा सकते"
         ]):
             return DecisionTypeEnum.GENERAL_GO
@@ -175,7 +175,10 @@ class PersonalDecisionEngine:
         if hazard_names:
             reasons.append(f"Active hazard signals: {', '.join(hazard_names[:2])}")
 
-        effective_loc = reasoning.location if reasoning.location != "Unknown" else (getattr(nlu.entities, "location", None) if nlu and nlu.entities else "your area")
+        loc_candidate = reasoning.location if (reasoning and reasoning.location and reasoning.location != "Unknown") else None
+        if not loc_candidate and nlu and nlu.entities and getattr(nlu.entities, "location", None):
+            loc_candidate = nlu.entities.location
+        effective_loc = loc_candidate or "your area"
         time_window = "today"
         if nlu and nlu.entities:
             time_window = nlu.entities.time or nlu.entities.date or "today"
@@ -267,7 +270,7 @@ class PersonalDecisionEngine:
             verdict = DecisionVerdictEnum.NOT_RECOMMENDED
             action = f"Weather data is currently unavailable for {loc}. Unable to verify safe travel conditions."
             primary = "Verified weather observations unavailable"
-            ans_en = f"I cannot verify safe travel conditions for college because current weather data is unavailable for {loc}. Please check official local forecasts before traveling."
+            ans_en = f"I cannot verify safe commute conditions for college because current weather data is unavailable for {loc}. Please check official local forecasts before traveling."
             ans_ta = f"{loc} பகுதிக்கான வானிலை தரவு கிடைக்கவில்லை. கல்லூரிக்குச் செல்வதற்கு முன் உள்ளூர் அறிவிப்புகளைச் சரிபார்க்கவும்."
             ans_hi = f"{loc} के लिए मौसम डेटा उपलब्ध नहीं है। कॉलेज जाने से पहले स्थानीय मौसम की पुष्टि करें।"
             precautions = ["Check official IMD portal or college announcements", "Do not assume unverified conditions are clear"]
@@ -277,7 +280,7 @@ class PersonalDecisionEngine:
             verdict = DecisionVerdictEnum.NOT_RECOMMENDED
             action = f"Weather telemetry for {loc} is stale ({ev.data_age_minutes} minutes old). Exercise caution and verify current conditions."
             primary = f"Stale weather telemetry ({ev.data_age_minutes}m old)"
-            ans_en = f"Weather telemetry is stale ({ev.data_age_minutes} minutes old) for {loc}. Check current conditions before heading to college."
+            ans_en = f"Weather telemetry is stale ({ev.data_age_minutes} minutes old) for {loc}. Check current conditions before your commute to college."
             ans_ta = f"{loc} வானிலை தகவல் காலாவதியானது ({ev.data_age_minutes} நிமிடங்கள் பழமையானது). கல்லூரி புறப்படுவதற்கு முன் நேரலை நிலவரங்களைச் சரிபார்க்கவும்."
             ans_hi = f"{loc} में मौसम डेटा पुराना ({ev.data_age_minutes} मिनट पुराना) है। कॉलेज निकलने से पहले वर्तमान स्थिति की जांच करें।"
             precautions = ["Check real-time radar or local weather updates", "Carry rain gear as precaution"]
@@ -285,11 +288,11 @@ class PersonalDecisionEngine:
         # 3. Active Severe Warning or Extreme/High Hazard
         elif has_warning or reasoning.overall_risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
             verdict = DecisionVerdictEnum.CAUTION
-            action = f"Check official college notices before leaving. Official IMD alert is active ({ev.active_warnings[0] if ev.active_warnings else 'Adverse Weather'}). Carry waterproof protection."
+            action = f"Check official college notices before departing {loc} for your commute. Official IMD alert is active ({ev.active_warnings[0] if ev.active_warnings else 'Adverse Weather'}). Carry waterproof protection due to elevated rain risk."
             primary = "Active official severe weather alert in effect"
-            ans_en = f"You should check official college notices before departing {loc}. An active IMD warning is in effect. Avoid non-essential transit through waterlogged corridors, and carry waterproof rain gear."
-            ans_ta = f"{loc} பகுதியில் அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுவதால் கல்லூரி நிர்வாகத்தின் அறிவிப்புகளைச் சரிபார்க்கவும். நீர் தேங்கிய சாலைகளைத் தவிர்க்கவும், குடை அல்லது ரெயின்கோட் எடுத்துச் செல்லவும்."
-            ans_hi = f"{loc} में आधिकारिक IMD चेतावनी सक्रिय होने के कारण कॉलेज निकलने से पहले आधिकारिक सूचना देखें। जलभराव वाले रास्तों से बचें और छाता या रेनकोट साथ रखें।"
+            ans_en = f"You should check official college notices before departing {loc} for your commute. An active IMD warning is in effect. Avoid non-essential transit through waterlogged corridors, and carry waterproof rain gear due to elevated rain risk."
+            ans_ta = f"{loc} பகுதியில் அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுவதால் கல்லூரி பயணத்திற்கு முன் நிர்வாகத்தின் அறிவிப்புகளைச் சரிபார்க்கவும். நீர் தேங்கிய சாலைகளைத் தவிர்க்கவும், குடை அல்லது ரெயின்கோட் எடுத்துச் செல்லவும்."
+            ans_hi = f"{loc} में आधिकारिक IMD चेतावनी सक्रिय होने के कारण कॉलेज यात्रा से पहले आधिकारिक सूचना देखें। जलभराव वाले रास्तों से बचें और छाता या रेनकोट साथ रखें।"
             precautions = ["Check official institutional announcements", "Carry waterproof bag and raincoat", "Avoid flooded low-lying underpasses"]
 
         else:
@@ -323,7 +326,7 @@ class PersonalDecisionEngine:
                     verdict = DecisionVerdictEnum.CAUTION
                     action = f"I'd be more careful on the way back. Rain risk is higher around {ret_time_display}, so carry an umbrella."
                     primary = f"Higher rain risk around {ret_time_display} ({ret_rain:.0f}% chance)"
-                    ans_en = f"I'd be more careful on the way back. Rain risk is higher around {ret_time_display}, so carry an umbrella."
+                    ans_en = f"I'd be more careful on the way back. Rain risk is higher around {ret_time_display} for your commute, so carry an umbrella."
                     ans_ta = f"திரும்பி வரும்போது அதிக கவனம் தேவை. {ret_time_display} மணியளவில் மழை வாய்ப்பு அதிகமாக உள்ளதால் குடை எடுத்துச் செல்லவும்."
                     ans_hi = f"वापसी के समय अधिक सावधानी बरतें। {ret_time_display} के आसपास बारिश की संभावना अधिक है, इसलिए छाता साथ रखें।"
                     precautions = [f"Carry an umbrella or raincoat for return trip around {ret_time_display}", "Plan for slower evening commute"]
@@ -331,7 +334,7 @@ class PersonalDecisionEngine:
                     verdict = DecisionVerdictEnum.GO
                     action = f"Yes, safe to attend college, but carry an umbrella or raincoat as rain is likely ({ret_rain:.0f}% chance)."
                     primary = f"Precipitation expected during return window ({ret_rain:.0f}% chance)"
-                    ans_en = f"Yes, you can return safely from college in {loc}, but rain is expected ({ret_rain:.0f}% chance), so carry an umbrella."
+                    ans_en = f"Yes, you can return safely from college in {loc}, but rain is expected ({ret_rain:.0f}% chance), so carry an umbrella for your commute."
                     ans_ta = f"{loc}ல் திரும்பி வரும்போது மழைக்கு வாய்ப்புள்ளது ({ret_rain:.0f}%); குடை எடுத்துச் செல்லவும்."
                     ans_hi = f"{loc} में वापसी के समय बारिश ({ret_rain:.0f}%) की संभावना है, छाता साथ रखें।"
                     precautions = ["Carry an umbrella or raincoat"]
@@ -339,7 +342,7 @@ class PersonalDecisionEngine:
                     verdict = DecisionVerdictEnum.GO
                     action = f"Yes, return trip conditions are clear and dry in {loc}."
                     primary = f"Clear return conditions ({ev.weather_condition})"
-                    ans_en = f"Yes. Your return trip looks clear and fine around {ret_time_display}."
+                    ans_en = f"Yes. Your return commute looks clear and fine around {ret_time_display} with low rain risk."
                     ans_ta = f"ஆம். {ret_time_display} மணியளவில் வானிலை தெளிவாக இருக்கும்."
                     ans_hi = f"हाँ। {ret_time_display} के आसपास वापसी का समय साफ और अनुकूल रहेगा।"
                     precautions = ["Standard commute routine"]
@@ -349,7 +352,7 @@ class PersonalDecisionEngine:
                     verdict = DecisionVerdictEnum.GO
                     action = f"Yes, safe to attend college, but carry an umbrella or raincoat as rain is likely ({max(ret_rain, dep_rain):.0f}% chance). Your morning trip looks fine based on the available forecast."
                     primary = f"Precipitation expected during commute window ({max(ret_rain, dep_rain):.0f}% chance)"
-                    ans_en = "Yes. Your morning trip looks fine based on the available forecast."
+                    ans_en = "Yes. Your morning trip looks fine based on the available forecast, but carry an umbrella for your commute as rain is likely."
                     ans_ta = f"ஆம், இன்று {loc}ல் கல்லூரிக்கு செல்லலாம். ஆனால் பயண நேரத்தில் மழை வாய்ப்புள்ளதால் குடை அல்லது ரெயின்கோட் எடுத்துச் செல்லவும்."
                     ans_hi = f"हाँ, आज {loc} में कॉलेज जा सकते हैं। हालांकि यात्रा के दौरान बारिश की संभावना है, इसलिए छाता या रेनकोट साथ रखें।"
                     precautions = ["Carry an umbrella or raincoat", "Allow a few minutes extra travel time", "Keep electronics in waterproof covers"]
@@ -357,7 +360,7 @@ class PersonalDecisionEngine:
                     verdict = DecisionVerdictEnum.GO
                     action = f"Yes, conditions are clear and safe for your college commute in {loc}. Your morning trip looks fine based on the available forecast."
                     primary = f"Clear and dry conditions ({ev.weather_condition}, {ev.rain_probability:.0f}% rain)"
-                    ans_en = "Yes. Your morning trip looks fine based on the available forecast."
+                    ans_en = "Yes. Your morning trip looks fine based on the available forecast for your commute."
                     ans_ta = f"ஆம், இன்று {loc}ல் கல்லூரிக்கு செல்லலாம். காலை நேர பயணம் கிடைக்கக்கூடிய முன்னறிவிப்பின்படி பாதுகாப்பாக உள்ளது."
                     ans_hi = f"हाँ, आज {loc} में कॉलेज जा सकते हैं। उपलब्ध पूर्वानुमान के आधार पर आपकी सुबह की यात्रा पूरी तरह सुरक्षित है।"
                     precautions = ["Standard commute routine"]
@@ -463,6 +466,14 @@ class PersonalDecisionEngine:
             ans_ta = f"திரும்பி வரும்போது அதிக கவனம் தேவை. {ret_time_display} மணியளவில் மழை வாய்ப்பு அதிகமாக உள்ளதால் குடை எடுத்துச் செல்லவும்."
             ans_hi = f"वापसी के समय अधिक सावधानी बरतें। {ret_time_display} के आसपास बारिश की संभावना अधिक है, इसलिए छाता साथ रखें।"
             precautions = [f"Carry an umbrella or raincoat for return trip around {ret_time_display}", "Watch for slippery roads in the evening"]
+        elif return_worse:
+            verdict = DecisionVerdictEnum.CAUTION
+            action = f"Yes, you can ride your bike for the morning, but rain risk is higher around {ret_time_display} ({ret_rain:.0f}% chance); carry rain gear or an umbrella."
+            primary = f"Higher rain risk around {ret_time_display} ({ret_rain:.0f}% chance)"
+            ans_en = f"Yes for the morning, but rain risk is higher around {ret_time_display} ({ret_rain:.0f}% chance). Carry rain gear or an umbrella for your return trip."
+            ans_ta = f"காலையில் பைக் எடுத்துச் செல்லலாம், ஆனால் {ret_time_display} மணியளவில் மழை வாய்ப்பு அதிகமாக உள்ளது ({ret_rain:.0f}%). திரும்பும் பயணத்திற்கு ரெயின்கோட் எடுத்துச் செல்லவும்."
+            ans_hi = f"सुबह के लिए बाइक ठीक है, लेकिन {ret_time_display} के आसपास बारिश की संभावना ({ret_rain:.0f}%) अधिक है। वापसी के लिए रेनकोट या छाता साथ रखें।"
+            precautions = [f"Carry rain gear or an umbrella for return trip around {ret_time_display}", "Watch for slippery roads in the evening"]
         elif active_rain >= 30.0 or (ev.is_rain_expected and active_rain >= 30.0):
             verdict = DecisionVerdictEnum.CAUTION
             action = f"You can ride your bike, but ride with extra caution in {loc}; carry a raincoat as wet road conditions are likely ({active_rain:.0f}% rain)."
@@ -513,12 +524,16 @@ class PersonalDecisionEngine:
             action = f"Weather data is currently unavailable for {loc}. Cannot verify precipitation risk."
             primary = "Verified weather observations unavailable"
             ans_en = f"Weather observations are currently unavailable for {loc}. Please check official forecasts before deciding."
+            ans_ta = f"{loc} பகுதிக்கான வானிலை விவரங்கள் கிடைக்கவில்லை. முடிவெடுப்பதற்கு முன் அதிகாரப்பூர்வ முன்னறிவிப்புகளைச் சரிபார்க்கவும்."
+            ans_hi = f"{loc} के लिए मौसम डेटा उपलब्ध नहीं है। निर्णय लेने से पहले आधिकारिक पूर्वानुमान देखें।"
             precautions = ["Check official IMD forecast"]
         elif ev.is_stale or reasoning.freshness == FreshnessStatusEnum.STALE or ev.data_age_minutes > 180:
             verdict = DecisionVerdictEnum.RECOMMENDED
             action = f"Weather telemetry is stale for {loc}. Carrying an umbrella is advised as a precaution."
             primary = f"Stale telemetry ({ev.data_age_minutes}m old)"
             ans_en = f"Weather telemetry for {loc} is stale ({ev.data_age_minutes} minutes old). It is safer to carry an umbrella as a precaution."
+            ans_ta = f"{loc} வானிலை தகவல் காலாவதியானது ({ev.data_age_minutes} நிமிடங்கள் பழமையானது). முன்னெச்சரிக்கையாக குடை எடுத்துச் செல்வது பாதுகாப்பானது."
+            ans_hi = f"{loc} में मौसम डेटा पुराना ({ev.data_age_minutes} मिनट पुराना) है। सावधानी के तौर पर छाता साथ रखना बेहतर होगा।"
             precautions = ["Carry an umbrella as a precaution", "Check real-time conditions"]
         else:
             prob = ev.transit_return_prob if (ev.transit_return_prob is not None and ev.transit_return_prob > 0) else ev.rain_probability
@@ -789,11 +804,17 @@ class PersonalDecisionEngine:
 
         if has_warning or reasoning.overall_risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
             verdict = DecisionVerdictEnum.NO_GO
-            action = f"Non-essential highway travel is not recommended in {loc} due to an active IMD alert ({ev.active_warnings[0] if ev.active_warnings else 'Hazard'})."
             primary = "Severe weather travel advisory active"
-            ans_en = f"Non-essential travel is not recommended in {loc} {time_win}. An official IMD weather alert is active. Hazardous highway transit and road waterlogging may occur."
-            ans_ta = f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுவதால் {loc} பகுதியில் அத்தியாவசியமற்ற நீண்ட தூர பயணங்களைத் தவிர்க்கவும்."
-            ans_hi = f"आधिकारिक IMD चेतावनी के कारण {loc} में अनावश्यक यात्रा से बचें। मार्गों पर जलभराव और बाधा की आशंका है।"
+            if has_warning:
+                action = f"Non-essential highway travel is not recommended in {loc} due to an active IMD alert ({ev.active_warnings[0]})."
+                ans_en = f"Non-essential travel is not recommended in {loc} {time_win}. An official IMD weather alert is active. Hazardous highway transit and road waterlogging may occur."
+                ans_ta = f"அதிகாரப்பூர்வ IMD எச்சரிக்கை நிலவுவதால் {loc} பகுதியில் அத்தியாவசியமற்ற நீண்ட தூர பயணங்களைத் தவிர்க்கவும்."
+                ans_hi = f"आधिकारिक IMD चेतावनी के कारण {loc} में अनावश्यक यात्रा से बचें। मार्गों पर जलभराव और बाधा की आशंका है।"
+            else:
+                action = f"Non-essential highway travel is not recommended in {loc} due to heavy rain and thunderstorm conditions."
+                ans_en = f"Non-essential travel is not recommended in {loc} {time_win} due to heavy rain and thunderstorm conditions. Hazardous highway transit and road waterlogging may occur."
+                ans_ta = f"கடுமையான மழை மற்றும் இடியுடன் கூடிய வானிலை நிலவுவதால் {loc} பகுதியில் அத்தியாவசியமற்ற நீண்ட தூர பயணங்களைத் தவிர்க்கவும்."
+                ans_hi = f"भारी बारिश और आंधी की स्थिति के कारण {loc} में अनावश्यक यात्रा से बचें। मार्गों पर जलभराव की आशंका है।"
             precautions = ["Postpone non-essential highway journeys", "Check state highway traffic updates"]
         elif ev.is_rain_expected or ev.rain_probability >= 40.0:
             verdict = DecisionVerdictEnum.CAUTION
@@ -840,15 +861,23 @@ class PersonalDecisionEngine:
         time_win: str,
         dec_type: DecisionTypeEnum = DecisionTypeEnum.GENERAL_GO
     ) -> PersonalDecisionResult:
+        loc = loc or "your area"
         has_warning = len(ev.active_warnings) > 0
 
         if has_warning or reasoning.overall_risk in (RiskLevelEnum.HIGH, RiskLevelEnum.EXTREME):
             verdict = DecisionVerdictEnum.NO_GO
-            action = f"Going outside is not advisable right now in {loc} due to an active weather alert ({ev.active_warnings[0] if ev.active_warnings else 'Severe Weather'})."
-            primary = "Active weather alert in effect"
-            ans_en = f"It is not advisable to go outside in {loc} {time_win}. Severe weather conditions and an official alert are active; staying indoors is recommended."
-            ans_ta = f"கடுமையான வானிலை நிலவுவதால் இப்போது {loc}ல் வெளியே செல்வதை தவிர்க்கவும்; வீட்டிற்குள் பாதுகாப்பாக இருப்பது நல்லது."
-            ans_hi = f"गंभीर मौसम की स्थिति को देखते हुए अभी {loc} में बाहर जाने से बचें और सुरक्षित स्थान पर रहें।"
+            if has_warning:
+                action = f"Going outside is not advisable right now in {loc} due to an active official weather alert ({ev.active_warnings[0]})."
+                primary = f"Official weather alert in effect ({ev.active_warnings[0]})"
+                ans_en = f"It is not advisable to go outside in {loc} {time_win}. An official weather alert is currently active ({ev.active_warnings[0]}); staying indoors is recommended."
+                ans_ta = f"அதிகாரப்பூர்வ வானிலை எச்சரிக்கை உள்ளதால் இப்போது {loc}ல் வெளியே செல்வதை தவிர்க்கவும்; வீட்டிற்குள் பாதுகாப்பாக இருப்பது நல்லது."
+                ans_hi = f"आधिकारिक मौसम चेतावनी के कारण अभी {loc} में बाहर जाने से बचें और सुरक्षित स्थान पर रहें।"
+            else:
+                action = f"Going outside is not advisable right now in {loc} due to severe weather conditions."
+                primary = "Severe weather conditions"
+                ans_en = f"It is not advisable to go outside in {loc} {time_win} due to adverse weather conditions; taking safety precautions is recommended."
+                ans_ta = f"கடுமையான வானிலை நிலவுவதால் இப்போது {loc}ல் வெளியே செல்வதை தவிர்க்கவும்; வீட்டிற்குள் பாதுகாப்பாக இருப்பது நல்லது."
+                ans_hi = f"प्रतिकूल मौसम की स्थिति को देखते हुए अभी {loc} में बाहर जाने से बचें और सुरक्षित स्थान पर रहें।"
             precautions = ["Stay indoors during intense weather", "Keep emergency supplies charged"]
         elif ev.is_rain_expected or ev.rain_probability >= 35.0:
             verdict = DecisionVerdictEnum.CAUTION

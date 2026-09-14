@@ -97,7 +97,7 @@ class NotificationService:
         """
         lang = (language or "ta").lower().strip()
         sev_upper = (severity or "WARNING").upper()
-        source_name = (source or "Weather Service").strip()
+        source_name = (source or "IMD").strip()
         is_imd = source_name.upper() == "IMD"
 
         if lang == "ta":
