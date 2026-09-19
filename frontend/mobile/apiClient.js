@@ -27,6 +27,30 @@ class WeatherGPTApiClient {
     }
     this.tokenKey = "weathergpt_auth_token";
     this.timeoutMs = 35000;
+    this.inFlightRequests = new Map();
+    this.responseCache = new Map();
+    this.CACHE_TTL_MS = 30000;
+    this.refreshPromise = null;
+  }
+
+  // Cache and In-Flight Deduplication Key Generator
+  getDedupKey(endpoint, options = {}) {
+    const method = (options.method || "GET").toUpperCase();
+    if (method === "GET") {
+      return `GET:${this.baseUrl}${endpoint}`;
+    }
+    // Idempotent read-like POST queries (e.g. reverse geocoding)
+    if (method === "POST" && endpoint.includes("/locations/reverse")) {
+      const bodyStr = typeof options.body === "string" ? options.body : JSON.stringify(options.body || {});
+      return `POST:${this.baseUrl}${endpoint}:${bodyStr}`;
+    }
+    return null;
+  }
+
+  // Clear memory cache and in-flight tracking
+  clearCache() {
+    this.responseCache.clear();
+    this.inFlightRequests.clear();
   }
 
   // Quick Health Check for Connection Diagnostics
@@ -93,7 +117,7 @@ class WeatherGPTApiClient {
     localStorage.removeItem(this.tokenKey);
   }
 
-  isTokenExpired(token = null) {
+  isTokenExpired(token = null, bufferSeconds = 5) {
     const t = token || this.getToken();
     if (!t) return true;
     try {
@@ -101,25 +125,42 @@ class WeatherGPTApiClient {
       if (parts.length !== 3) return false;
       const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
       if (!payload.exp) return false;
-      // Consider expired if current time in seconds is past exp claim (with 5-second buffer)
-      return (Date.now() / 1000) >= (payload.exp - 5);
+      return (Date.now() / 1000) >= (payload.exp - bufferSeconds);
     } catch (e) {
       return false;
     }
   }
 
+  checkAndProactivelyRefreshToken() {
+    const token = this.getToken();
+    if (!token) return;
+    try {
+      const parts = token.split(".");
+      if (parts.length !== 3) return;
+      const payload = JSON.parse(atob(parts[1].replace(/-/g, "+").replace(/_/g, "/")));
+      if (!payload.exp) return;
+      const nowSec = Date.now() / 1000;
+      // If token expires within 15 minutes (900s), refresh proactively in background
+      if (payload.exp > nowSec && (payload.exp - nowSec) < 900) {
+        if (!this.refreshPromise) {
+          this.refreshToken().catch(err => {
+            console.debug("[Auth] Proactive background refresh notice:", err.message);
+          });
+        }
+      }
+    } catch (e) {}
+  }
+
   isAuthenticated() {
     const token = this.getToken();
     if (!token) return false;
-    if (this.isTokenExpired(token)) {
-      this.removeToken();
-      return false;
-    }
     return true;
   }
 
   // Request Headers Helper
   getHeaders(customHeaders = {}, isFormData = false) {
+    this.checkAndProactivelyRefreshToken();
+
     const headers = {
       "X-Request-ID": `mob_${Date.now()}_${Math.random().toString(36).substr(2, 6)}`,
       "Bypass-Tunnel-Reminder": "true",
@@ -137,7 +178,7 @@ class WeatherGPTApiClient {
     return headers;
   }
 
-  // Generic Fetch with Timeout & Error Handling
+  // Generic Fetch with Timeout, In-Flight Deduplication, Short-Term Caching & Error Handling
   async request(endpoint, options = {}) {
     if (!navigator.onLine) {
       throw new Error("NETWORK_OFFLINE: You are currently offline. Please check your internet connection.");
@@ -148,47 +189,154 @@ class WeatherGPTApiClient {
       throw new Error("PRODUCTION_BACKEND_URL_REQUIRED: Production backend URL is not configured. Please set your SkyZen API server in Settings.");
     }
 
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+    const dedupKey = this.getDedupKey(endpoint, options);
+    const bypassCache = Boolean(options.bypassCache || options.noCache);
 
-    const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
-    const config = {
-      ...options,
-      headers: this.getHeaders(options.headers, isFormData),
-      signal: controller.signal
+    // 1. Check Short-Term Memory Cache (for idempotent reads when not bypassed)
+    if (dedupKey && !bypassCache && this.responseCache.has(dedupKey)) {
+      const entry = this.responseCache.get(dedupKey);
+      const now = Date.now();
+      const ttl = options.cacheTtlMs || this.CACHE_TTL_MS;
+      if (now - entry.timestamp < ttl) {
+        return entry.data ? JSON.parse(JSON.stringify(entry.data)) : entry.data;
+      } else {
+        this.responseCache.delete(dedupKey);
+      }
+    }
+
+    // 2. In-Flight Request Deduplication: Share pending promise if identical query is already in-flight
+    if (dedupKey && !options._isRetryAfterRefresh && this.inFlightRequests.has(dedupKey)) {
+      const existingPromise = this.inFlightRequests.get(dedupKey);
+      if (options.signal) {
+        return new Promise((resolve, reject) => {
+          if (options.signal.aborted) {
+            return reject(new DOMException("Aborted", "AbortError"));
+          }
+          const onAbort = () => reject(new DOMException("Aborted", "AbortError"));
+          options.signal.addEventListener("abort", onAbort, { once: true });
+          existingPromise.then(
+            (res) => {
+              options.signal.removeEventListener("abort", onAbort);
+              resolve(res ? JSON.parse(JSON.stringify(res)) : res);
+            },
+            (err) => {
+              options.signal.removeEventListener("abort", onAbort);
+              reject(err);
+            }
+          );
+        });
+      }
+      const sharedRes = await existingPromise;
+      return sharedRes ? JSON.parse(JSON.stringify(sharedRes)) : sharedRes;
+    }
+
+    // 3. Initiate New Network Request
+    const executeFetch = async () => {
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
+
+      const isFormData = typeof FormData !== "undefined" && options.body instanceof FormData;
+      
+      let callerAbortListener = null;
+      if (options.signal) {
+        if (options.signal.aborted) {
+          clearTimeout(timeoutId);
+          throw new DOMException("Aborted", "AbortError");
+        }
+        callerAbortListener = () => controller.abort();
+        options.signal.addEventListener("abort", callerAbortListener, { once: true });
+      }
+
+      const config = {
+        ...options,
+        headers: this.getHeaders(options.headers, isFormData),
+        signal: controller.signal
+      };
+
+      try {
+        const url = `${this.baseUrl}${endpoint}`;
+        const response = await fetch(url, config);
+        clearTimeout(timeoutId);
+        if (callerAbortListener && options.signal) {
+          options.signal.removeEventListener("abort", callerAbortListener);
+        }
+
+        const isJson = response.headers.get("content-type")?.includes("application/json");
+        const data = isJson ? await response.json() : null;
+
+        if (!response.ok) {
+          if (response.status === 401 && endpoint !== "/auth/login" && endpoint !== "/auth/register" && endpoint !== "/auth/refresh") {
+            const hasToken = Boolean(this.getToken());
+            if (hasToken && !options._isRetryAfterRefresh) {
+              try {
+                const refreshed = await this.refreshToken();
+                if (refreshed && refreshed.access_token) {
+                  if (dedupKey) {
+                    this.inFlightRequests.delete(dedupKey);
+                    this.responseCache.delete(dedupKey);
+                  }
+                  // Retry the original request once with fresh credentials
+                  return await this.request(endpoint, {
+                    ...options,
+                    _isRetryAfterRefresh: true,
+                    bypassCache: true,
+                    headers: {
+                      ...(options.headers || {}),
+                      "Authorization": `Bearer ${refreshed.access_token}`
+                    }
+                  });
+                }
+              } catch (refreshErr) {
+                // Refresh failed; legitimately clear token and signal session expiration
+                this.removeToken();
+                if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+                  window.dispatchEvent(new CustomEvent("skyzen:auth_expired", { detail: { message: data?.detail || "Session expired" } }));
+                }
+              }
+            } else {
+              this.removeToken();
+              if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
+                window.dispatchEvent(new CustomEvent("skyzen:auth_expired", { detail: { message: data?.detail || "Session expired" } }));
+              }
+            }
+          }
+          const errorMsg = data?.detail || data?.error?.message || `HTTP ${response.status} Error`;
+          const error = new Error(errorMsg);
+          error.status = response.status;
+          error.data = data;
+          throw error;
+        }
+
+        if (dedupKey && !bypassCache) {
+          this.responseCache.set(dedupKey, {
+            data: data ? JSON.parse(JSON.stringify(data)) : data,
+            timestamp: Date.now()
+          });
+        }
+
+        return data;
+      } catch (err) {
+        clearTimeout(timeoutId);
+        if (callerAbortListener && options.signal) {
+          options.signal.removeEventListener("abort", callerAbortListener);
+        }
+        if (err.name === "AbortError") {
+          throw new Error("REQUEST_TIMEOUT: Request timed out. Backend took too long to respond.");
+        }
+        throw err;
+      }
     };
 
-    try {
-      const url = `${this.baseUrl}${endpoint}`;
-      const response = await fetch(url, config);
-      clearTimeout(timeoutId);
+    const fetchPromise = executeFetch();
 
-      const isJson = response.headers.get("content-type")?.includes("application/json");
-      const data = isJson ? await response.json() : null;
-
-      if (!response.ok) {
-        if (response.status === 401 && this.isAuthenticated()) {
-          // Invalidate stale or invalid session token to prevent persistent 401 loops
-          this.removeToken();
-          if (typeof window !== "undefined" && typeof window.dispatchEvent === "function") {
-            window.dispatchEvent(new CustomEvent("skyzen:auth_expired", { detail: { message: data?.detail || "Session expired" } }));
-          }
-        }
-        const errorMsg = data?.detail || data?.error?.message || `HTTP ${response.status} Error`;
-        const error = new Error(errorMsg);
-        error.status = response.status;
-        error.data = data;
-        throw error;
-      }
-
-      return data;
-    } catch (err) {
-      clearTimeout(timeoutId);
-      if (err.name === "AbortError") {
-        throw new Error("REQUEST_TIMEOUT: Request timed out. Backend took too long to respond.");
-      }
-      throw err;
+    if (dedupKey) {
+      this.inFlightRequests.set(dedupKey, fetchPromise);
+      fetchPromise.finally(() => {
+        this.inFlightRequests.delete(dedupKey);
+      });
     }
+
+    return await fetchPromise;
   }
 
   // Authentication API Methods
@@ -223,19 +371,46 @@ class WeatherGPTApiClient {
   }
 
   async refreshToken() {
-    try {
-      const res = await this.request("/auth/refresh", {
-        method: "POST",
-        body: JSON.stringify({})
-      });
-      if (res && res.access_token) {
-        this.setToken(res.access_token);
-      }
-      return res;
-    } catch (err) {
-      this.removeToken();
-      throw err;
+    if (this.refreshPromise) {
+      return await this.refreshPromise;
     }
+
+    const token = this.getToken();
+    if (!token) {
+      throw new Error("No session token available to refresh");
+    }
+
+    this.refreshPromise = (async () => {
+      try {
+        const url = `${this.baseUrl}/auth/refresh`;
+        const headers = {
+          "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
+          "Bypass-Tunnel-Reminder": "true"
+        };
+        const response = await fetch(url, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({})
+        });
+        const isJson = response.headers.get("content-type")?.includes("application/json");
+        const data = isJson ? await response.json() : null;
+
+        if (!response.ok) {
+          const errMsg = data?.detail || `HTTP ${response.status} Error on token refresh`;
+          throw new Error(errMsg);
+        }
+
+        if (data && data.access_token) {
+          this.setToken(data.access_token);
+        }
+        return data;
+      } finally {
+        this.refreshPromise = null;
+      }
+    })();
+
+    return await this.refreshPromise;
   }
 
   async verifyEmail(token) {
@@ -320,9 +495,31 @@ class WeatherGPTApiClient {
   }
 
   async updatePreferences(payload) {
-    return await this.request("/users/preferences", {
-      method: "PUT",
-      body: JSON.stringify(payload)
+    return new Promise((resolve, reject) => {
+      if (this._updatePreferencesTimer) {
+        clearTimeout(this._updatePreferencesTimer);
+      }
+      this._pendingPreferences = { ...(this._pendingPreferences || {}), ...payload };
+      this._updatePreferencesResolvers = this._updatePreferencesResolvers || [];
+      this._updatePreferencesResolvers.push({ resolve, reject });
+
+      this._updatePreferencesTimer = setTimeout(async () => {
+        const finalPayload = this._pendingPreferences;
+        const resolvers = this._updatePreferencesResolvers;
+        this._pendingPreferences = null;
+        this._updatePreferencesResolvers = null;
+        this._updatePreferencesTimer = null;
+
+        try {
+          const res = await this.request("/users/preferences", {
+            method: "PUT",
+            body: JSON.stringify(finalPayload)
+          });
+          if (resolvers) resolvers.forEach(r => r.resolve(res));
+        } catch (err) {
+          if (resolvers) resolvers.forEach(r => r.reject(err));
+        }
+      }, 400);
     });
   }
 

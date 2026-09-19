@@ -2,7 +2,9 @@ import os
 import secrets
 from datetime import datetime, timezone, timedelta
 from typing import Optional, List
-from fastapi import APIRouter, Depends, HTTPException, status
+import jwt
+from fastapi import APIRouter, Depends, HTTPException, status, Request
+from fastapi.security import HTTPAuthorizationCredentials
 from sqlalchemy.orm import Session
 
 from backend.db.session import get_db
@@ -25,6 +27,7 @@ from backend.core.security import (
     verify_password,
     create_access_token,
     revoke_token,
+    is_token_revoked,
     get_current_user,
     require_role,
     security_scheme
@@ -329,29 +332,97 @@ async def logout_user(
 
 @router.post("/refresh")
 async def refresh_session_token(
-    current_user: User = Depends(get_current_user),
+    request: Request,
+    credentials: Optional[HTTPAuthorizationCredentials] = Depends(security_scheme),
     db: Session = Depends(get_db)
 ):
-    """Refreshes an active session token with a new expiration."""
+    """Refreshes a session token with a new expiration.
+    Supports active tokens and recently-expired tokens within a 7-day grace period,
+    provided the signature is valid and the token has not been revoked.
+    """
+    raw_token = None
+    if credentials and credentials.credentials:
+        raw_token = credentials.credentials
+    elif request:
+        raw_token = request.query_params.get("token") or request.cookies.get("access_token")
+
+    if not raw_token:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Authentication credentials required",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    # Decode token (allowing expired tokens within 7-day grace window)
+    try:
+        payload = jwt.decode(
+            raw_token,
+            settings.SECRET_KEY,
+            algorithms=[settings.JWT_ALGORITHM],
+            options={"verify_exp": False}
+        )
+    except jwt.PyJWTError:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid authentication token",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    jti = payload.get("jti")
+    if jti and is_token_revoked(jti, db):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Token has been revoked",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    # Check maximum grace period (7 days after expiration)
+    exp_timestamp = payload.get("exp")
+    if exp_timestamp:
+        now_ts = datetime.now(timezone.utc).timestamp()
+        max_grace_seconds = 7 * 24 * 3600
+        if now_ts - exp_timestamp > max_grace_seconds:
+            raise HTTPException(
+                status_code=status.HTTP_401_UNAUTHORIZED,
+                detail="Token has expired past maximum refresh window",
+                headers={"WWW-Authenticate": "Bearer"}
+            )
+
+    user_id = payload.get("sub")
+    if not user_id:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Malformed token payload",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
+    user = db.query(User).filter((User.id == user_id) | (User.email == user_id.lower())).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="User not found or inactive",
+            headers={"WWW-Authenticate": "Bearer"}
+        )
+
     access_token = create_access_token(data={
-        "sub": current_user.id,
-        "email": current_user.email,
-        "role": current_user.role
+        "sub": user.id,
+        "email": user.email,
+        "role": user.role
     })
     return {
         "access_token": access_token,
         "token_type": "bearer",
         "expires_in": settings.ACCESS_TOKEN_EXPIRE_MINUTES * 60,
         "user": {
-            "id": current_user.id,
-            "name": current_user.name,
-            "full_name": current_user.name,
-            "email": current_user.email,
-            "language": current_user.language,
-            "persona": current_user.persona,
-            "role": current_user.role,
-            "is_verified": bool(current_user.is_verified),
-            "onboarding_completed": bool(current_user.onboarding_completed)
+            "id": user.id,
+            "name": user.name,
+            "full_name": user.name,
+            "email": user.email,
+            "language": user.language,
+            "persona": user.persona,
+            "role": user.role,
+            "is_verified": bool(user.is_verified),
+            "onboarding_completed": bool(user.onboarding_completed)
         }
     }
 

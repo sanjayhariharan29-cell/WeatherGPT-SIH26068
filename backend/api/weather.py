@@ -10,7 +10,11 @@ from sqlalchemy.orm import Session
 import httpx
 import io
 import math
-from PIL import Image, ImageDraw
+try:
+    from PIL import Image, ImageDraw
+except ImportError:  # pragma: no cover
+    Image = None
+    ImageDraw = None
 
 from backend.config.settings import settings
 from backend.config.logging import logger

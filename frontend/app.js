@@ -173,9 +173,20 @@ function navigateToScreen(screenName) {
 
   if (screenName === "map") {
     initWeatherMap();
+  } else if (screenName === "weather") {
+    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || (typeof MAP_PRESET_LOCATIONS !== 'undefined' && MAP_PRESET_LOCATIONS.length > 0 ? MAP_PRESET_LOCATIONS[0].name : "Coimbatore");
+    const lat = currentLocationState?.latitude ?? null;
+    const lon = currentLocationState?.longitude ?? null;
+    const gridTodayFull = document.getElementById("forecastGridTodayFull");
+    if (loc && (!gridTodayFull || gridTodayFull.children.length === 0)) {
+      loadForecast(loc, lat, lon);
+      loadClimateTrends(loc, lat, lon);
+    }
   } else if (screenName === "air-quality") {
-    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || null;
-    if (loc) loadAirQuality(loc);
+    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || (typeof MAP_PRESET_LOCATIONS !== 'undefined' && MAP_PRESET_LOCATIONS.length > 0 ? MAP_PRESET_LOCATIONS[0].name : "Coimbatore");
+    const lat = currentLocationState?.latitude ?? null;
+    const lon = currentLocationState?.longitude ?? null;
+    if (loc) loadAirQuality(loc, lat, lon);
   } else if (screenName === "alerts") {
     loadAllAlerts();
   } else if (screenName === "chat") {
@@ -308,6 +319,49 @@ function showMobileNotice(message, type = "info", duration = 4000) {
     notice.classList.add("hidden");
   }, duration);
 }
+
+// Button In-Flight Loading State Controller
+function setButtonLoading(btn, isLoading, loadingText = null, loadingIcon = "progress_activity") {
+  if (!btn) return;
+  if (isLoading) {
+    btn.disabled = true;
+    btn.setAttribute("aria-busy", "true");
+    btn.classList.add("btn-loading");
+
+    if (!btn.dataset.origHtml) {
+      btn.dataset.origHtml = btn.innerHTML;
+    }
+
+    const icon = btn.querySelector(".material-symbols-rounded");
+    if (icon) {
+      icon.textContent = loadingIcon;
+      icon.classList.add("spin-anim");
+    } else {
+      btn.innerHTML = `<span class="material-symbols-rounded icon-sm spin-anim">${loadingIcon}</span> ` + (loadingText ? `<span>${escapeHTML(loadingText)}</span>` : btn.textContent);
+      return;
+    }
+
+    if (loadingText) {
+      const textElem = btn.querySelector("[id$='Text'], [data-i18n], span:not(.material-symbols-rounded)");
+      if (textElem) {
+        textElem.textContent = loadingText;
+      }
+    }
+  } else {
+    btn.disabled = false;
+    btn.removeAttribute("aria-busy");
+    btn.classList.remove("btn-loading");
+
+    if (btn.dataset.origHtml) {
+      btn.innerHTML = btn.dataset.origHtml;
+      delete btn.dataset.origHtml;
+      if (window.I18N && typeof window.I18N.apply === "function") {
+        window.I18N.apply(btn);
+      }
+    }
+  }
+}
+window.setButtonLoading = setButtonLoading;
 
 // Weather Condition to Material Symbol mapping (Zero emojis rule)
 function getWeatherMaterialIcon(conditionStr) {
@@ -488,8 +542,13 @@ function setupEventListeners() {
     if (!isAppAuthenticated()) return;
     const now = Date.now();
     // Skip automatic checks if in backoff period or max failure cap reached
-    if (typeof geoBackoffUntil !== "undefined" && now < geoBackoffUntil) return;
-    if (typeof geoConsecutiveFailures !== "undefined" && geoConsecutiveFailures >= MAX_GEO_CONSECUTIVE_FAILURES) return;
+    if (typeof geoBackoffUntil !== "undefined" && now < geoBackoffUntil) {
+      console.info(`[Location] foreground location check throttled (backing off for ${Math.ceil((geoBackoffUntil - now) / 1000)}s)`);
+      return;
+    }
+    if (typeof geoConsecutiveFailures !== "undefined" && geoConsecutiveFailures >= MAX_GEO_CONSECUTIVE_FAILURES) {
+      return;
+    }
 
     if (now - lastForegroundRefreshTime >= FOREGROUND_REFRESH_THROTTLE_MS) {
       refreshForegroundLocation("foreground_resume");
@@ -856,7 +915,7 @@ const LOCATION_STATE_TYPES = {
 
 const STALE_LOCATION_THRESHOLD_MS = 60 * 60 * 1000; // 1 hour staleness threshold
 const FOREGROUND_REFRESH_THROTTLE_MS = 30000; // 30 seconds throttle to prevent battery drain
-let lastForegroundRefreshTime = 0;
+let lastForegroundRefreshTime = Date.now();
 let isLocating = false;
 
 // Geolocation Resilience & Exponential Backoff State
@@ -865,9 +924,9 @@ const MAX_GEO_CONSECUTIVE_FAILURES = 3;
 let geoBackoffUntil = 0;
 
 function getGeoBackoffDelayMs(failures) {
-  if (failures <= 1) return 60000;       // 1 min for 1st failure
-  if (failures === 2) return 300000;      // 5 min for 2nd failure
-  return 1800000;                         // 30 min for 3rd+ failure
+  if (failures <= 1) return 5000;        // 5s for 1st failure
+  if (failures === 2) return 15000;       // 15s for 2nd failure
+  return 45000;                          // 45s for 3rd+ failure
 }
 
 // Primary User Location State (Source of truth on Home Dashboard)
@@ -997,6 +1056,9 @@ function updateLocationUI() {
   }
 }
 
+let lastSyncedPrefLocationKey = null;
+let persistPrefDebounceTimer = null;
+
 function persistLastKnownLocation(state) {
   try {
     const payload = {
@@ -1010,12 +1072,22 @@ function persistLastKnownLocation(state) {
     localStorage.setItem("skyzen_last_known_location", JSON.stringify(payload));
 
     if (isAppAuthenticated() && window.apiClient) {
-      window.apiClient.updatePreferences({
-        last_known_location: state.name,
-        last_latitude: state.latitude,
-        last_longitude: state.longitude,
-        last_location_source: state.type
-      }).catch(err => console.debug("Last-known location profile sync:", err.message));
+      const prefKey = `${state.name || ''}_${state.latitude || ''}_${state.longitude || ''}_${state.type || ''}`;
+      if (prefKey === lastSyncedPrefLocationKey) {
+        return;
+      }
+      if (persistPrefDebounceTimer) {
+        clearTimeout(persistPrefDebounceTimer);
+      }
+      persistPrefDebounceTimer = setTimeout(() => {
+        lastSyncedPrefLocationKey = prefKey;
+        window.apiClient.updatePreferences({
+          last_known_location: state.name,
+          last_latitude: state.latitude,
+          last_longitude: state.longitude,
+          last_location_source: state.type
+        }).catch(err => console.debug("Last-known location profile sync:", err.message));
+      }, 1000);
     }
   } catch (e) {
     console.debug("Failed to persist last known location:", e);
@@ -1131,38 +1203,45 @@ async function refreshForegroundLocation(triggerReason = "manual") {
     return;
   }
 
-  const isUserExplicit = (triggerReason === "user_click" || triggerReason === "user_permission_allow" || triggerReason === "post_login_first_prompt");
+  // STRICT USER EXPLICIT GUARD:
+  // Only an intentional manual user click on the GPS button clears failure counters and resets backoff.
+  const isUserExplicit = (triggerReason === "user_click");
   const now = Date.now();
 
   const savedPermStatus = localStorage.getItem("skyzen_loc_permission_status");
   const isPromptDismissed = localStorage.getItem("skyzen_loc_prompt_dismissed");
 
   // If permission was previously denied or dismissed, do NOT call getCurrentPosition unless user explicitly clicked GPS
-  if (triggerReason !== "user_click" && triggerReason !== "user_permission_allow" && (savedPermStatus === "denied" || isPromptDismissed)) {
+  if (!isUserExplicit && (savedPermStatus === "denied" || isPromptDismissed)) {
     console.info("[Location] Permission previously denied/dismissed. Using fallback without calling getCurrentPosition.");
     loadLastKnownLocation();
+    loadCurrentWeather(false);
     return;
   }
 
   if (isUserExplicit) {
-    // User explicitly requested GPS or post-login prompt: reset retry counters and backoff
+    // User explicitly clicked GPS: reset retry counters and backoff
     geoConsecutiveFailures = 0;
     geoBackoffUntil = 0;
   } else {
-    // Check max retry cap for automatic background checks
+    // Check max retry cap for automatic background/foreground checks (stop after 3 failures)
     if (geoConsecutiveFailures >= MAX_GEO_CONSECUTIVE_FAILURES) {
+      console.info(`[Location] foreground location check throttled: maximum retry cap reached (${geoConsecutiveFailures}/${MAX_GEO_CONSECUTIVE_FAILURES}). Awaiting manual user refresh.`);
       loadLastKnownLocation();
       return;
     }
 
-    // Check exponential backoff cooldown
+    // Check exponential backoff cooldown (5s, 15s, 45s)
     if (now < geoBackoffUntil) {
+      const waitSec = Math.ceil((geoBackoffUntil - now) / 1000);
+      console.info(`[Location] foreground location check throttled (backing off for ${waitSec}s, failure #${geoConsecutiveFailures})`);
       loadLastKnownLocation();
       return;
     }
 
-    // Throttle checks to avoid rapid repeats
-    if (now - lastForegroundRefreshTime < FOREGROUND_REFRESH_THROTTLE_MS) {
+    // Throttle repeated foreground resume checks to avoid rapid repeats (30s)
+    if (triggerReason === "foreground_resume" && (now - lastForegroundRefreshTime < FOREGROUND_REFRESH_THROTTLE_MS)) {
+      console.info("[Location] foreground location check throttled");
       return;
     }
   }
@@ -1173,6 +1252,7 @@ async function refreshForegroundLocation(triggerReason = "manual") {
   if (!navigator.onLine) {
     console.info("[Location] Device offline. Falling back to last known location.");
     loadLastKnownLocation();
+    loadCurrentWeather(false);
     return;
   }
 
@@ -1180,12 +1260,13 @@ async function refreshForegroundLocation(triggerReason = "manual") {
   if (!navigator.geolocation) {
     console.warn("[Location] Geolocation not supported in browser.");
     loadLastKnownLocation();
+    loadCurrentWeather(false);
     return;
   }
 
   const geoBtn = document.getElementById("geoBtn");
   if (geoBtn && triggerReason === "user_click") {
-    geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span>Locating...</span>';
+    setButtonLoading(geoBtn, true, "Locating...");
   }
 
   isLocating = true;
@@ -1200,7 +1281,7 @@ async function refreshForegroundLocation(triggerReason = "manual") {
       localStorage.removeItem("skyzen_loc_prompt_dismissed");
 
       if (geoBtn) {
-        geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span data-i18n="btn.gps">GPS</span>';
+        setButtonLoading(geoBtn, false);
       }
 
       const lat = pos.coords.latitude;
@@ -1272,8 +1353,20 @@ async function refreshForegroundLocation(triggerReason = "manual") {
         showMobileNotice(`GPS acquired: ${resolvedName}`, "info", 3000);
       }
 
-      // Fetch fresh weather if moved significantly or explicitly requested
-      if (movedSignificantly || triggerReason === "user_click" || triggerReason === "session_restore" || triggerReason === "user_permission_allow" || triggerReason === "post_login_first_prompt") {
+      // Fetch fresh weather if moved significantly or requested by auth / location lifecycle
+      const isAuthOrExplicitTrigger = [
+        "user_click",
+        "session_restore",
+        "permission_granted",
+        "demo_login",
+        "login_success",
+        "verification_success",
+        "onboarding_complete",
+        "user_permission_allow",
+        "post_login_first_prompt"
+      ].includes(triggerReason);
+
+      if (movedSignificantly || isAuthOrExplicitTrigger || !window.lastWeatherData) {
         await loadCurrentWeather(true);
       }
     },
@@ -1284,8 +1377,10 @@ async function refreshForegroundLocation(triggerReason = "manual") {
       geoBackoffUntil = Date.now() + backoffMs;
       hideLocationPermissionPrompt();
 
+      console.warn(`[Location] Geolocation error (${err.code}): ${err.message || 'Timeout expired'}`);
+
       if (geoBtn) {
-        geoBtn.innerHTML = '<span class="material-symbols-rounded">my_location</span> <span data-i18n="btn.gps">GPS</span>';
+        setButtonLoading(geoBtn, false);
       }
 
       const hadLastKnown = loadLastKnownLocation();
@@ -1715,11 +1810,29 @@ function updateProfileUI(user) {
 
 async function restoreSessionOrShowAuth() {
   const splashStatusText = document.getElementById("splashStatusText");
+  const storedToken = window.apiClient.getToken();
 
-  if (window.apiClient.isAuthenticated()) {
+  if (storedToken) {
     if (splashStatusText) splashStatusText.textContent = "Verifying secure session...";
     try {
-      const user = await window.apiClient.getAuthMe();
+      let user = null;
+      try {
+        user = await window.apiClient.getAuthMe();
+      } catch (authMeErr) {
+        // If token expired or 401, attempt silent session refresh before dropping credentials
+        if (authMeErr && (authMeErr.status === 401 || (authMeErr.message && authMeErr.message.toLowerCase().includes("expired")))) {
+          console.info("[Auth] Access token near/past expiry on load. Attempting session renewal...");
+          const refreshRes = await window.apiClient.refreshToken();
+          if (refreshRes && refreshRes.user) {
+            user = refreshRes.user;
+          } else {
+            user = await window.apiClient.getAuthMe();
+          }
+        } else {
+          throw authMeErr;
+        }
+      }
+
       if (user && user.id) {
         currentUser = user;
         if (user.language) {
@@ -1746,7 +1859,6 @@ async function restoreSessionOrShowAuth() {
         updateProfileUI(user);
         hideSplashScreen();
         await handlePostAuthLocationFlow("session_restore");
-        loadCurrentWeather();
         if (window.notificationManager) {
           window.notificationManager.init();
         }
@@ -1787,7 +1899,6 @@ async function executeDemoLogin() {
       }
       navigateToScreen("home");
       await handlePostAuthLocationFlow("demo_login");
-      loadCurrentWeather();
       if (window.notificationManager) {
         window.notificationManager.init();
       }
@@ -2036,8 +2147,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Signing In...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Signing In...");
 
         const res = await window.apiClient.login(email, password);
 
@@ -2067,7 +2177,6 @@ function setupAuthPortalEngine() {
           }
           navigateToScreen("home");
           await handlePostAuthLocationFlow("login_success");
-          loadCurrentWeather();
           if (window.notificationManager) {
             window.notificationManager.init();
           }
@@ -2112,8 +2221,7 @@ function setupAuthPortalEngine() {
           }, 50);
         }
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Sign In";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2154,8 +2262,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Creating Account...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Creating Account...");
 
         const res = await window.apiClient.register({
           name,
@@ -2185,8 +2292,7 @@ function setupAuthPortalEngine() {
           setAuthMessage("signupMessage", err.message || "Registration failed. Please try again.", "error");
         }
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Create Account";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2208,8 +2314,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Verifying...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Verifying...");
 
         await window.apiClient.verifyEmail(code);
 
@@ -2224,7 +2329,6 @@ function setupAuthPortalEngine() {
           updateProfileUI(currentUser);
           navigateToScreen("home");
           await handlePostAuthLocationFlow("verification_success");
-          loadCurrentWeather();
           showMobileNotice("Email verified successfully! Welcome to SkyZen.", "info");
         } else {
           showAuthView("login");
@@ -2233,8 +2337,7 @@ function setupAuthPortalEngine() {
       } catch (err) {
         setAuthMessage("verifyMessage", err.message || "Invalid or expired verification code.", "error");
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Verify Email";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2248,7 +2351,7 @@ function setupAuthPortalEngine() {
         return;
       }
       try {
-        verifyResendBtn.disabled = true;
+        setButtonLoading(verifyResendBtn, true, "Resending...");
         const res = await window.apiClient.resendVerification(pendingAuthEmail);
         if (res && res.verification_token) {
           const verifyInput = document.getElementById("verifyToken");
@@ -2258,7 +2361,7 @@ function setupAuthPortalEngine() {
       } catch (err) {
         setAuthMessage("verifyMessage", err.message || "Failed to resend code.", "error");
       } finally {
-        setTimeout(() => { verifyResendBtn.disabled = false; }, 3000);
+        setTimeout(() => { setButtonLoading(verifyResendBtn, false); }, 3000);
       }
     });
   }
@@ -2280,8 +2383,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Generating Code...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Generating Code...");
 
         const res = await window.apiClient.forgotPassword(email);
 
@@ -2294,8 +2396,7 @@ function setupAuthPortalEngine() {
       } catch (err) {
         setAuthMessage("forgotMessage", err.message || "Failed to process password reset.", "error");
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Generate Reset Code";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2329,8 +2430,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Updating...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Updating...");
 
         await window.apiClient.resetPassword(token, newPassword, confirmPassword);
 
@@ -2339,8 +2439,7 @@ function setupAuthPortalEngine() {
       } catch (err) {
         setAuthMessage("resetMessage", err.message || "Failed to reset password. Token may be expired.", "error");
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Update Password";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2366,8 +2465,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Saving Profile...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Saving Profile...");
 
         const updatedProfile = await window.apiClient.updateProfile({
           name: fullName,
@@ -2399,13 +2497,11 @@ function setupAuthPortalEngine() {
         updateProfileUI(currentUser);
         navigateToScreen("home");
         await handlePostAuthLocationFlow("onboarding_complete");
-        loadCurrentWeather();
         showMobileNotice(`Welcome to SkyZen, ${fullName}! Profile setup complete.`, "success");
       } catch (err) {
         setAuthMessage("onboardingMessage", err.message || "Failed to save profile. Please try again.", "error");
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Complete Setup & Enter SkyZen";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2439,8 +2535,7 @@ function setupAuthPortalEngine() {
       }
 
       try {
-        if (submitBtn) submitBtn.disabled = true;
-        if (submitText) submitText.textContent = "Saving...";
+        if (submitBtn) setButtonLoading(submitBtn, true, "Saving...");
 
         const updated = await window.apiClient.updateProfile({
           name: name,
@@ -2482,8 +2577,7 @@ function setupAuthPortalEngine() {
           msgBox.classList.remove("hidden");
         }
       } finally {
-        if (submitBtn) submitBtn.disabled = false;
-        if (submitText) submitText.textContent = "Save Profile Changes";
+        if (submitBtn) setButtonLoading(submitBtn, false);
       }
     });
   }
@@ -2520,8 +2614,7 @@ function setupAuthPortalEngine() {
   if (sendTestNotificationBtn) {
     sendTestNotificationBtn.addEventListener("click", async () => {
       try {
-        sendTestNotificationBtn.disabled = true;
-        sendTestNotificationBtn.innerHTML = `<span class="material-symbols-rounded icon-sm">sync</span><span>Dispatching...</span>`;
+        setButtonLoading(sendTestNotificationBtn, true, "Dispatching...");
 
         if (!isAppAuthenticated()) {
           showMobileNotice("Please sign in first to send a controlled test alert.", "error");
@@ -2539,8 +2632,7 @@ function setupAuthPortalEngine() {
       } catch (err) {
         showMobileNotice(`Test alert error: ${err.message}`, "error", 4000);
       } finally {
-        sendTestNotificationBtn.disabled = false;
-        sendTestNotificationBtn.innerHTML = `<span class="material-symbols-rounded icon-sm">notifications</span><span>Send Controlled Test Alert</span>`;
+        setButtonLoading(sendTestNotificationBtn, false);
       }
     });
   }
@@ -2559,7 +2651,7 @@ async function loadSavedLocations() {
         item.style.cssText = "display:flex; justify-content:space-between; align-items:center; padding:8px 12px; background:#F8FAFC; border:1px solid #E2E8F0; border-radius:8px;";
         item.innerHTML = `
           <span style="font-weight:600; font-size:13px;">${escapeHTML(loc.name)}</span>
-          <button class="icon-btn" style="padding:4px 8px; font-size:11px; min-height:32px; min-width:32px;" onclick="deleteSavedLoc('${loc.id}')" title="Remove">
+          <button class="icon-btn" style="padding:4px 8px; font-size:11px; min-height:32px; min-width:32px;" onclick="deleteSavedLoc('${loc.id}', this)" title="Remove">
             <span class="material-symbols-rounded icon-sm" style="color:var(--alert-red);">delete</span>
           </button>
         `;
@@ -2573,15 +2665,172 @@ async function loadSavedLocations() {
   }
 }
 
-async function deleteSavedLoc(id) {
+async function deleteSavedLoc(id, btn) {
+  if (btn) setButtonLoading(btn, true, "");
   try {
     await window.apiClient.deleteSavedLocation(id);
     showMobileNotice("Location removed.", "info");
     loadSavedLocations();
   } catch (e) {
+    if (btn) setButtonLoading(btn, false);
     showMobileNotice("Failed to delete location.", "warning");
   }
 }
+
+/* ==========================================================================
+   SKELETON SHIMMER & FRIENDLY ERROR UI STATE HELPERS
+   ========================================================================== */
+
+function renderForecastLoadingSkeletons() {
+  const gridToday = document.getElementById("forecastGridToday") || document.getElementById("forecastGrid");
+  const gridTodayFull = document.getElementById("forecastGridTodayFull");
+  const gridTomorrow = document.getElementById("forecastGridTomorrow");
+  const gridFuture = document.getElementById("forecastGridFuture");
+  const dailyList = document.getElementById("dailyForecastList");
+  const chartHome = document.getElementById("forecastChartContainer");
+  const chartExt = document.getElementById("forecastChartExtendedContainer");
+
+  const hourlyHtml = Array.from({ length: 6 }).map(() => `
+    <div class="forecast-skeleton-card" role="listitem">
+      <div class="skeleton-shimmer forecast-skeleton-time"></div>
+      <div class="skeleton-shimmer forecast-skeleton-icon"></div>
+      <div class="skeleton-shimmer forecast-skeleton-temp"></div>
+      <div class="skeleton-shimmer forecast-skeleton-cond"></div>
+    </div>
+  `).join("");
+
+  const dailyHtml = Array.from({ length: 6 }).map(() => `
+    <div class="daily-skeleton-row" role="listitem">
+      <div class="skeleton-shimmer" style="width:90px; height:18px;"></div>
+      <div class="skeleton-shimmer" style="width:130px; height:18px;"></div>
+      <div class="skeleton-shimmer" style="width:75px; height:18px;"></div>
+    </div>
+  `).join("");
+
+  if (gridToday) gridToday.innerHTML = hourlyHtml;
+  if (gridTodayFull) gridTodayFull.innerHTML = hourlyHtml;
+  if (gridTomorrow) gridTomorrow.innerHTML = hourlyHtml;
+  if (gridFuture) gridFuture.innerHTML = hourlyHtml;
+  if (dailyList) dailyList.innerHTML = dailyHtml;
+  if (chartHome) chartHome.innerHTML = `<div class="skeleton-shimmer" style="width:100%; height:130px; border-radius:var(--radius-md);"></div>`;
+  if (chartExt) chartExt.innerHTML = `<div class="skeleton-shimmer" style="width:100%; height:130px; border-radius:var(--radius-md);"></div>`;
+}
+
+function renderForecastErrorState(location, lat = null, lon = null) {
+  const gridToday = document.getElementById("forecastGridToday") || document.getElementById("forecastGrid");
+  const chartHome = document.getElementById("forecastChartContainer");
+  const dailyList = document.getElementById("dailyForecastList");
+  const forecastErrorCard = document.getElementById("forecastErrorCard");
+  const forecastErrorText = document.getElementById("forecastErrorText");
+  const forecastRetryBtn = document.getElementById("forecastRetryBtn");
+
+  const latParam = (lat !== null && lat !== undefined) ? Number(lat) : "null";
+  const lonParam = (lon !== null && lon !== undefined) ? Number(lon) : "null";
+
+  if (chartHome) chartHome.innerHTML = "";
+  if (gridToday) {
+    gridToday.innerHTML = `
+      <div class="inline-error-card" style="width:100%; margin:8px 0;">
+        <span class="material-symbols-rounded inline-error-icon">cloud_off</span>
+        <p class="inline-error-msg">Couldn't load hourly forecast — check your connection</p>
+        <button type="button" class="inline-retry-btn" onclick="loadForecast('${escapeHTML(location)}', ${latParam}, ${lonParam})">
+          <span class="material-symbols-rounded icon-xs">refresh</span>
+          <span>Retry Forecast</span>
+        </button>
+      </div>
+    `;
+  }
+  if (dailyList) {
+    dailyList.innerHTML = `
+      <div class="inline-error-card" style="width:100%; margin:8px 0;">
+        <span class="material-symbols-rounded inline-error-icon">cloud_off</span>
+        <p class="inline-error-msg">Couldn't load 7-day forecast — check your connection</p>
+        <button type="button" class="inline-retry-btn" onclick="loadForecast('${escapeHTML(location)}', ${latParam}, ${lonParam})">
+          <span class="material-symbols-rounded icon-xs">refresh</span>
+          <span>Retry Forecast</span>
+        </button>
+      </div>
+    `;
+  }
+  if (forecastErrorCard) {
+    if (forecastErrorText) forecastErrorText.textContent = "Couldn't load forecast data — check your connection";
+    forecastErrorCard.classList.remove("hidden");
+    if (forecastRetryBtn) {
+      forecastRetryBtn.onclick = () => {
+        forecastErrorCard.classList.add("hidden");
+        loadForecast(location, lat, lon);
+      };
+    }
+  }
+}
+
+function renderAlertsLoadingSkeletons() {
+  const disasterList = document.getElementById("disasterList");
+  if (!disasterList) return;
+  disasterList.innerHTML = Array.from({ length: 3 }).map(() => `
+    <div class="alert-skeleton-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <div class="skeleton-shimmer" style="width:150px; height:22px; border-radius:var(--radius-pill);"></div>
+        <div class="skeleton-shimmer" style="width:80px; height:16px;"></div>
+      </div>
+      <div class="skeleton-shimmer" style="width:65%; height:20px;"></div>
+      <div class="skeleton-shimmer" style="width:100%; height:32px;"></div>
+      <div class="skeleton-shimmer" style="width:140px; height:14px;"></div>
+    </div>
+  `).join("");
+}
+
+function renderAlertsErrorState() {
+  const disasterList = document.getElementById("disasterList");
+  if (!disasterList) return;
+  disasterList.innerHTML = `
+    <div class="inline-error-card" style="margin:20px 0;">
+      <span class="material-symbols-rounded inline-error-icon">emergency_share</span>
+      <p class="inline-error-msg">Couldn't load active weather alerts — check your connection</p>
+      <button type="button" class="inline-retry-btn" onclick="loadAllAlerts()">
+        <span class="material-symbols-rounded icon-xs">refresh</span>
+        <span>Retry Alerts</span>
+      </button>
+    </div>
+  `;
+}
+
+function renderAqiLoadingSkeleton() {
+  const aqiSkeleton = document.getElementById("aqiSkeleton");
+  const aqiErrorCard = document.getElementById("aqiErrorCard");
+  const aqiContent = document.getElementById("aqiContentContainer");
+  if (aqiSkeleton) aqiSkeleton.classList.remove("hidden");
+  if (aqiErrorCard) aqiErrorCard.classList.add("hidden");
+  if (aqiContent) aqiContent.classList.add("hidden");
+}
+
+function renderAqiErrorState(location, lat = null, lon = null) {
+  const aqiSkeleton = document.getElementById("aqiSkeleton");
+  const aqiErrorCard = document.getElementById("aqiErrorCard");
+  const aqiErrorText = document.getElementById("aqiErrorText");
+  const aqiContent = document.getElementById("aqiContentContainer");
+  const aqiRetryBtn = document.getElementById("aqiRetryBtn");
+
+  if (aqiSkeleton) aqiSkeleton.classList.add("hidden");
+  if (aqiContent) aqiContent.classList.add("hidden");
+  if (aqiErrorCard) {
+    if (aqiErrorText) aqiErrorText.textContent = "Couldn't load air quality telemetry — check your connection";
+    aqiErrorCard.classList.remove("hidden");
+    if (aqiRetryBtn) {
+      aqiRetryBtn.onclick = () => {
+        aqiErrorCard.classList.add("hidden");
+        loadAirQuality(location, lat, lon);
+      };
+    }
+  }
+}
+
+window.renderForecastLoadingSkeletons = renderForecastLoadingSkeletons;
+window.renderForecastErrorState = renderForecastErrorState;
+window.renderAlertsLoadingSkeletons = renderAlertsLoadingSkeletons;
+window.renderAlertsErrorState = renderAlertsErrorState;
+window.renderAqiLoadingSkeleton = renderAqiLoadingSkeleton;
+window.renderAqiErrorState = renderAqiErrorState;
 
 let lastWeatherRefreshTime = 0;
 const WEATHER_REFRESH_COOLDOWN_MS = 2500;
@@ -2623,12 +2872,23 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
   const refreshIcon = refreshBtn ? refreshBtn.querySelector(".material-symbols-rounded") : null;
   const skeleton = document.getElementById("dashboardSkeleton");
   const errorCard = document.getElementById("dashboardErrorCard");
+  const staleNotice = document.getElementById("dashboardStaleNotice");
+  const staleText = document.getElementById("dashboardStaleText");
+  const staleRetryBtn = document.getElementById("dashboardStaleRetryBtn");
   const cardContainer = document.getElementById("weatherCardContainer");
   const freshnessTag = document.getElementById("dataFreshnessTag");
 
-  if (showLoader && skeleton) {
+  // Always show skeleton on first launch if weather card has no rendered data yet
+  const isInitialLoad = !window.lastWeatherData;
+  if ((showLoader || isInitialLoad) && skeleton) {
     skeleton.classList.remove("hidden");
+    if (isInitialLoad && cardContainer) {
+      cardContainer.classList.add("hidden");
+    }
   }
+  if (staleNotice) staleNotice.classList.add("hidden");
+  if (errorCard) errorCard.classList.add("hidden");
+
   if (refreshBtn) {
     refreshBtn.disabled = true;
     if (refreshIcon) {
@@ -2662,6 +2922,7 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
     } catch (e) {}
 
     if (errorCard) errorCard.classList.add("hidden");
+    if (staleNotice) staleNotice.classList.add("hidden");
     if (cardContainer) cardContainer.classList.remove("hidden");
 
     renderWeatherCard(data);
@@ -2697,6 +2958,18 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
         if (errorCard) errorCard.classList.add("hidden");
         if (cardContainer) cardContainer.classList.remove("hidden");
 
+        // Display polite stale/offline notification banner with retry option
+        if (staleNotice) {
+          const cachedTime = cachedObj.cachedAt ? new Date(cachedObj.cachedAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "earlier";
+          if (staleText) {
+            staleText.textContent = `Showing offline cached weather from ${cachedTime}. Live update failed — check your connection.`;
+          }
+          staleNotice.classList.remove("hidden");
+          if (staleRetryBtn) {
+            staleRetryBtn.onclick = () => loadCurrentWeather(true, true);
+          }
+        }
+
         renderWeatherCard(cachedData);
         updateLocationUI();
         await loadForecast(location, lat, lon);
@@ -2714,20 +2987,28 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
           }
         }
       } catch (e) {
+        // Fallback to error card if cached JSON was corrupt
+        if (cardContainer) cardContainer.classList.add("hidden");
         if (errorCard) {
-          const isJsException = err && err.message && (err.message.includes("is not defined") || err.message.includes("Cannot read propert"));
-          document.getElementById("dashboardErrorText").textContent = isJsException
-            ? "Weather service is currently refreshing. Please retry."
-            : (err.message || "Failed to connect to weather backend.");
+          document.getElementById("dashboardErrorText").textContent = "Couldn't load weather data — check your connection.";
           errorCard.classList.remove("hidden");
+          const retryBtn = document.getElementById("dashboardRetryBtn");
+          if (retryBtn) {
+            retryBtn.onclick = () => loadCurrentWeather(true, true);
+          }
         }
       }
-    } else if (errorCard) {
-      const isJsException = err && err.message && (err.message.includes("is not defined") || err.message.includes("Cannot read propert"));
-      document.getElementById("dashboardErrorText").textContent = isJsException
-        ? "Weather service is currently refreshing. Please retry."
-        : (err.message || "Failed to connect to weather backend.");
-      errorCard.classList.remove("hidden");
+    } else {
+      // No cached data available: do not leave empty/frozen container!
+      if (cardContainer) cardContainer.classList.add("hidden");
+      if (errorCard) {
+        document.getElementById("dashboardErrorText").textContent = "Couldn't load weather data — check your connection.";
+        errorCard.classList.remove("hidden");
+        const retryBtn = document.getElementById("dashboardRetryBtn");
+        if (retryBtn) {
+          retryBtn.onclick = () => loadCurrentWeather(true, true);
+        }
+      }
     }
   } finally {
     isFetchingWeather = false;
@@ -3105,6 +3386,12 @@ function toggleSourcesBreakdown() {
 
 // 6. Forecast Engine
 async function loadForecast(location, lat = null, lon = null) {
+  // 1. Immediately display visible skeleton shimmer placeholders
+  renderForecastLoadingSkeletons();
+
+  const forecastErrorCard = document.getElementById("forecastErrorCard");
+  if (forecastErrorCard) forecastErrorCard.classList.add("hidden");
+
   try {
     const data = await window.apiClient.getForecast(location, "tomorrow", lat, lon);
     try {
@@ -3131,7 +3418,12 @@ async function loadForecast(location, lat = null, lon = null) {
           if (typeof renderMinuteRainTimeline === "function") renderMinuteRainTimeline(window.lastWeatherData);
           if (typeof renderLifestyleInsights === "function") renderLifestyleInsights(window.lastWeatherData);
         }
-      } catch (e) {}
+      } catch (e) {
+        renderForecastErrorState(location, lat, lon);
+      }
+    } else {
+      // No cached forecast: display friendly error state with retry button
+      renderForecastErrorState(location, lat, lon);
     }
   }
 }
@@ -3416,29 +3708,14 @@ async function loadAlerts(location, lat = null, lon = null) {
 }
 
 async function loadAllAlerts() {
-  const disasterList = document.getElementById("disasterList");
-  if (disasterList) {
-    disasterList.innerHTML = `
-      <div style="text-align:center; padding:32px; color:var(--text-secondary);">
-        <span class="material-symbols-rounded icon-lg" style="animation: spin 1s linear infinite; display:inline-block;">progress_activity</span>
-        <p style="margin-top:8px; font-size:13px;">Loading active official weather alerts across all regions...</p>
-      </div>
-    `;
-  }
+  renderAlertsLoadingSkeletons();
   try {
     const data = await window.apiClient.getAllAlerts();
     allCurrentAlerts = (data && data.alerts) ? data.alerts : [];
     renderAlertsList(allCurrentAlerts);
   } catch (err) {
     console.warn("Global alerts fetch error:", err);
-    if (disasterList) {
-      disasterList.innerHTML = `
-        <div style="text-align:center; padding:32px 16px; color:var(--text-secondary);">
-          <span class="material-symbols-rounded icon-xl" style="color:var(--text-muted);">cloud_off</span>
-          <p style="font-size:14px; margin-top:8px;">Unable to load global weather alerts right now. Tap Refresh to retry.</p>
-        </div>
-      `;
-    }
+    renderAlertsErrorState();
   }
 }
 
@@ -3562,8 +3839,16 @@ function filterAlerts(filterCategory) {
 
 // 8. Air Quality Engine
 async function loadAirQuality(location, lat = null, lon = null) {
+  renderAqiLoadingSkeleton();
   try {
     const aqiData = await window.apiClient.getAirQuality(location, lat, lon);
+    const aqiSkeleton = document.getElementById("aqiSkeleton");
+    const aqiErrorCard = document.getElementById("aqiErrorCard");
+    const aqiContent = document.getElementById("aqiContentContainer");
+    if (aqiSkeleton) aqiSkeleton.classList.add("hidden");
+    if (aqiErrorCard) aqiErrorCard.classList.add("hidden");
+    if (aqiContent) aqiContent.classList.remove("hidden");
+
     const aqiValElem = document.getElementById("aqiVal");
     const aqiCatElem = document.getElementById("aqiCategory");
     const aqiDialElem = document.getElementById("aqiDial");
@@ -3706,6 +3991,7 @@ async function loadAirQuality(location, lat = null, lon = null) {
     }
   } catch (e) {
     console.warn("Could not fetch air quality telemetry:", e);
+    renderAqiErrorState(location, lat, lon);
   }
 }
 
@@ -3771,6 +4057,12 @@ async function loadClimateTrends(location, lat = null, lon = null) {
       <div class="trend-stat-row">
         <div class="stat-pill">Status: <strong>Unavailable</strong></div>
         <div class="stat-pill">Source: <strong>NASA POWER API</strong></div>
+      </div>
+      <div style="margin-top:10px;">
+        <button type="button" class="inline-retry-btn" onclick="loadClimateTrends('${escapeHTML(location)}', ${(lat !== null && lat !== undefined) ? Number(lat) : 'null'}, ${(lon !== null && lon !== undefined) ? Number(lon) : 'null'})">
+          <span class="material-symbols-rounded icon-xs">refresh</span>
+          <span>Retry Climate Archive</span>
+        </button>
       </div>
     `;
   }
@@ -3903,7 +4195,10 @@ async function handleUserSend(isVoice = false) {
   // Lock UI to prevent duplicate submission
   isSendingChatMessage = true;
   if (input) input.disabled = true;
-  if (sendBtn) sendBtn.disabled = true;
+  if (sendBtn) {
+    sendBtn.disabled = true;
+    setButtonLoading(sendBtn, true, "Sending...");
+  }
 
   appendUserMessage(text);
   if (input) input.value = "";
@@ -3928,14 +4223,17 @@ async function handleUserSend(isVoice = false) {
     }
   } catch (err) {
     removeTypingIndicator(typingId);
-    appendFailedMessage(text, persona, location);
+    appendFailedMessage(text, persona, location, err);
   } finally {
     isSendingChatMessage = false;
     if (input) {
       input.disabled = false;
       input.focus();
     }
-    if (sendBtn) sendBtn.disabled = false;
+    if (sendBtn) {
+      sendBtn.disabled = false;
+      setButtonLoading(sendBtn, false);
+    }
   }
 }
 
@@ -4195,7 +4493,7 @@ window.toggleTraceFactors = function(id) {
   elem.style.display = elem.style.display === "none" ? "block" : "none";
 };
 
-function appendFailedMessage(failedText, persona, location) {
+function appendFailedMessage(failedText, persona, location, err = null) {
   const history = document.getElementById("chatHistory");
   if (!history) return;
 
@@ -4203,17 +4501,21 @@ function appendFailedMessage(failedText, persona, location) {
   bubble.className = "msg-bubble bot-msg msg-failed";
 
   const safeText = escapeHTML(failedText);
+  const isOffline = !navigator.onLine || (err && err.message && (err.message.includes("network") || err.message.includes("fetch") || err.message.includes("connection")));
+  const friendlyError = isOffline
+    ? "Couldn't send message — check your connection."
+    : "Service Disruption: Weather AI service is temporarily unavailable. Check your connection or retry.";
 
   bubble.innerHTML = `
     <div class="msg-author" style="color:var(--alert-red);">
       <span style="display:flex; align-items:center; gap:6px;">
-        <span class="material-symbols-rounded icon-sm">error</span>
-        <span>Service Disruption</span>
+        <span class="material-symbols-rounded icon-sm">cloud_off</span>
+        <span>Service Disruption / Connection Issue</span>
       </span>
-      <span class="msg-tag" style="background:#FEE2E2; color:#991B1B;">Failed</span>
+      <span class="msg-tag" style="background:#FEE2E2; color:#991B1B;">Not Delivered</span>
     </div>
-    <p style="font-size:13px;">Weather AI service is temporarily unavailable. Would you like to retry sending "${safeText}"?</p>
-    <button class="msg-retry-btn" onclick="retryFailedMessage('${escapeHTML(failedText)}', '${persona}', '${location}', this)">
+    <p style="font-size:13px; margin:6px 0 10px 0;">${escapeHTML(friendlyError)} Would you like to retry sending "${safeText}"?</p>
+    <button class="msg-retry-btn" onclick="retryFailedMessage('${escapeHTML(failedText)}', '${escapeHTML(persona || '')}', '${escapeHTML(location || '')}', this)">
       <span class="material-symbols-rounded icon-sm">refresh</span>
       <span>Retry Send</span>
     </button>
@@ -4553,9 +4855,197 @@ function handleVoiceClick() {
   };
 }
 
+// Native Capacitor Text-to-Speech integration (@capacitor-community/text-to-speech)
+// Provides direct access to Android's android.speech.tts.TextToSpeech service,
+// completely bypassing WebView's Web Speech API restrictions and device differences.
+let isNativeSpeaking = false;
+let activeSpeakingButton = null;
+
+function isNativeCapacitorPlatform() {
+  try {
+    return Boolean(
+      typeof window !== "undefined" &&
+      window.Capacitor &&
+      typeof window.Capacitor.isNativePlatform === "function" &&
+      window.Capacitor.isNativePlatform()
+    );
+  } catch (e) {
+    return false;
+  }
+}
+
+function getNativeTTSPlugin() {
+  try {
+    if (typeof window !== "undefined" && window.Capacitor) {
+      if (window.Capacitor.Plugins && window.Capacitor.Plugins.TextToSpeech) {
+        return window.Capacitor.Plugins.TextToSpeech;
+      }
+      if (typeof window.Capacitor.isPluginAvailable === "function" && window.Capacitor.isPluginAvailable("TextToSpeech")) {
+        return window.Capacitor.Plugins.TextToSpeech;
+      }
+    }
+  } catch (e) {
+    console.warn("[SkyZen Native TTS] Error accessing TextToSpeech plugin:", e);
+  }
+  return null;
+}
+
+function resolveNativeTTSLanguage(lang) {
+  const target = String(lang || currentLanguage || "en").toLowerCase().trim();
+  if (target === "ta" || target === "tanglish" || target.startsWith("ta")) {
+    return {
+      category: "ta",
+      code: "ta-IN",
+      fallbackCode: "ta",
+      name: "Tamil",
+      unsupportedMsg: "Tamil voice not available on this device."
+    };
+  }
+  if (target === "hi" || target === "hinglish" || target.startsWith("hi")) {
+    return {
+      category: "hi",
+      code: "hi-IN",
+      fallbackCode: "hi",
+      name: "Hindi",
+      unsupportedMsg: "Hindi voice not available on this device."
+    };
+  }
+  return {
+    category: "en",
+    code: "en-IN",
+    fallbackCode: "en-US",
+    name: "English",
+    unsupportedMsg: "English voice not available on this device."
+  };
+}
+
+async function stopAllSpeech() {
+  if (isNativeSpeaking || (isNativeCapacitorPlatform() && getNativeTTSPlugin())) {
+    const plugin = getNativeTTSPlugin();
+    if (plugin && typeof plugin.stop === "function") {
+      try {
+        await plugin.stop();
+      } catch (e) {
+        console.warn("[SkyZen Native TTS] stop error:", e);
+      }
+    }
+    isNativeSpeaking = false;
+  }
+
+  if (typeof window !== "undefined" && 'speechSynthesis' in window) {
+    try {
+      window.speechSynthesis.cancel();
+    } catch (e) {
+      // ignore
+    }
+  }
+
+  if (activeSpeakingButton) {
+    activeSpeakingButton.classList.remove('speaking');
+    activeSpeakingButton.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    activeSpeakingButton = null;
+  }
+
+  document.querySelectorAll('.speech-btn').forEach(b => {
+    b.classList.remove('speaking');
+    b.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+  });
+}
+
+async function speakNativeTTS(text, lang, btn) {
+  const plugin = getNativeTTSPlugin();
+  if (!plugin) {
+    console.warn("[SkyZen Native TTS] Plugin not found; falling back to web synthesis if available.");
+    return false;
+  }
+
+  const langConfig = resolveNativeTTSLanguage(lang);
+  const concise = extractConciseSpeech(text, langConfig.category);
+  if (!concise) return false;
+
+  await stopAllSpeech();
+
+  // Validate language support on device
+  let chosenLangCode = langConfig.code;
+  let isSupported = false;
+
+  try {
+    if (typeof plugin.isLanguageSupported === "function") {
+      const res = await plugin.isLanguageSupported({ lang: chosenLangCode });
+      if (res && res.supported) {
+        isSupported = true;
+      } else if (langConfig.fallbackCode) {
+        const fbRes = await plugin.isLanguageSupported({ lang: langConfig.fallbackCode });
+        if (fbRes && fbRes.supported) {
+          chosenLangCode = langConfig.fallbackCode;
+          isSupported = true;
+        }
+      }
+    } else {
+      isSupported = true; // Attempt speak directly if check method unavailable
+    }
+  } catch (checkErr) {
+    console.warn("[SkyZen Native TTS] isLanguageSupported check error, attempting speak:", checkErr);
+    isSupported = true;
+  }
+
+  if (!isSupported) {
+    showMobileNotice(langConfig.unsupportedMsg, "warning", 5000);
+    console.warn(`[SkyZen Native TTS] ${langConfig.name} voice not installed on this device.`);
+    if (btn) {
+      btn.classList.remove('speaking');
+      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    }
+    return false;
+  }
+
+  if (btn) {
+    btn.classList.add('speaking');
+    btn.innerHTML = '<span class="material-symbols-rounded icon-xs">stop_circle</span><span>Stop</span>';
+    activeSpeakingButton = btn;
+  }
+  isNativeSpeaking = true;
+
+  try {
+    console.info(`[SkyZen Native TTS] Speaking via native Android engine (${chosenLangCode}): "${concise.slice(0, 60)}..."`);
+    await plugin.speak({
+      text: concise,
+      lang: chosenLangCode,
+      rate: 0.95,
+      pitch: 1.0,
+      volume: 1.0
+    });
+    return true;
+  } catch (err) {
+    const errText = String(err?.message || err?.errorMessage || err || "").toLowerCase();
+    if (errText.includes("not supported") || errText.includes("unsupported") || errText.includes("missing")) {
+      showMobileNotice(langConfig.unsupportedMsg, "warning", 5000);
+    } else if (!errText.includes("cancel") && !errText.includes("stop") && !errText.includes("interrupted")) {
+      showMobileNotice(`Voice playback notice: ${err?.message || err}`, "info", 4000);
+    }
+    return false;
+  } finally {
+    isNativeSpeaking = false;
+    if (btn) {
+      btn.classList.remove('speaking');
+      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    }
+    if (activeSpeakingButton === btn) {
+      activeSpeakingButton = null;
+    }
+  }
+}
+
 function speakText(text, lang) {
+  // 1. Native Android Platform (Capacitor)
+  if (isNativeCapacitorPlatform() && getNativeTTSPlugin()) {
+    speakNativeTTS(text, lang, null);
+    return true;
+  }
+
+  // 2. Web / Desktop Browser Fallback (Standard Web Speech API)
   if (!('speechSynthesis' in window)) {
-    showMobileNotice("Speech synthesis is not supported on this device.", "warning", 3500);
+    showMobileNotice("Speech synthesis is not supported on this browser.", "warning", 3500);
     return false;
   }
 
@@ -4586,7 +5076,7 @@ function speakText(text, lang) {
   utterance.rate = 0.95;
   utterance.pitch = 1.0;
 
-  console.info(`[SkyZen TTS] Playing speech: "${concise}" | Voice: ${voiceResult.voice.name} (${utterance.lang}) | Native: ${voiceResult.isNative}`);
+  console.info(`[SkyZen TTS] Playing speech via Web Speech API: "${concise}" | Voice: ${voiceResult.voice.name} (${utterance.lang}) | Native: ${voiceResult.isNative}`);
 
   activeSpeechUtterance = utterance;
   window.speechSynthesis.speak(utterance);
@@ -4614,24 +5104,62 @@ window.testSkyZenTTS = function(targetLang, testPhrase) {
   };
 };
 
-window.toggleSpeakMessage = function(btn, text, lang) {
+window.testSkyZenNativeTTS = async function(targetLang, testPhrase) {
+  const plugin = getNativeTTSPlugin();
+  const langConfig = resolveNativeTTSLanguage(targetLang);
+  const cleaned = extractConciseSpeech(testPhrase, langConfig.category);
+  const isPlatformNative = isNativeCapacitorPlatform();
+
+  let supported = false;
+  if (plugin && typeof plugin.isLanguageSupported === "function") {
+    try {
+      const res = await plugin.isLanguageSupported({ lang: langConfig.code });
+      supported = Boolean(res && res.supported);
+    } catch (e) {
+      supported = false;
+    }
+  }
+
+  return {
+    isPlatformNative,
+    hasPlugin: Boolean(plugin),
+    langConfig,
+    cleanPhrase: cleaned,
+    isSupported,
+    unsupportedMsg: langConfig.unsupportedMsg
+  };
+};
+
+window.toggleSpeakMessage = async function(btn, text, lang) {
+  // 1. Native Android Platform (Capacitor Native TTS)
+  if (isNativeCapacitorPlatform() && getNativeTTSPlugin()) {
+    if (isNativeSpeaking) {
+      await stopAllSpeech();
+      return;
+    }
+    await speakNativeTTS(text, lang, btn);
+    return;
+  }
+
+  // 2. Web / Desktop Browser Fallback (Standard Web Speech API)
   if (!('speechSynthesis' in window)) {
-    showMobileNotice("Voice synthesis is not supported on this device.", "info", 3000);
+    showMobileNotice("Voice synthesis is not supported on this browser.", "info", 3000);
     return;
   }
 
   if (window.speechSynthesis.speaking) {
-    window.speechSynthesis.cancel();
-    document.querySelectorAll('.speech-btn').forEach(b => {
-      b.classList.remove('speaking');
-      b.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
-    });
+    await stopAllSpeech();
     return;
   }
 
   btn.classList.add('speaking');
   btn.innerHTML = '<span class="material-symbols-rounded icon-xs">stop_circle</span><span>Stop</span>';
-  speakText(text, lang);
+  const started = speakText(text, lang);
+  if (!started) {
+    btn.classList.remove('speaking');
+    btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    return;
+  }
 
   if (activeSpeechUtterance) {
     activeSpeechUtterance.onend = () => {
@@ -4649,9 +5177,7 @@ window.resetConversationContext = function() {
   const history = document.getElementById("chatHistory");
   if (!history) return;
 
-  if ('speechSynthesis' in window) {
-    window.speechSynthesis.cancel();
-  }
+  stopAllSpeech();
 
   currentChatConversationId = null;
 
@@ -5035,7 +5561,7 @@ function handleMapMyLocation() {
   }
 
   if (myLocBtn) {
-    myLocBtn.innerHTML = '<span class="material-symbols-rounded icon-sm">sync</span> <span>Locating...</span>';
+    setButtonLoading(myLocBtn, true, "Locating...");
   }
 
   // Single-shot GPS position (no continuous tracking)
@@ -5066,14 +5592,14 @@ function handleMapMyLocation() {
       mapGpsMarker.bindPopup("<b>Your Device GPS Location</b>").openPopup();
 
       if (myLocBtn) {
-        myLocBtn.innerHTML = '<span class="material-symbols-rounded icon-sm">my_location</span> <span>My Location</span>';
+        setButtonLoading(myLocBtn, false);
       }
 
       await selectLocationAndFetchWeather(lat, lon, "My Location (GPS)", true);
     },
     (err) => {
       if (myLocBtn) {
-        myLocBtn.innerHTML = '<span class="material-symbols-rounded icon-sm">my_location</span> <span>My Location</span>';
+        setButtonLoading(myLocBtn, false);
       }
       if (err.code === 1) {
         showMobileNotice("Location permission denied. Please allow GPS access.", "warning", 4000);
@@ -5207,15 +5733,20 @@ function updateMapSelectionCardLoading(lat, lon, knownName) {
   const condElem = document.getElementById("mapWeatherCond");
   const feelsElem = document.getElementById("mapWeatherFeelsLike");
   const alertBox = document.getElementById("mapAlertPriorityBox");
+  const errContainer = document.getElementById("mapCardErrorContainer");
+  const cardBody = document.getElementById("mapCardBody");
 
   if (card) card.classList.remove("hidden");
+  if (errContainer) errContainer.classList.add("hidden");
+  if (cardBody) cardBody.classList.remove("hidden");
+
   if (nameElem) nameElem.textContent = knownName || "Resolving location...";
   if (coordsElem) coordsElem.textContent = `${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`;
   if (statusBadge && statusText) {
     statusBadge.className = "map-selection-status-badge live";
     statusText.textContent = "FETCHING...";
   }
-  if (tempElem) tempElem.textContent = "--°C";
+  if (tempElem) tempElem.innerHTML = `<span class="skeleton-shimmer" style="display:inline-block; width:54px; height:28px; border-radius:4px; vertical-align:middle;"></span>`;
   if (condElem) condElem.textContent = "Fetching verified telemetry...";
   if (feelsElem) feelsElem.textContent = "Feels like --°C";
   if (alertBox) alertBox.classList.add("hidden");
@@ -5240,8 +5771,12 @@ function renderMapSelectionCard(payload, lat, lon) {
   const sourceElem = document.getElementById("mapWeatherSource");
   const aqiSourceElem = document.getElementById("mapAqiSource");
   const alertBox = document.getElementById("mapAlertPriorityBox");
+  const errContainer = document.getElementById("mapCardErrorContainer");
+  const cardBody = document.getElementById("mapCardBody");
 
   if (card) card.classList.remove("hidden");
+  if (errContainer) errContainer.classList.add("hidden");
+  if (cardBody) cardBody.classList.remove("hidden");
 
   // Name and Coords
   if (nameElem) nameElem.textContent = payload.locationName || "Selected Location";
@@ -5381,17 +5916,38 @@ function renderMapSelectionCard(payload, lat, lon) {
 }
 
 function renderMapSelectionCardError(lat, lon, knownName, err) {
+  const card = document.getElementById("mapSelectionCard");
   const nameElem = document.getElementById("mapLocName");
+  const coordsElem = document.getElementById("mapLocCoords");
   const statusBadge = document.getElementById("mapStatusBadge");
   const statusText = document.getElementById("mapStatusText");
-  const condElem = document.getElementById("mapWeatherCond");
+  const errContainer = document.getElementById("mapCardErrorContainer");
+  const errMsg = document.getElementById("mapCardErrorMsg");
+  const retryBtn = document.getElementById("mapCardRetryBtn");
+  const cardBody = document.getElementById("mapCardBody");
 
+  if (card) card.classList.remove("hidden");
   if (nameElem) nameElem.textContent = knownName || `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+  if (coordsElem) coordsElem.textContent = `${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`;
+
   if (statusBadge && statusText) {
     statusBadge.className = "map-selection-status-badge offline";
     statusText.textContent = navigator.onLine ? "UNAVAILABLE" : "OFFLINE";
   }
-  if (condElem) condElem.textContent = "Weather service temporarily unreachable. Tap Refresh to retry.";
+
+  if (cardBody) cardBody.classList.add("hidden");
+  if (errContainer) {
+    errContainer.classList.remove("hidden");
+    if (errMsg) {
+      errMsg.textContent = `Couldn't load location weather telemetry for ${knownName || `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`} — check your connection.`;
+    }
+    if (retryBtn) {
+      retryBtn.onclick = () => {
+        errContainer.classList.add("hidden");
+        selectLocationAndFetchWeather(lat, lon, knownName, false);
+      };
+    }
+  }
 }
 
 function renderOfficialAlertGeometry(alerts, centerLat, centerLon) {
@@ -5666,6 +6222,44 @@ function switchWeatherMapLayer(layerName) {
       maxZoom: 18,
       attribution: layerAttribution
     });
+
+    const chip = document.getElementById("mapTileStatusChip");
+    const chipText = document.getElementById("mapTileStatusText");
+    const chipRetry = document.getElementById("mapTileRetryBtn");
+
+    currentWeatherTileLayer.on("loading", () => {
+      if (chip && chipText) {
+        chip.className = "map-tile-status-chip";
+        const label = layerName === "satellite" ? "SATELLITE" : layerName.toUpperCase();
+        chipText.textContent = `Loading ${label} Tiles...`;
+        if (chipRetry) chipRetry.classList.add("hidden");
+        chip.classList.remove("hidden");
+      }
+    });
+
+    currentWeatherTileLayer.on("load", () => {
+      if (chip) {
+        setTimeout(() => {
+          chip.classList.add("hidden");
+        }, 600);
+      }
+    });
+
+    currentWeatherTileLayer.on("tileerror", () => {
+      if (chip && chipText) {
+        chip.className = "map-tile-status-chip error";
+        chipText.textContent = "Map tiles temporarily unreachable";
+        if (chipRetry) {
+          chipRetry.classList.remove("hidden");
+          chipRetry.onclick = (e) => {
+            e.stopPropagation();
+            switchWeatherMapLayer(layerName);
+          };
+        }
+        chip.classList.remove("hidden");
+      }
+    });
+
     currentWeatherTileLayer.addTo(mapInstance);
     currentWeatherTileLayer.enableAndFetch();
   }
@@ -5866,6 +6460,9 @@ async function handleMapSaveLocation() {
     return;
   }
 
+  const saveBtn = document.getElementById("mapSaveLocationBtn") || document.querySelector("button[onclick*='handleMapSaveLocation']");
+  if (saveBtn) setButtonLoading(saveBtn, true, "Saving...");
+
   const name = currentSelectedMapData.locationName || `${currentSelectedMapData.lat.toFixed(2)}°, ${currentSelectedMapData.lon.toFixed(2)}°`;
   try {
     await window.apiClient.saveLocation(name, currentSelectedMapData.lat, currentSelectedMapData.lon);
@@ -5874,6 +6471,8 @@ async function handleMapSaveLocation() {
   } catch (err) {
     console.warn("Failed to save location:", err);
     showMobileNotice("Could not save location. Please try again.", "warning", 3000);
+  } finally {
+    if (saveBtn) setButtonLoading(saveBtn, false);
   }
 }
 
@@ -7477,6 +8076,11 @@ window.isDesktopBrowserEnvironment = isDesktopBrowserEnvironment;
 window.isMobilePWAEnvironment = isMobilePWAEnvironment;
 window.switchWeatherMapLayer = switchWeatherMapLayer;
 window.ControlledWeatherTileLayer = ControlledWeatherTileLayer;
+window.loadForecast = loadForecast;
+window.loadAllAlerts = loadAllAlerts;
+window.loadAirQuality = loadAirQuality;
+window.loadClimateTrends = loadClimateTrends;
+window.loadCurrentWeather = loadCurrentWeather;
 
 
 

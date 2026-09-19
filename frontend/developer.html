@@ -154,9 +154,33 @@
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
-      transition: all 0.2s ease;
+      transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), opacity 0.12s ease, background 0.15s ease, box-shadow 0.15s ease;
       text-decoration: none;
       border: none;
+      user-select: none;
+      -webkit-tap-highlight-color: transparent;
+    }
+
+    .dev-btn:active:not(:disabled) {
+      transform: scale(0.95) !important;
+      opacity: 0.82 !important;
+      transition: transform 0.05s ease, opacity 0.05s ease !important;
+    }
+
+    @keyframes spin {
+      to { transform: rotate(360deg); }
+    }
+
+    .spin-anim {
+      animation: spin 0.8s linear infinite !important;
+      display: inline-flex !important;
+      vertical-align: middle !important;
+    }
+
+    .btn-loading {
+      cursor: wait !important;
+      opacity: 0.85 !important;
+      pointer-events: none !important;
     }
 
     .dev-btn-secondary {
@@ -623,7 +647,7 @@
             Single authoritative source for IMD-style disaster alerts. Scoped strictly per city: Home & AI only display warnings for the selected city.
           </div>
         </div>
-        <button class="dev-btn dev-btn-secondary" onclick="loadDeveloperAlerts()" title="Refresh Warnings">
+        <button class="dev-btn dev-btn-secondary" onclick="loadDeveloperAlerts(this)" title="Refresh Warnings">
           <span class="material-symbols-rounded icon-sm">refresh</span>
           <span>Refresh Alerts</span>
         </button>
@@ -817,7 +841,7 @@
 
         <div style="display:flex; gap:10px; align-items:center;">
           <input type="text" id="stationFilter" placeholder="Filter by station name..." class="auth-input" style="width:220px; padding:8px 12px; font-size:13px;" oninput="debounceFilter()">
-          <button class="dev-btn dev-btn-secondary" onclick="loadManualRecords()">
+          <button class="dev-btn dev-btn-secondary" onclick="loadManualRecords(this)">
             <span class="material-symbols-rounded icon-sm">refresh</span>
             <span>Refresh</span>
           </button>
@@ -958,7 +982,13 @@
       const feedback = document.getElementById("uploadFeedbackAlert");
 
       btnSubmit.disabled = true;
-      btnText.textContent = "Ingesting...";
+      btnSubmit.classList.add("btn-loading");
+      const submitIcon = btnSubmit.querySelector(".material-symbols-rounded");
+      if (submitIcon) {
+        submitIcon.textContent = "progress_activity";
+        submitIcon.classList.add("spin-anim");
+      }
+      btnText.textContent = "Validating & Ingesting...";
       feedback.classList.add("dev-hidden");
 
       try {
@@ -987,6 +1017,12 @@
         feedback.classList.remove("dev-hidden");
       } finally {
         btnSubmit.disabled = false;
+        btnSubmit.classList.remove("btn-loading");
+        const submitIcon = btnSubmit.querySelector(".material-symbols-rounded");
+        if (submitIcon) {
+          submitIcon.textContent = "publish";
+          submitIcon.classList.remove("spin-anim");
+        }
         btnText.textContent = "Upload & Ingest";
       }
     }
@@ -998,9 +1034,11 @@
       }, 300);
     }
 
-    async function loadManualRecords() {
+    async function loadManualRecords(btnEl) {
       const tbody = document.getElementById("recordsTableBody");
       const filter = document.getElementById("stationFilter").value.trim();
+      const refreshIcon = btnEl ? btnEl.querySelector(".material-symbols-rounded") : document.querySelector("button[onclick*='loadManualRecords'] .material-symbols-rounded");
+      if (refreshIcon) refreshIcon.classList.add("spin-anim");
 
       try {
         const res = await window.apiClient.getDeveloperAqiRecords(filter || null, 100);
@@ -1078,6 +1116,8 @@
             </td>
           </tr>
         `;
+      } finally {
+        if (refreshIcon) refreshIcon.classList.remove("spin-anim");
       }
     }
 
@@ -1127,7 +1167,13 @@
       const instructions = document.getElementById("alertInstructionsInput").value.trim() || null;
 
       btn.disabled = true;
-      btnText.textContent = "Declaring...";
+      btn.classList.add("btn-loading");
+      const btnIcon = btn.querySelector(".material-symbols-rounded");
+      if (btnIcon) {
+        btnIcon.textContent = "progress_activity";
+        btnIcon.classList.add("spin-anim");
+      }
+      btnText.textContent = "Declaring Warning...";
       feedback.className = "dev-alert dev-hidden";
 
       try {
@@ -1152,13 +1198,21 @@
         feedback.innerHTML = `<span class="material-symbols-rounded icon-sm">error</span> <span>Failed to declare warning: ${escapeHtml(err.message)}</span>`;
       } finally {
         btn.disabled = false;
+        btn.classList.remove("btn-loading");
+        const btnIcon = btn.querySelector(".material-symbols-rounded");
+        if (btnIcon) {
+          btnIcon.textContent = "add_alert";
+          btnIcon.classList.remove("spin-anim");
+        }
         btnText.textContent = "Declare Active Official Warning";
       }
     }
 
-    async function loadDeveloperAlerts() {
+    async function loadDeveloperAlerts(btnEl) {
       const tbody = document.getElementById("devAlertsTableBody");
       const statActiveAlerts = document.getElementById("statActiveAlerts");
+      const refreshIcon = btnEl ? btnEl.querySelector(".material-symbols-rounded") : document.querySelector("button[onclick*='loadDeveloperAlerts'] .material-symbols-rounded");
+      if (refreshIcon) refreshIcon.classList.add("spin-anim");
       try {
         const data = await window.apiClient.getDeveloperAlerts();
         const alerts = data.alerts || [];
@@ -1204,7 +1258,7 @@
               <td style="font-size:11px; color:var(--dev-text-dim);">${formatDateTime(a.expires_at)}</td>
               <td>${statusBadge}</td>
               <td>
-                <button class="dev-btn dev-btn-secondary" style="padding:4px 10px; font-size:12px; color:var(--dev-danger); border-color:rgba(239,68,68,0.4);" onclick="handleRevokeAlert('${a.id}', '${escapeHtml(a.location_name)}')">
+                <button class="dev-btn dev-btn-secondary btn-revoke-alert" style="padding:4px 10px; font-size:12px; color:var(--dev-danger); border-color:rgba(239,68,68,0.4);" onclick="handleRevokeAlert('${a.id}', '${escapeHtml(a.location_name)}', this)">
                   <span class="material-symbols-rounded icon-xs">delete</span>
                   <span>Revoke</span>
                 </button>
@@ -1220,17 +1274,29 @@
             </td>
           </tr>
         `;
+      } finally {
+        if (refreshIcon) refreshIcon.classList.remove("spin-anim");
       }
     }
 
-    async function handleRevokeAlert(alertId, cityName) {
+    async function handleRevokeAlert(alertId, cityName, btnEl) {
       if (!confirm(`Are you sure you want to revoke the official warning for ${cityName}?`)) {
         return;
+      }
+      if (btnEl) {
+        btnEl.disabled = true;
+        btnEl.classList.add("btn-loading");
+        btnEl.innerHTML = '<span class="material-symbols-rounded icon-xs spin-anim">progress_activity</span> <span>Revoking...</span>';
       }
       try {
         await window.apiClient.deleteDeveloperAlert(alertId);
         await loadDeveloperAlerts();
       } catch (err) {
+        if (btnEl) {
+          btnEl.disabled = false;
+          btnEl.classList.remove("btn-loading");
+          btnEl.innerHTML = '<span class="material-symbols-rounded icon-xs">delete</span> <span>Revoke</span>';
+        }
         alert("Failed to revoke alert: " + err.message);
       }
     }

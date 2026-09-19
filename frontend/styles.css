@@ -3246,6 +3246,317 @@ body.reduced-effects .ambient-glow-shape {
   background: #B91C1C;
 }
 
+/* ==========================================================================
+   ENHANCED SKELETON SHIMMERS & FRIENDLY ERROR STATES (AUDIT & RECOVERY)
+   ========================================================================== */
+
+/* Hero Weather Card Skeleton */
+.hero-skeleton-card {
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  min-height: 260px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop-filter);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter);
+  border: var(--glass-border);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--glass-shadow);
+  margin-bottom: 20px;
+}
+
+.skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(226, 232, 240, 0.6) 25%, rgba(241, 245, 249, 0.9) 50%, rgba(226, 232, 240, 0.6) 75%);
+  background-size: 200% 100%;
+  animation: skeletonShimmer 1.5s infinite;
+  border-radius: var(--radius-md);
+}
+
+[data-theme="dark"] .skeleton-shimmer {
+  background: linear-gradient(90deg, rgba(30, 41, 59, 0.6) 25%, rgba(51, 65, 85, 0.8) 50%, rgba(30, 41, 59, 0.6) 75%);
+}
+
+.hero-skeleton-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.hero-skeleton-main {
+  display: flex;
+  align-items: center;
+  gap: 24px;
+}
+
+.hero-skeleton-temp {
+  width: 140px;
+  height: 64px;
+  border-radius: var(--radius-lg);
+}
+
+.hero-skeleton-cond {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  flex: 1;
+}
+
+.hero-skeleton-metrics {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 12px;
+}
+
+.hero-skeleton-metric-box {
+  height: 60px;
+  border-radius: var(--radius-md);
+}
+
+/* Forecast Card Skeleton */
+.forecast-skeleton-card {
+  flex: 0 0 100px;
+  height: 140px;
+  background: var(--glass-bg);
+  backdrop-filter: var(--glass-backdrop-filter);
+  -webkit-backdrop-filter: var(--glass-backdrop-filter);
+  border: var(--glass-border);
+  border-radius: var(--radius-chip);
+  padding: 14px 10px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.forecast-skeleton-time {
+  width: 44px;
+  height: 14px;
+}
+
+.forecast-skeleton-icon {
+  width: 38px;
+  height: 38px;
+  border-radius: 50%;
+}
+
+.forecast-skeleton-temp {
+  width: 48px;
+  height: 18px;
+}
+
+.forecast-skeleton-cond {
+  width: 60px;
+  height: 12px;
+}
+
+/* Daily Forecast Row Skeleton */
+.daily-skeleton-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 14px 18px;
+  background: var(--glass-bg);
+  border: var(--glass-border-subtle);
+  border-radius: var(--radius-chip);
+  height: 52px;
+  margin-bottom: 8px;
+}
+
+/* Alerts Screen Skeleton */
+.alert-skeleton-card {
+  padding: 18px;
+  background: var(--glass-bg);
+  border: var(--glass-border-subtle);
+  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+/* Air Quality Screen Skeleton */
+.aqi-skeleton-container {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  padding: 14px 0;
+}
+
+.aqi-skeleton-gauge {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+  padding: 18px;
+  background: var(--glass-bg);
+  border: var(--glass-border);
+  border-radius: var(--radius-lg);
+}
+
+.aqi-skeleton-circle {
+  width: 100px;
+  height: 100px;
+  border-radius: 50%;
+  flex-shrink: 0;
+}
+
+/* Inline Friendly Error State Card */
+.inline-error-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px 20px;
+  background: rgba(254, 242, 242, 0.9);
+  border: 1px solid #FECDD3;
+  border-radius: var(--radius-lg);
+  gap: 10px;
+  margin: 12px 0;
+  box-shadow: 0 2px 10px rgba(239, 68, 68, 0.08);
+}
+
+[data-theme="dark"] .inline-error-card {
+  background: rgba(69, 10, 10, 0.5);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
+.inline-error-card .inline-error-icon {
+  font-size: 36px;
+  color: var(--alert-red);
+}
+
+.inline-error-card .inline-error-msg {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #991B1B;
+  max-width: 480px;
+  margin: 0;
+  line-height: 1.45;
+}
+
+[data-theme="dark"] .inline-error-card .inline-error-msg {
+  color: #FCA5A5;
+}
+
+.inline-retry-btn {
+  background: var(--alert-red);
+  color: #FFFFFF;
+  border: none;
+  padding: 8px 18px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  min-height: 38px;
+  font-family: inherit;
+  transition: all 0.2s ease;
+  margin-top: 4px;
+}
+
+.inline-retry-btn:hover {
+  background: #B91C1C;
+  transform: translateY(-1px);
+}
+
+.inline-retry-btn:active {
+  transform: translateY(0);
+}
+
+/* Stale / Offline Cache Banner */
+.stale-cache-banner {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background: rgba(254, 243, 199, 0.95);
+  border: 1px solid #FCD34D;
+  border-radius: var(--radius-md);
+  padding: 10px 14px;
+  gap: 12px;
+  margin-bottom: 12px;
+  font-size: 12.5px;
+  color: #92400E;
+}
+
+[data-theme="dark"] .stale-cache-banner {
+  background: rgba(120, 53, 15, 0.4);
+  border-color: rgba(245, 158, 11, 0.4);
+  color: #FDE68A;
+}
+
+.stale-cache-banner .stale-banner-content {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex: 1;
+}
+
+.stale-cache-banner .stale-retry-link {
+  background: #F59E0B;
+  color: #FFFFFF;
+  border: none;
+  border-radius: var(--radius-sm);
+  padding: 5px 12px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  transition: background 0.2s ease;
+  white-space: nowrap;
+}
+
+.stale-cache-banner .stale-retry-link:hover {
+  background: #D97706;
+}
+
+/* Map Tile Status Floating Chip */
+.map-tile-status-chip {
+  position: absolute;
+  top: 14px;
+  right: 14px;
+  z-index: 1000;
+  background: rgba(15, 23, 42, 0.85);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: var(--radius-pill);
+  color: #FFFFFF;
+  padding: 6px 14px;
+  font-size: 12px;
+  font-weight: 500;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  box-shadow: 0 4px 14px rgba(0, 0, 0, 0.25);
+  pointer-events: auto;
+  transition: opacity 0.3s ease;
+}
+
+.map-tile-status-chip.error {
+  background: rgba(185, 28, 28, 0.9);
+  border-color: rgba(239, 68, 68, 0.4);
+}
+
+.map-tile-status-chip .tile-retry-btn {
+  background: rgba(255, 255, 255, 0.25);
+  border: none;
+  color: #FFFFFF;
+  padding: 2px 8px;
+  border-radius: var(--radius-pill);
+  font-size: 11px;
+  cursor: pointer;
+}
+
+.map-tile-status-chip .tile-retry-btn:hover {
+  background: rgba(255, 255, 255, 0.4);
+}
+
 /* Web Layout & Desktop Sidebar Navigation */
 .web-layout {
   display: flex;
@@ -6200,3 +6511,144 @@ html.desktop-browser-mode .pwa-install-banner {
   background: rgba(245, 158, 11, 0.22);
   color: #fde68a;
 }
+
+/* ============================================================================
+   UNIVERSAL TAP & ACTIVE FEEDBACK SYSTEM FOR ALL INTERACTIVE CONTROLS
+   Provides immediate visual feedback (scale + opacity) on tap/press across:
+   - Navigation items (bottom nav, desktop nav)
+   - Map controls, layer pills, tile buttons, search & action buttons
+   - Theme toggle, language switchers, styled selects
+   - Auth buttons, links, password toggles, back buttons
+   - AI Chat send button, speech buttons, chips, reasoning toggles
+   - Inline retry and action buttons
+   ============================================================================ */
+
+/* Base transition for smooth tap and release physics */
+button,
+[role="button"],
+.nav-item,
+.map-tile-btn,
+.map-layer-pill,
+.map-action-btn,
+.map-control-btn,
+.map-search-clear,
+.chip-btn,
+.speech-btn,
+.lifestyle-chip,
+.why-answer-toggle-btn,
+.icon-btn,
+.loc-btn,
+.tab-btn,
+.auth-btn,
+.auth-primary-btn,
+.auth-secondary-btn,
+.auth-icon-back-btn,
+.sub-screen-back-btn,
+.password-toggle-btn,
+.auth-text-link,
+.auth-link-btn,
+.pwa-install-btn-primary,
+.pwa-install-btn-secondary,
+.retry-btn,
+.inline-retry-btn,
+.tile-retry-btn,
+.msg-retry-btn,
+.send-btn,
+.search-clear-btn,
+.styled-select,
+.cta-button,
+.action-btn,
+.minute-radar-link-btn {
+  transition: transform 0.12s cubic-bezier(0.2, 0, 0, 1), opacity 0.12s ease, background-color 0.15s ease, box-shadow 0.15s ease !important;
+  -webkit-tap-highlight-color: transparent !important;
+  user-select: none;
+}
+
+/* Immediate Pressed/Active Visual State on Tap */
+button:active:not(:disabled):not([aria-disabled="true"]),
+[role="button"]:active:not(:disabled):not([aria-disabled="true"]),
+input[type="button"]:active:not(:disabled),
+input[type="submit"]:active:not(:disabled),
+.nav-item:active,
+.map-tile-btn:active,
+.map-layer-pill:active,
+.map-action-btn:active:not(:disabled),
+.map-control-btn:active:not(:disabled),
+.map-search-clear:active,
+.chip-btn:active,
+.speech-btn:active,
+.lifestyle-chip:active,
+.why-answer-toggle-btn:active,
+.icon-btn:active:not(:disabled),
+.loc-btn:active,
+.tab-btn:active,
+.auth-btn:active:not(:disabled),
+.auth-primary-btn:active:not(:disabled),
+.auth-secondary-btn:active:not(:disabled),
+.auth-icon-back-btn:active,
+.sub-screen-back-btn:active,
+.password-toggle-btn:active,
+.auth-text-link:active,
+.auth-link-btn:active:not(:disabled),
+.pwa-install-btn-primary:active:not(:disabled),
+.pwa-install-btn-secondary:active,
+.retry-btn:active:not(:disabled),
+.inline-retry-btn:active:not(:disabled),
+.tile-retry-btn:active:not(:disabled),
+.msg-retry-btn:active:not(:disabled),
+.send-btn:active:not(:disabled),
+.search-clear-btn:active,
+.styled-select:active,
+.cta-button:active:not(:disabled),
+.action-btn:active:not(:disabled),
+.minute-radar-link-btn:active {
+  transform: scale(0.95) !important;
+  opacity: 0.82 !important;
+  transition: transform 0.05s ease, opacity 0.05s ease !important;
+}
+
+/* Theme Toggle Dynamic Tap Feedback */
+#themeToggleBtn:active {
+  transform: scale(0.90) rotate(25deg) !important;
+  opacity: 0.85 !important;
+  transition: transform 0.06s ease, opacity 0.06s ease !important;
+}
+
+/* Navigation items active tap feedback */
+.nav-item:active .nav-icon {
+  transform: scale(0.90) !important;
+}
+
+/* Focus Visible Rings for Accessibility */
+button:focus-visible,
+[role="button"]:focus-visible,
+.nav-item:focus-visible,
+.map-layer-pill:focus-visible,
+.map-tile-btn:focus-visible {
+  outline: 2px solid var(--primary-blue, #0284c7) !important;
+  outline-offset: 2px !important;
+}
+
+/* Button In-Flight Loading State Styles */
+.btn-loading,
+button[aria-busy="true"] {
+  cursor: wait !important;
+  opacity: 0.85 !important;
+  pointer-events: none !important;
+}
+
+.btn-loading .spin-anim,
+button[aria-busy="true"] .spin-anim {
+  animation: spin 0.8s linear infinite !important;
+  display: inline-flex !important;
+  vertical-align: middle !important;
+}
+
+/* Disabled button state override (prevents scale on disabled) */
+button:disabled,
+button[disabled],
+.btn-disabled {
+  cursor: not-allowed !important;
+  transform: none !important;
+}
+

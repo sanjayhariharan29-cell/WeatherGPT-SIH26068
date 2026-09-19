@@ -44,12 +44,12 @@ class Settings(BaseModel):
             origin.strip()
             for origin in os.getenv(
                 "ALLOWED_ORIGINS",
-                "http://localhost,http://localhost:8000,http://127.0.0.1:8000,http://localhost:3000,http://localhost:5173,capacitor://localhost,https://localhost,https://weathergpt.moes.gov.in,https://app.weathergpt.org"
+                "*"
             ).split(",")
             if origin.strip()
         ]
     )
-    SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY", "weathergpt-super-secret-production-key-sih26068-min-32-chars"))
+    SECRET_KEY: str = Field(default_factory=lambda: os.getenv("SECRET_KEY") or os.getenv("JWT_SECRET_KEY") or "weathergpt-super-secret-production-key-sih26068-min-32-chars")
     JWT_ALGORITHM: str = Field(default_factory=lambda: os.getenv("JWT_ALGORITHM", "HS256"))
     ACCESS_TOKEN_EXPIRE_MINUTES: int = Field(default_factory=lambda: int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "10080")))
 
