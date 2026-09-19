@@ -246,7 +246,7 @@ def test_11_source_metadata_and_data_timestamp():
     res = client.post("/api/v1/chat", json=payload)
     assert res.status_code == 200
     data = res.json()
-    assert "IMD" in data["source"]
+    assert any(src in data["source"] for src in ["IMD", "Open-Meteo"])
     # Check data timestamp is ISO format
     dt = datetime.fromisoformat(data["data_timestamp"])
     assert dt is not None

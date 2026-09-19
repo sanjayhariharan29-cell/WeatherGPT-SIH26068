@@ -7,8 +7,16 @@
 
 class WeatherGPTApiClient {
   constructor() {
-    const savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
+    let savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
     const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.API_BASE || window.ENV.PRODUCTION_API_BASE)) || null;
+
+    // Auto-migrate dead/stale tunnel URLs from previous sessions
+    if (savedBase && (savedBase.includes("shaggy-candies-serve") || (savedBase.includes(".loca.lt") && envBase && !envBase.includes("shaggy-candies-serve") && savedBase !== envBase.trim().replace(/\/+$/, "")))) {
+      savedBase = envBase;
+      if (typeof localStorage !== "undefined" && envBase) {
+        localStorage.setItem("weathergpt_api_base", envBase.trim().replace(/\/+$/, ""));
+      }
+    }
 
     if (savedBase) {
       this.baseUrl = savedBase.trim().replace(/\/+$/, "");
@@ -19,6 +27,25 @@ class WeatherGPTApiClient {
     }
     this.tokenKey = "weathergpt_auth_token";
     this.timeoutMs = 35000;
+  }
+
+  // Quick Health Check for Connection Diagnostics
+  async checkHealth(timeoutMs = 4000) {
+    if (typeof AbortController === "undefined") return true;
+    const controller = new AbortController();
+    const id = setTimeout(() => controller.abort(), timeoutMs);
+    try {
+      const res = await fetch(`${this.baseUrl}/health`, {
+        method: "GET",
+        headers: { "Bypass-Tunnel-Reminder": "true" },
+        signal: controller.signal
+      });
+      clearTimeout(id);
+      return res.ok;
+    } catch (e) {
+      clearTimeout(id);
+      return false;
+    }
   }
 
   isNativeAndroid() {
@@ -359,6 +386,14 @@ class WeatherGPTApiClient {
 
   async getHistory(locationName, startDate, endDate) {
     return await this.request(`/weather/history?location=${encodeURIComponent(locationName)}&start_date=${startDate}&end_date=${endDate}`);
+  }
+
+  async getClimateTrends(locationName, lat = null, lon = null, startYear = 2015, endYear = 2025) {
+    let endpoint = `/weather/trends?location=${encodeURIComponent(locationName)}&start_year=${startYear}&end_year=${endYear}`;
+    if (lat !== null && lon !== null && lat !== undefined && lon !== undefined) {
+      endpoint += `&lat=${lat}&lon=${lon}`;
+    }
+    return await this.request(endpoint);
   }
 
   async searchLocations(query) {

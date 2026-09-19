@@ -160,12 +160,15 @@ async def login_user(req: LoginRequest, db: Session = Depends(get_db)):
 
 @router.post("/demo")
 async def demo_login(db: Session = Depends(get_db)):
-    """Instant presentation demo access with pre-configured verified account."""
-    user = db.query(User).filter(User.email == "sanjayhariharan29@gmail.com").first()
+    """Presentation demo access - strictly gated behind explicit DEMO_MODE flag (OFF by default)."""
+    if not getattr(settings, "DEMO_MODE", False):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Demo login mode is disabled in production. Please sign in with registered credentials."
+        )
+    user = db.query(User).filter(User.is_verified == True).first()
     if not user:
-        user = db.query(User).filter(User.is_verified == True).first()
-    if not user:
-        raise HTTPException(status_code=404, detail="No demo user found")
+        raise HTTPException(status_code=404, detail="No verified user found for demo mode")
     
     access_token = create_access_token(data={
         "sub": user.id,

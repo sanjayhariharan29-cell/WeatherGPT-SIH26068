@@ -369,5 +369,7 @@ def test_24_production_build_configuration():
 
     # Verify release APK output exists from build
     release_apk_path = os.path.join(APP_DIR, "build", "outputs", "apk", "release", "app-release-unsigned.apk")
+    if not os.path.exists(release_apk_path):
+        release_apk_path = os.path.join(APP_DIR, "build", "outputs", "apk", "release", "app-release.apk")
     assert os.path.exists(release_apk_path), f"Release APK must be generated at {release_apk_path}"
     assert os.path.getsize(release_apk_path) > 1000000, "Release APK must be at least 1MB"

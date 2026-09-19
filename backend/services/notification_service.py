@@ -203,11 +203,13 @@ class NotificationService:
 
         # Case 2: Verified Mock Delivery (Dev / Testing / No Live FCM Key)
         # Guarantees the application never crashes when Firebase is unconfigured
-        logger.info(f"Mock push notification dispatched: '{title}' -> recipient (token={token or 'simulated'})")
+        logger.info(f"[TEST MODE] Mock push notification simulated: '{title}' -> recipient (token={token or 'simulated'})")
         return {
             "success": True,
             "mode": "mock_delivery",
             "message_id": f"mock_fcm_{int(datetime.now(timezone.utc).timestamp())}",
+            "status_label": "TEST_MODE_SIMULATED (No Live Google Cloud FCM Key)",
+            "is_mock": True,
             "payload": notification_payload,
             "timestamp": now_utc,
             "should_deactivate": False

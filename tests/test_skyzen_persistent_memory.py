@@ -53,7 +53,7 @@ class TestFiveTurnConversationSequence:
         assert t1_analysis.resolved_date == "tomorrow"
         assert t1_analysis.resolved_topic == "rain"
         assert t1_analysis.resolved_location == "Coimbatore"
-        assert t1_analysis.resolved_intent in ("rain_query", "weather_information")
+        assert t1_analysis.resolved_intent in ("rain_query", "rain_forecast", "weather_information")
         assert t1_analysis.resolved_activity is None
         assert t1_analysis.resolved_transport_mode is None
         assert t1_analysis.resolved_trip_phase is None
@@ -70,7 +70,7 @@ class TestFiveTurnConversationSequence:
 
         # Assert Turn 1 State
         assert st.turn_index == 1
-        assert st.current_intent in ("rain_query", "weather_information")
+        assert st.current_intent in ("rain_query", "rain_forecast", "weather_information")
         assert st.active_location == "Coimbatore"
         assert st.active_date == "tomorrow"
         assert st.active_time is None

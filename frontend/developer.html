@@ -26,8 +26,8 @@
   <style>
     :root {
       --dev-bg: #0b1329;
-      --dev-card-bg: var(--glass-bg);
-      --dev-border: var(--glass-border);
+      --dev-card-bg: var(--glass-card-bg, rgba(255, 255, 255, 0.16));
+      --dev-border: var(--glass-card-border, rgba(255, 255, 255, 0.28));
       --dev-accent: #06b6d4;
       --dev-accent-glow: rgba(6, 182, 212, 0.25);
       --dev-success: var(--status-live);
@@ -39,7 +39,7 @@
     }
 
     body.dev-body {
-      background: radial-gradient(circle at 50% 0%, #172554 0%, var(--dev-bg) 65%);
+      background: var(--bg-current-gradient, radial-gradient(circle at 50% 0%, #172554 0%, var(--dev-bg) 65%));
       color: var(--dev-text);
       font-family: var(--font-family);
       margin: 0;
@@ -47,6 +47,8 @@
       min-height: 100vh;
       display: flex;
       flex-direction: column;
+      position: relative;
+      overflow-x: hidden;
     }
 
     .dev-container {
@@ -56,6 +58,8 @@
       width: 100%;
       box-sizing: border-box;
       flex: 1;
+      position: relative;
+      z-index: 1;
     }
 
     /* Top Nav */
@@ -63,10 +67,11 @@
       display: flex;
       align-items: center;
       justify-content: space-between;
-      background: var(--dev-card-bg);
-      backdrop-filter: var(--glass-backdrop-filter);
-      -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
-      border-bottom: 1px solid var(--dev-border);
+      background: var(--glass-hero-bg);
+      backdrop-filter: var(--glass-hero-filter);
+      -webkit-backdrop-filter: var(--glass-hero-webkit-filter);
+      border-bottom: 1px solid var(--glass-hero-border);
+      box-shadow: var(--glass-hero-shadow);
       padding: 16px 24px;
       position: sticky;
       top: 0;
@@ -493,6 +498,12 @@
   </style>
 </head>
 <body class="dev-body">
+  <!-- Ambient Depth Layer (Condition-driven soft-blurred glow shapes for premium glassmorphism) -->
+  <div id="ambientGlowLayer" class="ambient-glow-layer" aria-hidden="true">
+    <div class="ambient-glow-shape glow-shape-1"></div>
+    <div class="ambient-glow-shape glow-shape-2"></div>
+    <div class="ambient-glow-shape glow-shape-3"></div>
+  </div>
 
   <!-- Top Navigation Bar -->
   <header class="dev-nav">
@@ -1228,6 +1239,26 @@
       window.apiClient.removeToken();
       window.location.href = "/";
     }
+
+    // Sync Condition Background & Reduced Effects from Main App Session
+    (function initDevAmbientTheme() {
+      try {
+        const savedAmbient = sessionStorage.getItem('skyzen_ambient_class');
+        if (savedAmbient) {
+          document.body.classList.add(savedAmbient);
+        } else {
+          document.body.classList.add('ambient-storm-night');
+        }
+
+        const effectsPref = localStorage.getItem('skyzen_effects_mode');
+        const prefersReduced = window.matchMedia && window.matchMedia('(prefers-reduced-motion: reduce)').matches;
+        if (effectsPref === 'reduced' || prefersReduced) {
+          document.documentElement.classList.add('reduced-effects');
+        }
+      } catch (e) {
+        console.warn("Dev ambient initialization error:", e);
+      }
+    })();
   </script>
 </body>
 </html>

@@ -10,11 +10,12 @@
  *   Alternatively, configure dynamically via in-app Settings > API Environment Server.
  */
 // Centralized Backend URL for SkyZen / WeatherGPT
-const DEPLOYED_BACKEND_URL = "https://shaggy-candies-serve.loca.lt/api/v1";
+const DEPLOYED_BACKEND_URL = "https://major-shirts-sleep.loca.lt/api/v1";
 
 window.ENV = window.ENV || {
   API_BASE: (typeof window !== "undefined" && (window.SKYZEN_API_BASE || window.SKYZEN_PRODUCTION_API_URL)) || DEPLOYED_BACKEND_URL,
-  PRODUCTION_API_BASE: (typeof window !== "undefined" && (window.SKYZEN_PRODUCTION_API_URL || window.SKYZEN_API_BASE)) || DEPLOYED_BACKEND_URL
+  PRODUCTION_API_BASE: (typeof window !== "undefined" && (window.SKYZEN_PRODUCTION_API_URL || window.SKYZEN_API_BASE)) || DEPLOYED_BACKEND_URL,
+  DEMO_MODE: false
 };
 
 

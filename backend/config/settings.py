@@ -25,6 +25,7 @@ class Settings(BaseModel):
     API_V1_PREFIX: str = "/api/v1"
     HOST: str = Field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
     PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8000")))
+    DEMO_MODE: bool = Field(default_factory=lambda: os.getenv("DEMO_MODE", "false").lower() == "true")
 
     # Database Settings
     DATABASE_URL: str = Field(

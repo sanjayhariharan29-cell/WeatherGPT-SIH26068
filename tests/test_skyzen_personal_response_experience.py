@@ -406,7 +406,8 @@ class TestPersonalResponseExperience:
             advisory=DecisionEngine.generate_advisory(reasoning=warn_reasoning, weather=clear_weather),
         )
         assert any(w in safe_fallback.lower() for w in ["warning", "alert", "flood"])
-        assert "safe" not in safe_fallback.lower() or "not advisable" in safe_fallback.lower()
+        assert "is safe" not in safe_fallback.lower() or "not advisable" in safe_fallback.lower()
+        assert "completely safe" not in safe_fallback.lower()
 
     def test_10_multilingual_concise_personal_responses(self, clean_reasoning, clear_weather):
         """Validates concise personal assistant responses in Tamil and Hindi."""

@@ -257,6 +257,7 @@ const I18N_DICT = {
     "map.verified_badge": "LIVE VERIFIED",
     "map.view_live_radar": "View Live Radar Map",
     "map.tile_clouds": "Clouds",
+    "map.tile_satellite": "Satellite (Himawari)",
     "map.tile_radar": "Radar",
     "map.tile_rain": "Rain",
     "map.tile_temp": "Temp",
@@ -711,6 +712,7 @@ const I18N_DICT = {
     "map.verified_badge": "நேரலை சரிபார்க்கப்பட்டது",
     "map.view_live_radar": "நேரலை ரேடார் வரைபடத்தைக் காண்க",
     "map.tile_clouds": "மேகங்கள்",
+    "map.tile_satellite": "செயற்கைக்கோள் (ஹிமாவரி)",
     "map.tile_radar": "ரேடார்",
     "map.tile_rain": "மழை",
     "map.tile_temp": "வெப்பநிலை",
@@ -1165,6 +1167,7 @@ const I18N_DICT = {
     "map.verified_badge": "लाइव सत्यापित",
     "map.view_live_radar": "लाइव रडार मानचित्र देखें",
     "map.tile_clouds": "बादल",
+    "map.tile_satellite": "उपग्रह (हिमोरी)",
     "map.tile_radar": "रडार",
     "map.tile_rain": "बारिश",
     "map.tile_temp": "तापमान",
@@ -1708,6 +1711,10 @@ const DYNAMIC_LABELS = {
   "MODELLED NOWCAST PROJECTION": {
     "ta": "கணிக்கப்பட்ட நேரடி முன்னறிவிப்பு",
     "hi": "मॉडल किया गया नाउकास्ट प्रक्षेपण"
+  },
+  "ESTIMATED (NO RADAR FEED)": {
+    "ta": "மதிப்பிடப்பட்டது (ரேடார் தரவு இல்லை)",
+    "hi": "अनुमानित (कोई रडार फ़ीड नहीं)"
   },
   "IMD WARNING ACTIVE": {
     "ta": "ஐஎம்டி எச்சரிக்கை செயலில் உள்ளது",

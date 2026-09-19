@@ -41,17 +41,134 @@
   --status-severe: #DC2626;
   --status-info: #0284C7;
 
-  /* Liquid Glass Recipe — Light Theme */
-  --glass-bg: linear-gradient(180deg, rgba(255,255,255,0.20) 0%, rgba(255,255,255,0.26) 24%, rgba(255,255,255,0.25) 78%, rgba(255,255,255,0.23) 100%);
-  --glass-border: rgba(255, 255, 255, 0.45);
-  --glass-border-subtle: rgba(255, 255, 255, 0.28);
-  --glass-backdrop-filter: blur(20px) saturate(115%);
-  --glass-webkit-backdrop-filter: blur(20px) saturate(115%);
-  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.08), inset 0 1px 0 rgba(255, 255, 255, 0.45);
-  --glass-inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.6);
+  /* ==========================================================================
+     CONDITION-AWARE FULL-BLEED PALETTES & GRADIENTS
+     Driven directly by live telemetry (Clear, Cloudy, Rain, Storm - Day & Night)
+     ========================================================================== */
+  /* Clear Day (warm tones #FFB74D -> #FF8A50 -> #E85D75, 160deg) */
+  --bg-clear-day: radial-gradient(ellipse 130% 90% at 85% 15%, #FFB74D 0%, #FF8A50 50%, #E85D75 100%);
+  --glow-clear-day-1: #FFA726;
+  --glow-clear-day-2: #FF7043;
+  --glow-clear-day-3: #EC407A;
+
+  /* Clear Night (darkened by 18% & slightly desaturated, celestial twilight) */
+  --bg-clear-night: radial-gradient(ellipse 130% 90% at 85% 15%, #2D1F38 0%, #1D1832 50%, #0E0F20 100%);
+  --glow-clear-night-1: #6366F1;
+  --glow-clear-night-2: #D97706;
+  --glow-clear-night-3: #4338CA;
+
+  /* Cloudy Day (soft slate #7D8FA3 -> #5C6B82 -> #3D4B63) */
+  --bg-cloudy-day: linear-gradient(160deg, #7D8FA3 0%, #5C6B82 50%, #3D4B63 100%);
+  --glow-cloudy-day-1: #94A3B8;
+  --glow-cloudy-day-2: #64748B;
+  --glow-cloudy-day-3: #475569;
+
+  /* Cloudy Night (slate darkened by 20% & desaturated) */
+  --bg-cloudy-night: linear-gradient(160deg, #2A323D 0%, #1D232C 50%, #11151C 100%);
+  --glow-cloudy-night-1: #475569;
+  --glow-cloudy-night-2: #334155;
+  --glow-cloudy-night-3: #1E293B;
+
+  /* Rain Day (deep teal-blue #4A7BA6 -> #2D5578 -> #1A3652) */
+  --bg-rain-day: linear-gradient(160deg, #4A7BA6 0%, #2D5578 50%, #1A3652 100%);
+  --glow-rain-day-1: #38BDF8;
+  --glow-rain-day-2: #0284C7;
+  --glow-rain-day-3: #0EA5E9;
+
+  /* Rain Night (teal-blue darkened by 20% & desaturated) */
+  --bg-rain-night: linear-gradient(160deg, #1C3144 0%, #122230 50%, #08111A 100%);
+  --glow-rain-night-1: #0284C7;
+  --glow-rain-night-2: #0369A1;
+  --glow-rain-night-3: #1E3A8A;
+
+  /* Storm Day (near-night indigo #2B2E4A -> #1A1D33 -> #0D0F1F) */
+  --bg-storm-day: linear-gradient(160deg, #2B2E4A 0%, #1A1D33 50%, #0D0F1F 100%);
+  --glow-storm-day-1: #818CF8;
+  --glow-storm-day-2: #6366F1;
+  --glow-storm-day-3: #4F46E5;
+
+  /* Storm Night (near-night indigo darkened by 18%) */
+  --bg-storm-night: linear-gradient(160deg, #1A1C30 0%, #0F1120 50%, #06070E 100%);
+  --glow-storm-night-1: #6366F1;
+  --glow-storm-night-2: #4338CA;
+  --glow-storm-night-3: #1E1B4B;
+
+  /* Active Ambient Glow Defaults */
+  --glow-color-1: var(--glow-clear-day-1);
+  --glow-color-2: var(--glow-clear-day-2);
+  --glow-color-3: var(--glow-clear-day-3);
+
+  /* ==========================================================================
+     GLASS HIERARCHY RECIPE TOKENS — LIGHT THEME (DEFAULT)
+     Primary / Hero (26px blur), Secondary (22px blur), Small Chips (18px blur)
+     ========================================================================== */
+  /* Primary / Hero Card Tokens */
+  --glass-hero-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.12) 100%);
+  --glass-hero-backdrop: blur(26px) saturate(145%);
+  --glass-hero-border: 1px solid rgba(255, 255, 255, 0.30);
+  --glass-hero-radius: 24px;
+  --glass-hero-shadow: 0 16px 45px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  /* Standard / Secondary Glass Card Tokens */
+  --glass-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.10) 100%);
+  --glass-card-backdrop: blur(22px) saturate(135%);
+  --glass-card-border: 1px solid rgba(255, 255, 255, 0.28);
+  --glass-card-radius: 20px;
+  --glass-card-shadow: 0 12px 36px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+
+  /* Subcard / Nested Card Tokens */
+  --glass-subcard-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.08) 100%);
+  --glass-subcard-backdrop: blur(20px) saturate(130%);
+  --glass-subcard-border: 1px solid rgba(255, 255, 255, 0.26);
+  --glass-subcard-radius: 16px;
+  --glass-subcard-shadow: 0 8px 26px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+
+  /* Small Chips, Filter Chips & Search Bar Tokens */
+  --glass-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.10) 100%);
+  --glass-chip-backdrop: blur(18px) saturate(130%);
+  --glass-chip-border: 1px solid rgba(255, 255, 255, 0.25);
+  --glass-chip-radius: 14px;
+  --glass-chip-shadow: 0 6px 18px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+
+  /* Common Backward-Compatibility Aliases */
+  --glass-bg: var(--glass-card-bg);
+  --glass-border: var(--glass-card-border);
+  --glass-border-subtle: rgba(255, 255, 255, 0.22);
+  --glass-backdrop-filter: var(--glass-card-backdrop);
+  --glass-webkit-backdrop-filter: var(--glass-card-backdrop);
+  --glass-shadow: var(--glass-card-shadow);
+  --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+
+  /* ==========================================================================
+     TINTED GLASS WARNING & ALERT RECIPE TOKENS
+     Calibrated translucent tints scaling with actual severity (not solid stickers)
+     ========================================================================== */
+  /* Severe / Red Warning Glass */
+  --glass-alert-severe-bg: linear-gradient(135deg, rgba(255, 138, 138, 0.24) 0%, rgba(255, 90, 90, 0.12) 100%);
+  --glass-alert-severe-border: 1px solid rgba(255, 150, 150, 0.38);
+  --glass-alert-severe-shadow: 0 14px 40px rgba(220, 38, 38, 0.20), inset 0 1px 0 rgba(255, 210, 210, 0.45);
+  --glass-alert-severe-text: #991B1B;
+
+  /* Moderate / Amber Warning Glass */
+  --glass-alert-moderate-bg: linear-gradient(135deg, rgba(254, 215, 170, 0.22) 0%, rgba(245, 158, 11, 0.12) 100%);
+  --glass-alert-moderate-border: 1px solid rgba(251, 191, 36, 0.35);
+  --glass-alert-moderate-shadow: 0 10px 30px rgba(217, 119, 6, 0.16), inset 0 1px 0 rgba(254, 243, 199, 0.40);
+  --glass-alert-moderate-text: #9A3412;
+
+  /* Minor / Yellow Advisory Glass */
+  --glass-alert-minor-bg: linear-gradient(135deg, rgba(254, 240, 138, 0.16) 0%, rgba(234, 179, 8, 0.08) 100%);
+  --glass-alert-minor-border: 1px solid rgba(250, 204, 21, 0.28);
+  --glass-alert-minor-shadow: 0 8px 24px rgba(202, 138, 4, 0.12), inset 0 1px 0 rgba(254, 249, 195, 0.35);
+  --glass-alert-minor-text: #854D0E;
+
+  /* Info / All-Clear / Safe Glass */
+  --glass-alert-info-bg: linear-gradient(135deg, rgba(186, 230, 253, 0.20) 0%, rgba(56, 189, 248, 0.10) 100%);
+  --glass-alert-info-border: 1px solid rgba(56, 189, 248, 0.32);
+  --glass-alert-info-shadow: 0 8px 24px rgba(2, 132, 199, 0.12), inset 0 1px 0 rgba(224, 242, 254, 0.40);
+  --glass-alert-info-text: #075985;
 
   /* Solid Fallback for low-end WebViews lacking backdrop-filter */
-  --glass-fallback-bg: rgba(255, 255, 255, 0.92);
+  --glass-fallback-bg: rgba(255, 255, 255, 0.94);
 
   /* Animation Timings */
   --transition-fast: 0.18s cubic-bezier(0.16, 1, 0.3, 1);
@@ -59,20 +176,63 @@
   --transition-spring: 0.55s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-/* Dark Theme Token Overrides */
+/* ==========================================================================
+   GLASS HIERARCHY RECIPE TOKENS — DARK THEME OVERRIDES
+   ========================================================================== */
 [data-theme="dark"] {
-  --glass-bg: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.12) 24%, rgba(255,255,255,0.10) 78%, rgba(255,255,255,0.07) 100%);
-  --glass-border: rgba(255, 255, 255, 0.16);
-  --glass-border-subtle: rgba(255, 255, 255, 0.10);
-  --glass-backdrop-filter: blur(20px) saturate(115%);
-  --glass-webkit-backdrop-filter: blur(20px) saturate(115%);
-  --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-  --glass-inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+  --glass-hero-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+  --glass-hero-backdrop: blur(26px) saturate(145%);
+  --glass-hero-border: 1px solid rgba(255, 255, 255, 0.20);
+  --glass-hero-shadow: 0 16px 45px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+
+  --glass-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 100%);
+  --glass-card-backdrop: blur(22px) saturate(135%);
+  --glass-card-border: 1px solid rgba(255, 255, 255, 0.18);
+  --glass-card-shadow: 0 12px 36px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+  --glass-subcard-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+  --glass-subcard-backdrop: blur(20px) saturate(130%);
+  --glass-subcard-border: 1px solid rgba(255, 255, 255, 0.15);
+  --glass-subcard-shadow: 0 8px 26px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+
+  --glass-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.04) 100%);
+  --glass-chip-backdrop: blur(18px) saturate(130%);
+  --glass-chip-border: 1px solid rgba(255, 255, 255, 0.16);
+  --glass-chip-shadow: 0 6px 20px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+
+  --glass-bg: var(--glass-card-bg);
+  --glass-border: var(--glass-card-border);
+  --glass-border-subtle: rgba(255, 255, 255, 0.12);
+  --glass-backdrop-filter: var(--glass-card-backdrop);
+  --glass-webkit-backdrop-filter: var(--glass-card-backdrop);
+  --glass-shadow: var(--glass-card-shadow);
+  --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
   --glass-fallback-bg: rgba(15, 23, 42, 0.94);
-  --blue-subtle: rgba(2, 132, 199, 0.12);
+
+  --glass-alert-severe-bg: linear-gradient(135deg, rgba(220, 38, 38, 0.28) 0%, rgba(127, 29, 29, 0.16) 100%);
+  --glass-alert-severe-border: 1px solid rgba(248, 113, 113, 0.35);
+  --glass-alert-severe-shadow: 0 14px 40px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(254, 205, 211, 0.25);
+  --glass-alert-severe-text: #FCA5A5;
+
+  --glass-alert-moderate-bg: linear-gradient(135deg, rgba(217, 119, 6, 0.26) 0%, rgba(146, 64, 14, 0.16) 100%);
+  --glass-alert-moderate-border: 1px solid rgba(251, 191, 36, 0.32);
+  --glass-alert-moderate-shadow: 0 10px 30px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(254, 243, 199, 0.22);
+  --glass-alert-moderate-text: #FDE68A;
+
+  --glass-alert-minor-bg: linear-gradient(135deg, rgba(202, 138, 4, 0.20) 0%, rgba(133, 77, 14, 0.12) 100%);
+  --glass-alert-minor-border: 1px solid rgba(250, 204, 21, 0.25);
+  --glass-alert-minor-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(254, 249, 195, 0.20);
+  --glass-alert-minor-text: #FEF08A;
+
+  --glass-alert-info-bg: linear-gradient(135deg, rgba(2, 132, 199, 0.24) 0%, rgba(7, 89, 133, 0.15) 100%);
+  --glass-alert-info-border: 1px solid rgba(56, 189, 248, 0.30);
+  --glass-alert-info-shadow: 0 8px 24px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(224, 242, 254, 0.22);
+  --glass-alert-info-text: #BAE6FD;
+
+  --blue-subtle: rgba(2, 132, 199, 0.14);
   --bg-subtle: rgba(30, 41, 59, 0.65);
-  --border-color: rgba(255, 255, 255, 0.16);
-  --border-subtle: rgba(255, 255, 255, 0.10);
+  --border-color: rgba(255, 255, 255, 0.18);
+  --border-subtle: rgba(255, 255, 255, 0.12);
   --text-main: #F8FAFC;
   --text-primary: #F8FAFC;
   --text-secondary: #CBD5E1;
@@ -81,18 +241,39 @@
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="light"]) {
-    --glass-bg: linear-gradient(180deg, rgba(255,255,255,0.08) 0%, rgba(255,255,255,0.12) 24%, rgba(255,255,255,0.10) 78%, rgba(255,255,255,0.07) 100%);
-    --glass-border: rgba(255, 255, 255, 0.16);
-    --glass-border-subtle: rgba(255, 255, 255, 0.10);
-    --glass-backdrop-filter: blur(20px) saturate(115%);
-    --glass-webkit-backdrop-filter: blur(20px) saturate(115%);
-    --glass-shadow: 0 8px 32px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
-    --glass-inner-glow: inset 0 1px 1px rgba(255, 255, 255, 0.2);
+    --glass-hero-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.14) 0%, rgba(255, 255, 255, 0.06) 100%);
+    --glass-hero-backdrop: blur(26px) saturate(145%);
+    --glass-hero-border: 1px solid rgba(255, 255, 255, 0.20);
+    --glass-hero-shadow: 0 16px 45px rgba(0, 0, 0, 0.55), inset 0 1px 0 rgba(255, 255, 255, 0.22);
+
+    --glass-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.10) 0%, rgba(255, 255, 255, 0.04) 100%);
+    --glass-card-backdrop: blur(22px) saturate(135%);
+    --glass-card-border: 1px solid rgba(255, 255, 255, 0.18);
+    --glass-card-shadow: 0 12px 36px rgba(0, 0, 0, 0.50), inset 0 1px 0 rgba(255, 255, 255, 0.18);
+
+    --glass-subcard-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.08) 0%, rgba(255, 255, 255, 0.03) 100%);
+    --glass-subcard-backdrop: blur(20px) saturate(130%);
+    --glass-subcard-border: 1px solid rgba(255, 255, 255, 0.15);
+    --glass-subcard-shadow: 0 8px 26px rgba(0, 0, 0, 0.45), inset 0 1px 0 rgba(255, 255, 255, 0.15);
+
+    --glass-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.09) 0%, rgba(255, 255, 255, 0.04) 100%);
+    --glass-chip-backdrop: blur(18px) saturate(130%);
+    --glass-chip-border: 1px solid rgba(255, 255, 255, 0.16);
+    --glass-chip-shadow: 0 6px 20px rgba(0, 0, 0, 0.40), inset 0 1px 0 rgba(255, 255, 255, 0.14);
+
+    --glass-bg: var(--glass-card-bg);
+    --glass-border: var(--glass-card-border);
+    --glass-border-subtle: rgba(255, 255, 255, 0.12);
+    --glass-backdrop-filter: var(--glass-card-backdrop);
+    --glass-webkit-backdrop-filter: var(--glass-card-backdrop);
+    --glass-shadow: var(--glass-card-shadow);
+    --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.18);
     --glass-fallback-bg: rgba(15, 23, 42, 0.94);
-    --blue-subtle: rgba(2, 132, 199, 0.12);
+
+    --blue-subtle: rgba(2, 132, 199, 0.14);
     --bg-subtle: rgba(30, 41, 59, 0.65);
-    --border-color: rgba(255, 255, 255, 0.16);
-    --border-subtle: rgba(255, 255, 255, 0.10);
+    --border-color: rgba(255, 255, 255, 0.18);
+    --border-subtle: rgba(255, 255, 255, 0.12);
     --text-main: #F8FAFC;
     --text-primary: #F8FAFC;
     --text-secondary: #CBD5E1;
@@ -101,22 +282,40 @@
 }
 
 /* ==========================================================================
+   PERFORMANCE / REDUCED EFFECTS FALLBACK TOKENS
+   Critical for low-end WebViews & prefers-reduced-motion accessibility
+   ========================================================================== */
+.reduced-effects,
+:root.reduced-effects,
+body.reduced-effects {
+  --glass-hero-backdrop: blur(10px) !important;
+  --glass-card-backdrop: blur(10px) !important;
+  --glass-subcard-backdrop: blur(8px) !important;
+  --glass-chip-backdrop: blur(8px) !important;
+  --glass-backdrop-filter: blur(10px) !important;
+  --glass-webkit-backdrop-filter: blur(10px) !important;
+  --glass-hero-shadow: 0 4px 12px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.25) !important;
+  --glass-card-shadow: 0 4px 12px rgba(0, 0, 0, 0.10), inset 0 1px 0 rgba(255, 255, 255, 0.20) !important;
+}
+
+/* ==========================================================================
    SHARED KEYFRAME ANIMATIONS & ONE-TIME SPECULAR SHEEN
+   Sweeps across on card entrance (1.8s, non-looping)
    ========================================================================== */
 
 @keyframes specularSheen {
   0% {
-    transform: translateX(-150%) skewX(-20deg);
+    transform: translateX(-160%) skewX(-20deg);
     opacity: 0;
   }
   20% {
-    opacity: 1;
+    opacity: 0.75;
   }
   80% {
-    opacity: 0.8;
+    opacity: 0.6;
   }
   100% {
-    transform: translateX(250%) skewX(-20deg);
+    transform: translateX(260%) skewX(-20deg);
     opacity: 0;
   }
 }
@@ -137,27 +336,59 @@
 }
 
 /* ==========================================================================
-   SHARED LIQUID GLASS CARD COMPONENT
+   SHARED LIQUID GLASS CARD COMPONENTS (HERO / STANDARD / SUBCARD / ALERT)
+   Single source of truth used across every page in SkyZen
    ========================================================================== */
 
-.glass-card,
-.glass-panel,
-.liquid-glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
-  border: 1px solid var(--glass-border);
-  border-radius: var(--radius-card);
-  box-shadow: var(--glass-shadow);
+/* Primary / Hero Glass Card */
+.glass-hero,
+.hero-weather-card {
+  background: var(--glass-hero-bg);
+  backdrop-filter: var(--glass-hero-backdrop);
+  -webkit-backdrop-filter: var(--glass-hero-backdrop);
+  border: var(--glass-hero-border);
+  border-radius: var(--glass-hero-radius);
+  box-shadow: var(--glass-hero-shadow);
   position: relative;
   overflow: hidden;
   transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
 }
 
-/* One-time entrance specular sheen */
+/* Standard Secondary Glass Card */
+.glass-card,
+.glass-panel,
+.liquid-glass-card {
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-card-backdrop);
+  -webkit-backdrop-filter: var(--glass-card-backdrop);
+  border: var(--glass-card-border);
+  border-radius: var(--glass-card-radius);
+  box-shadow: var(--glass-card-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* Nested Sub-Card / Inner Card */
+.glass-subcard {
+  background: var(--glass-subcard-bg);
+  backdrop-filter: var(--glass-subcard-backdrop);
+  -webkit-backdrop-filter: var(--glass-subcard-backdrop);
+  border: var(--glass-subcard-border);
+  border-radius: var(--glass-subcard-radius);
+  box-shadow: var(--glass-subcard-shadow);
+  position: relative;
+  overflow: hidden;
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast), border-color var(--transition-fast);
+}
+
+/* One-time entrance specular sheen (sweeps across on entrance, ~1.8s, non-looping) */
+.glass-hero::after,
+.hero-weather-card::after,
 .glass-card::after,
 .glass-panel::after,
-.liquid-glass-card::after {
+.liquid-glass-card::after,
+.glass-subcard::after {
   content: '';
   position: absolute;
   top: 0;
@@ -167,12 +398,72 @@
   background: linear-gradient(
     90deg,
     rgba(255, 255, 255, 0) 0%,
-    rgba(255, 255, 255, 0.22) 50%,
+    rgba(255, 255, 255, 0.28) 50%,
     rgba(255, 255, 255, 0) 100%
   );
   pointer-events: none;
-  animation: specularSheen 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s 1 forwards;
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s 1 forwards;
   z-index: 2;
+}
+
+[data-theme="dark"] .glass-hero::after,
+[data-theme="dark"] .hero-weather-card::after,
+[data-theme="dark"] .glass-card::after,
+[data-theme="dark"] .glass-panel::after,
+[data-theme="dark"] .liquid-glass-card::after,
+[data-theme="dark"] .glass-subcard::after {
+  background: linear-gradient(
+    90deg,
+    rgba(255, 255, 255, 0) 0%,
+    rgba(255, 255, 255, 0.14) 50%,
+    rgba(255, 255, 255, 0) 100%
+  );
+}
+
+/* Tinted Glass Warning & Alert Cards */
+.glass-alert {
+  position: relative;
+  overflow: hidden;
+  border-radius: var(--glass-card-radius);
+  transition: transform var(--transition-fast), box-shadow var(--transition-fast);
+}
+
+.glass-alert.severity-severe,
+.glass-alert.severity-high,
+.glass-alert.severity-red {
+  background: var(--glass-alert-severe-bg);
+  border: var(--glass-alert-severe-border);
+  box-shadow: var(--glass-alert-severe-shadow);
+  backdrop-filter: var(--glass-hero-backdrop);
+  -webkit-backdrop-filter: var(--glass-hero-backdrop);
+}
+
+.glass-alert.severity-moderate,
+.glass-alert.severity-medium,
+.glass-alert.severity-amber {
+  background: var(--glass-alert-moderate-bg);
+  border: var(--glass-alert-moderate-border);
+  box-shadow: var(--glass-alert-moderate-shadow);
+  backdrop-filter: var(--glass-card-backdrop);
+  -webkit-backdrop-filter: var(--glass-card-backdrop);
+}
+
+.glass-alert.severity-minor,
+.glass-alert.severity-low,
+.glass-alert.severity-yellow {
+  background: var(--glass-alert-minor-bg);
+  border: var(--glass-alert-minor-border);
+  box-shadow: var(--glass-alert-minor-shadow);
+  backdrop-filter: var(--glass-subcard-backdrop);
+  -webkit-backdrop-filter: var(--glass-subcard-backdrop);
+}
+
+.glass-alert.severity-info {
+  background: var(--glass-alert-info-bg);
+  border: var(--glass-alert-info-border);
+  box-shadow: var(--glass-alert-info-shadow);
+  backdrop-filter: var(--glass-subcard-backdrop);
+  -webkit-backdrop-filter: var(--glass-subcard-backdrop);
 }
 
 /* ==========================================================================
@@ -318,14 +609,16 @@
 
 .glass-chip,
 .filter-chip,
-.interactive-chip {
-  min-height: 44px;
+.interactive-chip,
+.chip-btn {
+  min-height: 40px;
   padding: 8px 16px;
-  border-radius: var(--radius-chip);
-  border: 1px solid var(--glass-border);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
+  border-radius: var(--glass-chip-radius);
+  border: var(--glass-chip-border);
+  background: var(--glass-chip-bg);
+  backdrop-filter: var(--glass-chip-backdrop);
+  -webkit-backdrop-filter: var(--glass-chip-backdrop);
+  box-shadow: var(--glass-chip-shadow);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -339,21 +632,23 @@
 }
 
 .glass-chip:hover,
-.filter-chip:hover {
+.filter-chip:hover,
+.chip-btn:hover {
   border-color: var(--primary-blue);
   transform: translateY(-1px);
 }
 
 .glass-chip.active,
-.filter-chip.active {
+.filter-chip.active,
+.chip-btn.active {
   background: var(--primary-blue);
   color: #FFFFFF !important;
   border-color: var(--primary-blue);
-  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.3);
+  box-shadow: 0 4px 12px rgba(2, 132, 199, 0.35);
 }
 
 /* ==========================================================================
-   REDUCED MOTION OVERRIDE (ACCESSIBILITY FIRST)
+   REDUCED MOTION & PERFORMANCE OVERRIDE (ACCESSIBILITY & ANDROID WEBVIEW)
    ========================================================================== */
 
 @media (prefers-reduced-motion: reduce) {
@@ -365,11 +660,25 @@
     transition-duration: 0.01ms !important;
     scroll-behavior: auto !important;
   }
+  .glass-hero::after,
+  .hero-weather-card::after,
   .glass-card::after,
   .glass-panel::after,
-  .liquid-glass-card::after {
+  .liquid-glass-card::after,
+  .glass-subcard::after {
     display: none !important;
+    animation: none !important;
   }
+}
+
+.reduced-effects .glass-hero::after,
+.reduced-effects .hero-weather-card::after,
+.reduced-effects .glass-card::after,
+.reduced-effects .glass-panel::after,
+.reduced-effects .liquid-glass-card::after,
+.reduced-effects .glass-subcard::after {
+  display: none !important;
+  animation: none !important;
 }
 
 /* ==========================================================================
@@ -377,10 +686,16 @@
    ========================================================================== */
 
 @supports not (backdrop-filter: blur(20px)) {
+  .glass-hero,
+  .hero-weather-card,
   .glass-card,
   .glass-panel,
   .liquid-glass-card,
-  .glass-chip {
+  .glass-subcard,
+  .glass-chip,
+  .filter-chip,
+  .chip-btn,
+  .glass-alert {
     background: var(--glass-fallback-bg) !important;
   }
 }

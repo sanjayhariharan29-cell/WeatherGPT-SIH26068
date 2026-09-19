@@ -91,6 +91,7 @@ document.addEventListener("DOMContentLoaded", () => {
 
 async function initApp() {
   initAppTheme();
+  initPerformanceMode();
   if (isDesktopBrowserEnvironment()) {
     const splash = document.getElementById("splashScreen");
     if (splash) splash.style.display = "none";
@@ -1550,15 +1551,16 @@ function showAuthView(viewName) {
   }
 }
 
-function setAuthMessage(boxId, message, type = "error") {
+function setAuthMessage(boxId, message, type = "error", allowHtml = false) {
   const box = document.getElementById(boxId);
   if (!box) return;
 
   const iconName = type === "success" ? "check_circle" : (type === "info" ? "info" : "error");
   box.className = `auth-message-box ${type}`;
+  const content = allowHtml ? message : `<span>${escapeHTML(message)}</span>`;
   box.innerHTML = `
     <span class="material-symbols-rounded icon-sm" aria-hidden="true">${iconName}</span>
-    <span>${escapeHTML(message)}</span>
+    <div style="display:flex; flex-direction:column; gap:4px; width:100%; text-align:left;">${content}</div>
   `;
   box.classList.remove("hidden");
 }
@@ -1764,9 +1766,16 @@ async function restoreSessionOrShowAuth() {
 }
 
 async function executeDemoLogin() {
+  if (!window.ENV || window.ENV.DEMO_MODE !== true) {
+    console.warn("Demo mode is disabled in production settings (DEMO_MODE=false).");
+    showMobileNotice("Demo presentation mode is disabled in production.", "warning");
+    return;
+  }
+
   const splashStatusText = document.getElementById("splashStatusText");
+  if (splashStatusText) splashStatusText.textContent = "Connecting to demo presentation session...";
+
   try {
-    if (splashStatusText) splashStatusText.textContent = "Launching presentation session...";
     const res = await window.apiClient.demoLogin();
     if (res && res.user) {
       currentUser = res.user;
@@ -1782,32 +1791,14 @@ async function executeDemoLogin() {
       if (window.notificationManager) {
         window.notificationManager.init();
       }
-      showMobileNotice(`Presentation Mode: Welcome, ${res.user.name || "Sanjay"}!`, "info");
+      showMobileNotice(`Demo Session: Welcome, ${res.user.name || "Demo User"}!`, "info");
       checkAndShowMobilePWABanner();
       return;
     }
+    showMobileNotice("Demo login was not authorized by the backend server.", "error");
   } catch (err) {
-    console.warn("Demo login endpoint fallback:", err.message);
-  }
-
-  // Direct fallback with verified account
-  try {
-    const res = await window.apiClient.login("sanjayhariharan29@gmail.com", "SkyZen2026!");
-    if (res && res.user) {
-      currentUser = res.user;
-      hideAuthPortal();
-      updateProfileUI(res.user);
-      navigateToScreen("home");
-      await handlePostAuthLocationFlow("demo_login");
-      loadCurrentWeather();
-      if (window.notificationManager) {
-        window.notificationManager.init();
-      }
-      showMobileNotice(`Presentation Mode: Welcome, ${res.user.name || "Sanjay"}!`, "info");
-    }
-  } catch (err) {
-    console.error("Demo login error:", err);
-    showAuthView("login");
+    console.warn("Demo authentication unavailable:", err);
+    showMobileNotice("Demo session unavailable. Please log in with your verified credentials.", "error");
   }
 }
 
@@ -1834,8 +1825,21 @@ function setupAuthPortalEngine() {
   const profileSignOutBtn = document.getElementById("profileSignOutBtn");
   const profileOpenAuthBtn = document.getElementById("profileOpenAuthBtn");
 
-  if (welcomeDemoBtn) welcomeDemoBtn.addEventListener("click", executeDemoLogin);
-  if (loginDemoBtn) loginDemoBtn.addEventListener("click", executeDemoLogin);
+  const isDemoActive = Boolean(window.ENV && window.ENV.DEMO_MODE === true);
+  if (welcomeDemoBtn) {
+    if (!isDemoActive) {
+      welcomeDemoBtn.style.display = "none";
+    } else {
+      welcomeDemoBtn.addEventListener("click", executeDemoLogin);
+    }
+  }
+  if (loginDemoBtn) {
+    if (!isDemoActive) {
+      loginDemoBtn.style.display = "none";
+    } else {
+      loginDemoBtn.addEventListener("click", executeDemoLogin);
+    }
+  }
   if (welcomeLoginBtn) welcomeLoginBtn.addEventListener("click", () => showAuthView("login"));
   if (welcomeSignupBtn) welcomeSignupBtn.addEventListener("click", () => showAuthView("signup"));
   if (loginBackBtn) loginBackBtn.addEventListener("click", () => showAuthView("welcome"));
@@ -1890,6 +1894,126 @@ function setupAuthPortalEngine() {
     signupPassInput.addEventListener("input", (e) => {
       updatePasswordStrength(e.target.value);
     });
+  }
+
+  // Auth Portal Server Switcher Controls
+  const authServerDot = document.getElementById("authServerDot");
+  const authServerLabel = document.getElementById("authServerLabel");
+  const authChangeServerBtn = document.getElementById("authChangeServerBtn");
+  const authCloseServerBoxBtn = document.getElementById("authCloseServerBoxBtn");
+  const authServerConfigBox = document.getElementById("authServerConfigBox");
+  const authServerSelect = document.getElementById("authServerSelect");
+  const authCustomInputGroup = document.getElementById("authCustomInputGroup");
+  const authCustomServerInput = document.getElementById("authCustomServerInput");
+  const authApplyServerBtn = document.getElementById("authApplyServerBtn");
+  const authQuickOfflineBtn = document.getElementById("authQuickOfflineBtn");
+  const authServerTestStatus = document.getElementById("authServerTestStatus");
+
+  function updateAuthServerDisplay() {
+    if (!window.apiClient) return;
+    const currentBase = window.apiClient.getBaseUrl();
+    if (authServerLabel) {
+      if (currentBase.includes("major-shirts-sleep") || currentBase.includes("loca.lt")) {
+        authServerLabel.textContent = "Server: Live Cloud Tunnel";
+      } else if (currentBase.includes("192.168.1.50")) {
+        authServerLabel.textContent = "Server: Wi-Fi (192.168.1.50)";
+      } else if (currentBase.includes("localhost") || currentBase.includes("127.0.0.1")) {
+        authServerLabel.textContent = "Server: Localhost";
+      } else if (currentBase === "/api/v1") {
+        authServerLabel.textContent = "Server: Web Relative";
+      } else {
+        authServerLabel.textContent = `Server: ${currentBase.replace(/https?:\/\//, "")}`;
+      }
+    }
+  }
+
+  updateAuthServerDisplay();
+
+  if (authChangeServerBtn && authServerConfigBox) {
+    authChangeServerBtn.addEventListener("click", () => {
+      authServerConfigBox.classList.toggle("hidden");
+      if (!authServerConfigBox.classList.contains("hidden")) {
+        const currentBase = window.apiClient ? window.apiClient.getBaseUrl() : "";
+        let matched = false;
+        if (authServerSelect) {
+          for (let i = 0; i < authServerSelect.options.length; i++) {
+            if (authServerSelect.options[i].value === currentBase) {
+              authServerSelect.selectedIndex = i;
+              matched = true;
+              break;
+            }
+          }
+          if (!matched) {
+            authServerSelect.value = "custom";
+            if (authCustomInputGroup) authCustomInputGroup.classList.remove("hidden");
+            if (authCustomServerInput) authCustomServerInput.value = currentBase;
+          } else {
+            if (authCustomInputGroup) authCustomInputGroup.classList.add("hidden");
+          }
+        }
+      }
+    });
+  }
+
+  if (authCloseServerBoxBtn && authServerConfigBox) {
+    authCloseServerBoxBtn.addEventListener("click", () => {
+      authServerConfigBox.classList.add("hidden");
+    });
+  }
+
+  if (authServerSelect) {
+    authServerSelect.addEventListener("change", () => {
+      if (authServerSelect.value === "custom") {
+        if (authCustomInputGroup) authCustomInputGroup.classList.remove("hidden");
+        if (authCustomServerInput) authCustomServerInput.focus();
+      } else {
+        if (authCustomInputGroup) authCustomInputGroup.classList.add("hidden");
+      }
+    });
+  }
+
+  if (authApplyServerBtn) {
+    authApplyServerBtn.addEventListener("click", async () => {
+      let targetUrl = authServerSelect ? authServerSelect.value : "";
+      if (targetUrl === "custom") {
+        targetUrl = (authCustomServerInput?.value || "").trim();
+        if (!targetUrl.startsWith("http://") && !targetUrl.startsWith("https://")) {
+          if (authServerTestStatus) authServerTestStatus.innerHTML = "<span style='color:#ef4444;'>Enter valid URL (http:// or https://)</span>";
+          return;
+        }
+      }
+      if (window.apiClient) {
+        window.apiClient.setBaseUrl(targetUrl);
+        updateAuthServerDisplay();
+        const envSel = document.getElementById("envSelect");
+        if (envSel) envSel.value = targetUrl;
+      }
+      if (authServerTestStatus) {
+        authServerTestStatus.innerHTML = "<span style='color:#3b82f6;'>Testing connection...</span>";
+      }
+      const isHealthy = await window.apiClient.checkHealth(4000);
+      if (authServerTestStatus) {
+        if (isHealthy) {
+          authServerTestStatus.innerHTML = "<span style='color:#16a34a; font-weight:600;'>✅ Server connected & healthy!</span>";
+          if (authServerDot) authServerDot.style.background = "#22c55e";
+          setTimeout(() => {
+            if (authServerConfigBox) authServerConfigBox.classList.add("hidden");
+            clearAuthMessage("loginMessage");
+          }, 1200);
+        } else {
+          authServerTestStatus.innerHTML = "<span style='color:#ea580c; font-weight:500;'>⚠️ Unreachable. Check network or tunnel.</span>";
+          if (authServerDot) authServerDot.style.background = "#f59e0b";
+        }
+      }
+    });
+  }
+
+  if (authQuickOfflineBtn) {
+    if (!isDemoActive) {
+      authQuickOfflineBtn.style.display = "none";
+    } else {
+      authQuickOfflineBtn.addEventListener("click", executeDemoLogin);
+    }
   }
 
   // 1. Sign In Form Handler
@@ -1947,9 +2071,10 @@ function setupAuthPortalEngine() {
           if (window.notificationManager) {
             window.notificationManager.init();
           }
-          showMobileNotice(`Welcome back to SkyZen, ${res.user.name || "User"}!`, "info");
         }
       } catch (err) {
+        console.error("Login error:", err);
+
         if (err.status === 401) {
           setAuthMessage("loginMessage", "Invalid email or password. Please check your credentials.", "error");
         } else if (err.message && err.message.includes("NETWORK_OFFLINE")) {
@@ -1957,7 +2082,34 @@ function setupAuthPortalEngine() {
         } else if (err.message && err.message.includes("REQUEST_TIMEOUT")) {
           setAuthMessage("loginMessage", "Server took too long to respond. Please try again.", "error");
         } else {
-          setAuthMessage("loginMessage", "Unable to sign in at this moment. Please try again later.", "error");
+          const isDemoActive = Boolean(window.ENV && window.ENV.DEMO_MODE === true);
+          const currentUrl = (window.apiClient && window.apiClient.getBaseUrl()) || "server";
+          const errDetail = err.message ? `: ${err.message}` : "";
+          const demoBtnHtml = isDemoActive
+            ? `<button type="button" id="loginFallbackDemoBtn" class="auth-primary-btn" style="padding:4px 10px; font-size:11px; height:auto; min-height:28px; width:auto; border-radius:6px;">🚀 Launch Demo Mode</button>`
+            : "";
+          setAuthMessage(
+            "loginMessage",
+            `<div style="font-weight:600; margin-bottom:4px;">Cannot reach server (${escapeHTML(currentUrl)})</div>` +
+            `<div style="font-size:11.5px; opacity:0.9; margin-bottom:8px;">${escapeHTML(errDetail || "Failed to fetch")}</div>` +
+            `<div style="display:flex; gap:8px; flex-wrap:wrap;">` +
+            demoBtnHtml +
+            `<button type="button" id="loginOpenServerBtn" class="auth-secondary-btn" style="padding:4px 10px; font-size:11px; height:auto; min-height:28px; width:auto; border-radius:6px;">⚙️ Fix Server URL</button>` +
+            `</div>`,
+            "error",
+            true
+          );
+          setTimeout(() => {
+            const fbDemo = document.getElementById("loginFallbackDemoBtn");
+            if (fbDemo) fbDemo.onclick = executeDemoLogin;
+            const opServ = document.getElementById("loginOpenServerBtn");
+            if (opServ) {
+              opServ.onclick = () => {
+                const box = document.getElementById("authServerConfigBox");
+                if (box) box.classList.remove("hidden");
+              };
+            }
+          }, 50);
         }
       } finally {
         if (submitBtn) submitBtn.disabled = false;
@@ -2381,7 +2533,9 @@ function setupAuthPortalEngine() {
           ? window.notificationManager.sendTestNotification()
           : window.apiClient.sendTestNotification());
 
-        showMobileNotice(`Test alert dispatched (${res.mode}): ${res.message}`, "success", 4000);
+        const isMock = res.is_mock === true || res.mode === "mock_delivery" || res.mode === "mock";
+        const badgeNotice = isMock ? "[TEST MODE / MOCK DELIVERY]" : "[LIVE DISPATCH]";
+        showMobileNotice(`${badgeNotice}: ${res.message || "Test alert recorded"}`, isMock ? "info" : "success", 4500);
       } catch (err) {
         showMobileNotice(`Test alert error: ${err.message}`, "error", 4000);
       } finally {
@@ -2515,6 +2669,7 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
     await loadForecast(location, lat, lon);
     await loadAlerts(location, lat, lon);
     await loadAirQuality(location, lat, lon);
+    await loadClimateTrends(location, lat, lon);
 
     if (typeof mapInstance !== "undefined" && mapInstance) {
       try {
@@ -2547,6 +2702,7 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
         await loadForecast(location, lat, lon);
         await loadAlerts(location, lat, lon);
         await loadAirQuality(location, lat, lon);
+        await loadClimateTrends(location, lat, lon);
 
         if (typeof mapInstance !== "undefined" && mapInstance) {
           try {
@@ -3206,9 +3362,20 @@ async function loadAlerts(location, lat = null, lon = null) {
     if (data && data.alerts && data.alerts.length > 0) {
       const heroAlert = data.alerts[0];
       const severityStr = (heroAlert.severity || "warning").toUpperCase();
+      const rawSev = (heroAlert.severity || "warning").toLowerCase();
+      let normalizedSev = "moderate";
+      if (rawSev.includes("severe") || rawSev.includes("high") || rawSev.includes("danger") || rawSev.includes("red")) {
+        normalizedSev = "severe";
+      } else if (rawSev.includes("moderate") || rawSev.includes("amber") || rawSev.includes("warning") || rawSev.includes("orange")) {
+        normalizedSev = "moderate";
+      } else if (rawSev.includes("minor") || rawSev.includes("advisory") || rawSev.includes("watch") || rawSev.includes("yellow")) {
+        normalizedSev = "minor";
+      } else {
+        normalizedSev = "info";
+      }
 
       if (banner) {
-        banner.className = "alert-banner";
+        banner.className = `alert-banner severity-${normalizedSev}`;
         if (titleElem) titleElem.textContent = heroAlert.title || "Weather Warning";
         if (descElem) descElem.textContent = heroAlert.description || "No description provided.";
         const areaElem = document.getElementById("alertAffectedArea");
@@ -3295,8 +3462,18 @@ function renderAlertsList(alerts) {
 
   alerts.forEach(a => {
     const item = document.createElement("div");
-    const sev = a.severity || 'high';
-    item.className = `disaster-item ${sev}`;
+    const rawSev = (a.severity || 'warning').toLowerCase();
+    let normalizedSev = "moderate";
+    if (rawSev.includes("severe") || rawSev.includes("high") || rawSev.includes("danger") || rawSev.includes("red")) {
+      normalizedSev = "severe";
+    } else if (rawSev.includes("moderate") || rawSev.includes("amber") || rawSev.includes("warning") || rawSev.includes("orange")) {
+      normalizedSev = "moderate";
+    } else if (rawSev.includes("minor") || rawSev.includes("advisory") || rawSev.includes("watch") || rawSev.includes("yellow")) {
+      normalizedSev = "minor";
+    } else {
+      normalizedSev = "info";
+    }
+    item.className = `disaster-item severity-${normalizedSev} ${a.severity || 'high'}`;
 
     let validityStr = "";
     if (a.valid_from && a.expires_at) {
@@ -3326,12 +3503,12 @@ function renderAlertsList(alerts) {
             <span class="material-symbols-rounded icon-xs" style="font-size:14px;">location_on</span>
             ${escapeHTML(areaName)}
           </span>
-          <span class="official-imd-badge" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:#ffffff; background:#dc2626; padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
+          <span class="official-imd-badge" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:inherit; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.3); padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
             <span class="material-symbols-rounded icon-sm" style="font-size:14px;">verified</span>
             OFFICIAL IMD WARNING
           </span>
         </div>
-        <span class="alert-badge ${sev}" style="font-size:10px; font-weight:700;">${sevLabel}</span>
+        <span class="alert-badge severity-${normalizedSev} ${a.severity || 'high'}" style="font-size:10px; font-weight:700;">${sevLabel}</span>
       </div>
 
       <strong style="font-size:16px; color:var(--text-primary); display:block; margin-bottom:4px;">${escapeHTML(a.title)}</strong>
@@ -3529,6 +3706,73 @@ async function loadAirQuality(location, lat = null, lon = null) {
     }
   } catch (e) {
     console.warn("Could not fetch air quality telemetry:", e);
+  }
+}
+
+// 8b. Climate Trend Archive Engine (NASA POWER)
+async function loadClimateTrends(location, lat = null, lon = null) {
+  const trendBox = document.getElementById("trendBox");
+  if (!trendBox) return;
+
+  // 1. Immediately show explicit loading state
+  trendBox.innerHTML = `
+    <div style="padding: 12px 0; color: var(--text-secondary); font-size: 13px; display: flex; align-items: center; gap: 8px;">
+      <span class="material-symbols-rounded icon-sm" style="animation: spin 1s linear infinite;">progress_activity</span>
+      <span>Loading regional climate trend archive for ${escapeHTML(location)}...</span>
+    </div>
+  `;
+
+  try {
+    // 2. Fetch with a 6-second timeout to prevent sluggish remote calls from hanging UI
+    const fetchPromise = window.apiClient.getClimateTrends(location, lat, lon);
+    const timeoutPromise = new Promise((_, reject) =>
+      setTimeout(() => reject(new Error("Climate telemetry request timed out")), 6000)
+    );
+
+    const data = await Promise.race([fetchPromise, timeoutPromise]);
+    if (!data || data.status === "unavailable") {
+      throw new Error("Climate data unavailable for specified region");
+    }
+
+    const deltaVal = Number(data.temperature_delta_c || 0);
+    const deltaSign = (deltaVal >= 0) ? "+" : "";
+    const deltaFormatted = `${deltaSign}${deltaVal.toFixed(2)}°C`;
+    const periodStr = data.period || `${data.start_year || 2015} – ${data.end_year || 2025}`;
+    const analysisText = data.analysis || `Average annual temperature has changed by ${deltaFormatted} over the decade with observed variations in regional monsoonal precipitation.`;
+    const rainText = data.rainfall_variability || "Variable";
+    const srcText = data.source || "NASA POWER";
+
+    trendBox.innerHTML = `
+      <p class="trend-headline">
+        <span class="material-symbols-rounded icon-sm">trending_up</span>
+        <span data-i18n="climate.trend_title">10-Year Temperature Trend (${escapeHTML(periodStr)}) — ${escapeHTML(location)}</span>
+      </p>
+      <p class="trend-text">${escapeHTML(analysisText)}</p>
+      <div class="trend-stat-row">
+        <div class="stat-pill">Temp Δ: <strong>${escapeHTML(deltaFormatted)}</strong></div>
+        <div class="stat-pill">Rain: <strong>${escapeHTML(rainText)}</strong></div>
+        <div class="stat-pill">Source: <strong>${escapeHTML(srcText)}</strong></div>
+      </div>
+    `;
+    if (window.I18N && typeof window.I18N.applyTranslations === "function") {
+      window.I18N.applyTranslations();
+    }
+  } catch (err) {
+    console.warn(`Climate trends unavailable for ${location}:`, err.message);
+    // Explicit, clear fallback message — NEVER silent hardcoded values
+    trendBox.innerHTML = `
+      <p class="trend-headline">
+        <span class="material-symbols-rounded icon-sm" style="color: var(--text-secondary);">cloud_off</span>
+        <span>Climate Trend Archive — ${escapeHTML(location)}</span>
+      </p>
+      <p class="trend-text" style="color: var(--text-secondary); font-style: italic;">
+        Historical climate trend archive currently unavailable for ${escapeHTML(location)}. Real-time NASA POWER telemetry was not returned or timed out.
+      </p>
+      <div class="trend-stat-row">
+        <div class="stat-pill">Status: <strong>Unavailable</strong></div>
+        <div class="stat-pill">Source: <strong>NASA POWER API</strong></div>
+      </div>
+    `;
   }
 }
 
@@ -5408,13 +5652,19 @@ function switchWeatherMapLayer(layerName) {
   const apiBase = (window.apiClient && window.apiClient.getBaseUrl()) || "/api/v1";
   const tileUrl = `${apiBase}/weather/tiles/${encodeURIComponent(layerName)}/{z}/{x}/{y}.png`;
 
+  const isSatellite = (layerName === "satellite" || layerName === "himawari");
+  const layerAttribution = isSatellite
+    ? "Satellite Infrared &copy; JMA Himawari-9 (SSEC RealEarth)"
+    : "Weather Tiles &copy; OpenWeather";
+  const layerOpacity = isSatellite ? 0.68 : 0.72;
+
   if (ControlledWeatherTileLayer) {
     currentWeatherTileLayer = new ControlledWeatherTileLayer(tileUrl, {
       pane: "weatherTilePane",
-      opacity: 0.72,
+      opacity: layerOpacity,
       zIndex: 250,
       maxZoom: 18,
-      attribution: "Weather Tiles &copy; OpenWeather"
+      attribution: layerAttribution
     });
     currentWeatherTileLayer.addTo(mapInstance);
     currentWeatherTileLayer.enableAndFetch();
@@ -5429,7 +5679,8 @@ function setupMapLeftLayerToggle() {
       const layer = btn.getAttribute("data-layer");
       if (layer) {
         switchWeatherMapLayer(layer);
-        showMobileNotice(`Weather Map Layer: ${layer.toUpperCase()}`, "info", 1500);
+        const displayLabel = layer === "satellite" ? "SATELLITE (HIMAWARI)" : layer.toUpperCase();
+        showMobileNotice(`Weather Map Layer: ${displayLabel}`, "info", 1500);
       }
     });
   });
@@ -6196,9 +6447,17 @@ function updateHeroWeatherAtmosphere(data) {
   }
   if (!heroAtmosphereEngine || !data) return;
   try {
-    const condition = data.weather?.condition || "";
+    const condition = data.weather?.condition || (data.current ? data.current.condition : "") || "";
     const hour = new Date().getHours();
-    const isNight = data.weather?.is_day === false || (hour >= 19 || hour < 6);
+    let isNight = data.weather?.is_day === false || (hour >= 19 || hour < 6);
+    if (data.weather?.sunrise && data.weather?.sunset) {
+      const nowTs = Math.floor(Date.now() / 1000);
+      const sRise = Number(data.weather.sunrise);
+      const sSet = Number(data.weather.sunset);
+      if (!isNaN(sRise) && !isNaN(sSet) && sRise > 0 && sSet > 0) {
+        isNight = nowTs < sRise || nowTs >= sSet;
+      }
+    }
     heroAtmosphereEngine.setCondition(condition, isNight);
   } catch (err) {
     console.warn("Graceful degradation: Error updating hero atmosphere:", err);
@@ -6302,17 +6561,26 @@ class HeroAtmosphereEngine {
     this.condition = normalized;
     this.isNight = Boolean(isNight);
 
+    const conditionKey = normalized.toLowerCase();
+    const timeKey = this.isNight ? "night" : "day";
+    const conditionClass = `ambient-${conditionKey}-${timeKey}`;
+    const legacyAlias = normalized === "CLEAR" 
+      ? (this.isNight ? "ambient-clear-night" : "ambient-clear-day") 
+      : `ambient-${conditionKey}`;
+
     if (this.ambient) {
-      this.ambient.className = "hero-atmosphere-ambient";
-      if (normalized === "CLEAR") {
-        this.ambient.classList.add(this.isNight ? "ambient-clear-night" : "ambient-clear-day");
-      } else if (normalized === "RAIN") {
-        this.ambient.classList.add("ambient-rain");
-      } else if (normalized === "CLOUDY") {
-        this.ambient.classList.add("ambient-cloudy");
-      } else if (normalized === "STORM") {
-        this.ambient.classList.add("ambient-storm");
-      }
+      this.ambient.className = `hero-atmosphere-ambient ${conditionClass} ${legacyAlias}`;
+    }
+
+    // Apply full-bleed condition background to body across all screens
+    if (document.body) {
+      document.body.className = document.body.className
+        .replace(/\bambient-[a-z0-9-]+\b/g, '')
+        .trim();
+      document.body.classList.add(conditionClass, legacyAlias);
+      try {
+        sessionStorage.setItem('skyzen_ambient_class', conditionClass);
+      } catch (e) {}
     }
 
     if (condChanged) {
@@ -6626,9 +6894,83 @@ class HeroAtmosphereEngine {
   }
 }
 
+/* ==========================================================================
+   PERFORMANCE & VISUAL EFFECTS MODE ENGINE (Reduced Effects Fallback)
+   Protects low-end Android WebViews and respects prefers-reduced-motion
+   ========================================================================== */
+function initPerformanceMode() {
+  const select = document.getElementById("effectsModeSelect");
+  let saved = "high";
+  try {
+    saved = localStorage.getItem("skyzen_effects_mode") || "high";
+  } catch (e) {}
+
+  const prefersReduced = window.matchMedia && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+  const isLowEnd = (navigator.hardwareConcurrency && navigator.hardwareConcurrency <= 2) ||
+                   (navigator.deviceMemory && navigator.deviceMemory <= 2);
+
+  if (saved === "reduced" || (saved === "high" && (prefersReduced || isLowEnd))) {
+    applyEffectsMode(saved === "reduced" || prefersReduced ? "reduced" : "high");
+  } else {
+    applyEffectsMode("high");
+  }
+
+  if (select) {
+    select.value = document.documentElement.classList.contains("reduced-effects") ? "reduced" : "high";
+    select.onchange = (e) => setEffectsMode(e.target.value);
+  }
+}
+
+function setEffectsMode(mode) {
+  try {
+    localStorage.setItem("skyzen_effects_mode", mode);
+  } catch (e) {}
+  applyEffectsMode(mode);
+}
+
+function applyEffectsMode(mode) {
+  if (mode === "reduced") {
+    document.documentElement.classList.add("reduced-effects");
+    if (window.heroAtmosphereEngine) {
+      window.heroAtmosphereEngine.pause();
+      window.heroAtmosphereEngine.renderStatic();
+    }
+  } else {
+    document.documentElement.classList.remove("reduced-effects");
+    if (window.heroAtmosphereEngine && !document.hidden) {
+      window.heroAtmosphereEngine.resume();
+    }
+  }
+  const select = document.getElementById("effectsModeSelect");
+  if (select) select.value = mode;
+}
+
+function setConditionStatePreview(conditionName, isNight = false) {
+  if (window.heroAtmosphereEngine) {
+    window.heroAtmosphereEngine.setCondition(conditionName, isNight);
+  } else {
+    const c = (conditionName || "clear").toLowerCase();
+    const active = `ambient-${c}-${isNight ? 'night' : 'day'}`;
+    const legacy = `ambient-${c}`;
+    if (document.body) {
+      document.body.className = document.body.className
+        .replace(/\bambient-[a-z0-9-]+\b/g, '')
+        .trim();
+      document.body.classList.add(active, legacy);
+      try {
+        sessionStorage.setItem('skyzen_ambient_class', active);
+      } catch (e) {}
+    }
+  }
+}
+
 window.initHeroWeatherAtmosphere = initHeroWeatherAtmosphere;
 window.updateHeroWeatherAtmosphere = updateHeroWeatherAtmosphere;
 window.HeroAtmosphereEngine = HeroAtmosphereEngine;
+window.initPerformanceMode = initPerformanceMode;
+window.setEffectsMode = setEffectsMode;
+window.applyEffectsMode = applyEffectsMode;
+window.setConditionStatePreview = setConditionStatePreview;
 
 /* ==========================================================================
    FLAGSHIP UPGRADE 2: NEXT 60-MINUTE PRECIPITATION TIMELINE & NOWCAST
@@ -6724,7 +7066,7 @@ function renderMinuteRainTimeline(data) {
       liveBadge.style.borderColor = "rgba(220, 38, 38, 0.4)";
       liveBadge.style.background = "#FEE2E2";
     } else {
-      const nowcastBadgeText = locDyn("MODELLED NOWCAST PROJECTION");
+      const nowcastBadgeText = locDyn("ESTIMATED (NO RADAR FEED)");
       liveBadge.innerHTML = `<span class="material-symbols-rounded icon-sm">insights</span><span>${escapeHTML(nowcastBadgeText)}</span>`;
       liveBadge.style.color = "#0369A1";
       liveBadge.style.borderColor = "rgba(2, 132, 199, 0.25)";

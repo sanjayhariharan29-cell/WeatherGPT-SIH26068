@@ -277,7 +277,9 @@ async def send_test_notification(
                 unreg_dev.updated_at = now
         db.commit()
 
-    # Log to audit trail
+    mode = "live_fcm" if notification_service.is_live_fcm_available() else "mock_delivery"
+
+    # Log to audit trail with explicit mock designation
     for res in multicast_result.get("delivery_results", []):
         log_entry = AlertDeliveryLog(
             alert_id=None,
@@ -285,21 +287,24 @@ async def send_test_notification(
             user_id=current_user.id,
             location_name="Test Client Device",
             channel="test_fcm",
-            status="SENT" if res.get("success") else "FAILED",
-            reason="user_initiated_test" if res.get("success") else res.get("error", "fcm_failure"),
+            status="SENT" if (res.get("success") and mode == "live_fcm") else ("MOCK_SIMULATED" if res.get("success") else "FAILED"),
+            reason="user_initiated_test",
             language=current_user.language or "ta",
             payload_preview=body[:100],
-            delivered_at=now if res.get("success") else None,
+            delivered_at=now if (res.get("success") and mode == "live_fcm") else None,
             created_at=now
         )
         db.add(log_entry)
     db.commit()
 
-    mode = "live_fcm" if notification_service.is_live_fcm_available() else "mock_delivery"
+    if mode == "mock_delivery":
+        resp_msg = f"[MOCK/TEST MODE] Notification simulated for {len(target_tokens)} test recipient(s). Real push delivery disabled (no Google Cloud live FCM credentials)."
+    else:
+        resp_msg = f"Live FCM test alert dispatched to {len(target_tokens)} device(s)."
 
     return TestNotificationResponse(
         success=multicast_result.get("success", False),
-        message=f"Test notification dispatched to {len(target_tokens)} device(s).",
+        message=resp_msg,
         dispatched_count=len(target_tokens),
         mode=mode,
         delivery_results=multicast_result.get("delivery_results", []),

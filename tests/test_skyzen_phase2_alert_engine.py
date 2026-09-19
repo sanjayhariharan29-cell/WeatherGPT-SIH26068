@@ -492,7 +492,7 @@ async def test_15_newer_warning_vs_older_warning(memory_db):
 # 16. Secondary Provider Contradicts IMD (IMD Authority Preserved)
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_16_secondary_provider_contradicts_imd():
+async def test_16_secondary_provider_contradicts_imd(memory_db):
     """Secondary provider reporting clear skies cannot suppress IMD warning."""
     alert_service = AlertService()
     now = datetime.now(timezone.utc)
@@ -510,7 +510,7 @@ async def test_16_secondary_provider_contradicts_imd():
     )
 
     with patch.object(alert_service.primary, "get_official_alerts", new=AsyncMock(return_value=[imd_alert])):
-        res = await alert_service.fetch_alerts(10.76, 79.84, "Nagapattinam", active_only=True)
+        res = await alert_service.fetch_alerts(10.76, 79.84, "Nagapattinam", active_only=True, db_session=memory_db)
         assert res.active_count == 1
         assert res.alerts[0].severity in ("high", "extreme", "RED")
         assert res.alerts[0].is_official is True
@@ -717,7 +717,7 @@ def test_22_decision_trace_contains_warning_evidence():
 # 23. Frontend Receives Correct Active-Warning State
 # ---------------------------------------------------------------------------
 @pytest.mark.asyncio
-async def test_23_frontend_receives_correct_active_warning_state():
+async def test_23_frontend_receives_correct_active_warning_state(memory_db):
     alert_service = AlertService()
     now = datetime.now(timezone.utc)
     raw_alert = NormalizedAlertItem(
@@ -737,7 +737,7 @@ async def test_23_frontend_receives_correct_active_warning_state():
     )
 
     with patch.object(alert_service.primary, "get_official_alerts", new=AsyncMock(return_value=[raw_alert])):
-        res = await alert_service.fetch_alerts(10.76, 79.84, "Nagapattinam", active_only=True)
+        res = await alert_service.fetch_alerts(10.76, 79.84, "Nagapattinam", active_only=True, db_session=memory_db)
         assert isinstance(res, AlertResponse)
         assert res.active_count == 1
         item = res.alerts[0]

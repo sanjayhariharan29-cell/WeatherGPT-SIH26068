@@ -5,19 +5,19 @@
      LIQUID GLASS UNIFIED DESIGN TOKENS
      Single Source of Truth across all screens and components
      ============================================================================ */
-  /* Liquid Glass Core Recipe */
-  --glass-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.26) 24%, rgba(255, 255, 255, 0.25) 78%, rgba(255, 255, 255, 0.23) 100%);
-  --glass-backdrop-filter: blur(20px) saturate(115%);
-  --glass-webkit-backdrop-filter: blur(20px) saturate(115%);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.32);
-  --glass-border-subtle: 1px solid rgba(255, 255, 255, 0.18);
-  --glass-shadow: 0 8px 32px rgba(15, 23, 42, 0.07);
-  --glass-shadow-hover: 0 12px 36px rgba(15, 23, 42, 0.12);
+  /* Liquid Glass Core Recipe (Inherited from design-tokens.css) */
+  --glass-bg: var(--glass-card-bg);
+  --glass-backdrop-filter: var(--glass-card-backdrop);
+  --glass-webkit-backdrop-filter: var(--glass-card-backdrop);
+  --glass-border: var(--glass-card-border);
+  --glass-border-subtle: rgba(255, 255, 255, 0.22);
+  --glass-shadow: var(--glass-card-shadow);
+  --glass-shadow-hover: 0 16px 44px rgba(0, 0, 0, 0.22), inset 0 1px 0 rgba(255, 255, 255, 0.40);
 
   /* Corner Radii System */
-  --radius-card: 24px;       /* Major cards (20-26px range) */
+  --radius-card: 24px;       /* Major cards (20-24px range) */
   --radius-subcard: 18px;    /* Nested / intermediate cards */
-  --radius-chip: 16px;       /* Chips, tags, small items */
+  --radius-chip: 14px;       /* Chips, tags, small items */
   --radius-sm: 8px;
   --radius-md: 12px;
   --radius-lg: 16px;
@@ -62,26 +62,26 @@
   --success-green-bg: rgba(22, 163, 74, 0.16);
 
   --bg-app: #F0F7FF;
-  --bg-card: var(--glass-bg);
-  --bg-subtle: rgba(255, 255, 255, 0.40);
-  --border-color: rgba(255, 255, 255, 0.32);
-  --border-subtle: rgba(255, 255, 255, 0.18);
-  --card-shadow: var(--glass-shadow);
+  --bg-card: var(--glass-card-bg);
+  --bg-subtle: rgba(255, 255, 255, 0.14);
+  --border-color: var(--glass-card-border);
+  --border-subtle: rgba(255, 255, 255, 0.20);
+  --card-shadow: var(--glass-card-shadow);
   --card-shadow-hover: var(--glass-shadow-hover);
 }
 
 /* Dark Theme Color System */
 [data-theme="dark"] {
-  --glass-bg: linear-gradient(180deg, rgba(15, 23, 42, 0.65) 0%, rgba(30, 41, 59, 0.68) 24%, rgba(15, 23, 42, 0.72) 78%, rgba(30, 41, 59, 0.70) 100%);
-  --glass-backdrop-filter: blur(20px) saturate(115%);
-  --glass-webkit-backdrop-filter: blur(20px) saturate(115%);
-  --glass-border: 1px solid rgba(255, 255, 255, 0.16);
-  --glass-border-subtle: 1px solid rgba(255, 255, 255, 0.10);
-  --glass-shadow: 0 12px 36px rgba(0, 0, 0, 0.45);
-  --glass-shadow-hover: 0 16px 44px rgba(0, 0, 0, 0.60);
+  --glass-bg: var(--glass-card-bg);
+  --glass-backdrop-filter: var(--glass-card-backdrop);
+  --glass-webkit-backdrop-filter: var(--glass-card-backdrop);
+  --glass-border: var(--glass-card-border);
+  --glass-border-subtle: rgba(255, 255, 255, 0.12);
+  --glass-shadow: var(--glass-card-shadow);
+  --glass-shadow-hover: 0 16px 44px rgba(0, 0, 0, 0.60), inset 0 1px 0 rgba(255, 255, 255, 0.22);
 
   --bg-app: #080D1A;
-  --bg-card: var(--glass-bg);
+  --bg-card: var(--glass-card-bg);
   --bg-subtle: rgba(30, 41, 59, 0.65);
   --border-color: rgba(255, 255, 255, 0.16);
   --border-subtle: rgba(255, 255, 255, 0.10);
@@ -539,19 +539,21 @@ body {
 .header-search-bar {
   display: flex;
   align-items: center;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
+  background: var(--glass-chip-bg);
+  backdrop-filter: var(--glass-chip-backdrop);
+  -webkit-backdrop-filter: var(--glass-chip-backdrop);
+  border: var(--glass-chip-border);
   border-radius: var(--radius-full);
-  padding: 0 14px;
-  height: 44px;
+  padding: 0 16px;
+  height: 46px;
   gap: 10px;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04);
+  box-shadow: var(--glass-chip-shadow);
   transition: all 0.2s ease;
 }
 
 .header-search-bar:focus-within {
   border-color: var(--primary-blue);
-  box-shadow: 0 0 0 3px rgba(25, 118, 210, 0.14), 0 2px 8px rgba(0, 0, 0, 0.06);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.22), var(--glass-chip-shadow);
 }
 
 .header-search-bar .search-icon {
@@ -783,28 +785,78 @@ body {
   background: var(--primary-blue-hover);
 }
 
-/* Official Warning Banner (Compact Home Status & Full Alert Card) - Liquid Glass */
+/* Official Warning Banner (Compact Home Status & Full Alert Card) - Tinted Liquid Glass */
 .alert-banner {
-  background: linear-gradient(180deg, rgba(254, 242, 242, 0.55) 0%, rgba(254, 226, 226, 0.45) 100%);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-backdrop-filter);
-  border: 1px solid rgba(248, 113, 113, 0.35);
-  border-left: 5px solid var(--alert-red);
-  border-radius: var(--radius-card);
-  padding: 16px 20px;
-  box-shadow: var(--glass-shadow);
+  background: var(--glass-alert-severe-bg);
+  backdrop-filter: var(--glass-hero-backdrop);
+  -webkit-backdrop-filter: var(--glass-hero-backdrop);
+  border: var(--glass-alert-severe-border);
+  border-radius: var(--glass-hero-radius);
+  padding: 18px 22px;
+  box-shadow: var(--glass-alert-severe-shadow);
   display: flex;
   flex-direction: column;
   gap: 8px;
   overflow-wrap: break-word;
   position: relative;
   overflow: hidden;
+  transition: transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.alert-banner::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.3) 50%, transparent 100%);
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s 1 forwards;
+  pointer-events: none;
+  z-index: 2;
+}
+
+/* Calibrated Severity Tint Scaling */
+.alert-banner.severity-severe,
+.alert-banner.severity-high,
+.alert-banner.severity-red {
+  background: var(--glass-alert-severe-bg);
+  border: var(--glass-alert-severe-border);
+  box-shadow: var(--glass-alert-severe-shadow);
+}
+
+.alert-banner.severity-moderate,
+.alert-banner.severity-medium,
+.alert-banner.severity-amber {
+  background: var(--glass-alert-moderate-bg);
+  border: var(--glass-alert-moderate-border);
+  box-shadow: var(--glass-alert-moderate-shadow);
+}
+
+.alert-banner.severity-minor,
+.alert-banner.severity-low,
+.alert-banner.severity-yellow {
+  background: var(--glass-alert-minor-bg);
+  border: var(--glass-alert-minor-border);
+  box-shadow: var(--glass-alert-minor-shadow);
+}
+
+.alert-banner.severity-info {
+  background: var(--glass-alert-info-bg);
+  border: var(--glass-alert-info-border);
+  box-shadow: var(--glass-alert-info-shadow);
 }
 
 [data-theme="dark"] .alert-banner {
-  background: linear-gradient(180deg, rgba(153, 27, 27, 0.45) 0%, rgba(127, 29, 29, 0.40) 100%);
   border-color: rgba(248, 113, 113, 0.35);
-  border-left-color: #F87171;
+}
+
+[data-theme="dark"] .alert-banner.severity-moderate {
+  border-color: rgba(251, 191, 36, 0.32);
+}
+
+[data-theme="dark"] .alert-banner.severity-minor {
+  border-color: rgba(250, 204, 21, 0.25);
 }
 
 [data-theme="dark"] .alert-title {
@@ -1052,13 +1104,13 @@ body {
 /* Card Surface / Panels - Liquid Glass Recipe */
 .glass-panel,
 .liquid-glass-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
-  border: var(--glass-border);
-  border-radius: var(--radius-card);
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-card-backdrop);
+  -webkit-backdrop-filter: var(--glass-card-backdrop);
+  border: var(--glass-card-border);
+  border-radius: var(--glass-card-radius);
   padding: 22px;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-card-shadow);
   display: flex;
   flex-direction: column;
   gap: 14px;
@@ -1072,13 +1124,6 @@ body {
   box-shadow: var(--glass-shadow-hover);
 }
 
-/* One-time Specular Sheen sweep on card entrance */
-@keyframes specularSheen {
-  0% { transform: translateX(-160%) skewX(-20deg); opacity: 0; }
-  35% { opacity: 0.55; }
-  100% { transform: translateX(260%) skewX(-20deg); opacity: 0; }
-}
-
 .glass-panel::after,
 .hero-weather-card::after,
 .liquid-glass-card::after {
@@ -1089,7 +1134,7 @@ body {
   width: 50%;
   height: 100%;
   background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
-  animation: specularSheen 1.3s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s forwards;
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s forwards;
   pointer-events: none;
   z-index: 3;
 }
@@ -1097,7 +1142,7 @@ body {
 [data-theme="dark"] .glass-panel::after,
 [data-theme="dark"] .hero-weather-card::after,
 [data-theme="dark"] .liquid-glass-card::after {
-  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.12) 50%, transparent 100%);
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.14) 50%, transparent 100%);
 }
 
 .section-header {
@@ -1123,21 +1168,22 @@ body {
 
 /* Screen 1: Home Dashboard Styles - Liquid Glass Hero */
 .hero-weather-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-webkit-backdrop-filter);
-  border: var(--glass-border);
-  border-radius: var(--radius-card);
+  background: var(--glass-hero-bg);
+  backdrop-filter: var(--glass-hero-backdrop);
+  -webkit-backdrop-filter: var(--glass-hero-backdrop);
+  border: var(--glass-hero-border);
+  border-radius: var(--glass-hero-radius);
   padding: 24px;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-hero-shadow);
   position: relative;
   overflow: hidden;
   transition: border-color 0.4s ease, box-shadow 0.4s ease, background 0.4s ease;
 }
 
 [data-theme="dark"] .hero-weather-card {
-  background: var(--glass-bg);
-  border: var(--glass-border);
+  background: var(--glass-hero-bg);
+  border: var(--glass-hero-border);
+  box-shadow: var(--glass-hero-shadow);
 }
 
 /* Ensure all interactive & text elements in hero card sit cleanly above animated background */
@@ -1174,80 +1220,224 @@ body {
   z-index: 1;
 }
 
-/* Condition Ambient Gradients (Light Theme) */
-.ambient-clear-day {
-  background: radial-gradient(circle at 85% 15%, rgba(251, 191, 36, 0.22) 0%, rgba(56, 189, 248, 0.12) 50%, transparent 75%);
+/* ==========================================================================
+   AMBIENT DEPTH LAYER (2-3 Large Soft-Blurred Glow Shapes)
+   Slow drifting translate-only animation (20-30s loop, no rotation)
+   ========================================================================== */
+.ambient-glow-layer {
+  position: fixed;
+  inset: 0;
+  width: 100vw;
+  height: 100vh;
+  pointer-events: none;
+  overflow: hidden;
+  z-index: 0;
+  transition: opacity 1.2s cubic-bezier(0.16, 1, 0.3, 1);
 }
 
-.ambient-clear-night {
-  background: radial-gradient(circle at 85% 15%, rgba(147, 197, 253, 0.18) 0%, rgba(30, 58, 138, 0.12) 55%, transparent 80%);
+.ambient-glow-shape {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(75px);
+  -webkit-filter: blur(75px);
+  opacity: 0.22;
+  will-change: transform;
+  pointer-events: none;
+  transform: translate3d(0, 0, 0);
 }
 
-.ambient-rain {
-  background: linear-gradient(160deg, rgba(56, 189, 248, 0.15) 0%, rgba(203, 213, 225, 0.2) 60%, rgba(14, 165, 233, 0.1) 100%);
+.glow-shape-1 {
+  width: 520px;
+  height: 520px;
+  top: -120px;
+  right: -60px;
+  background: radial-gradient(circle, var(--glow-color-1, #FFA726) 0%, rgba(255, 167, 38, 0) 72%);
+  animation: ambientDrift1 24s ease-in-out infinite alternate;
 }
 
-.ambient-cloudy {
-  background: linear-gradient(145deg, rgba(148, 163, 184, 0.18) 0%, rgba(203, 213, 225, 0.12) 60%, transparent 100%);
+.glow-shape-2 {
+  width: 480px;
+  height: 480px;
+  bottom: 8%;
+  left: -90px;
+  background: radial-gradient(circle, var(--glow-color-2, #FF7043) 0%, rgba(255, 112, 67, 0) 72%);
+  animation: ambientDrift2 28s ease-in-out infinite alternate;
 }
 
-.ambient-storm {
-  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.22) 0%, rgba(30, 41, 59, 0.25) 65%, transparent 100%);
+.glow-shape-3 {
+  width: 400px;
+  height: 400px;
+  top: 48%;
+  right: 12%;
+  background: radial-gradient(circle, var(--glow-color-3, #EC407A) 0%, rgba(236, 64, 122, 0) 72%);
+  animation: ambientDrift3 22s ease-in-out infinite alternate;
 }
 
-/* Condition Ambient Gradients (Dark Theme) */
-[data-theme="dark"] .ambient-clear-day {
-  background: radial-gradient(circle at 85% 15%, rgba(245, 158, 11, 0.25) 0%, rgba(14, 165, 233, 0.08) 50%, transparent 75%);
+@keyframes ambientDrift1 {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-55px, 40px); }
+  100% { transform: translate(40px, -30px); }
 }
 
-[data-theme="dark"] .ambient-clear-night {
-  background: radial-gradient(circle at 85% 15%, rgba(191, 219, 254, 0.15) 0%, rgba(15, 23, 42, 0.4) 60%, transparent 80%);
+@keyframes ambientDrift2 {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(45px, -35px); }
+  100% { transform: translate(-35px, 40px); }
 }
 
-[data-theme="dark"] .ambient-rain {
-  background: linear-gradient(160deg, rgba(14, 165, 233, 0.18) 0%, rgba(15, 23, 42, 0.4) 60%, transparent 100%);
+@keyframes ambientDrift3 {
+  0% { transform: translate(0, 0); }
+  50% { transform: translate(-40px, -45px); }
+  100% { transform: translate(30px, 35px); }
 }
 
-[data-theme="dark"] .ambient-cloudy {
-  background: linear-gradient(145deg, rgba(71, 85, 105, 0.28) 0%, rgba(15, 23, 42, 0.4) 60%, transparent 100%);
+/* ==========================================================================
+   CONDITION-AWARE FULL-BLEED BODY BACKGROUNDS
+   Clear, Cloudy, Rain, Storm (Day & Night)
+   ========================================================================== */
+
+/* 1. Clear Day (warm tones #FFB74D -> #FF8A50 -> #E85D75, 160deg angle) */
+body.ambient-clear-day,
+body.ambient-clear {
+  background: var(--bg-clear-day);
+  --glow-color-1: var(--glow-clear-day-1);
+  --glow-color-2: var(--glow-clear-day-2);
+  --glow-color-3: var(--glow-clear-day-3);
+  color: var(--text-primary);
 }
 
-[data-theme="dark"] .ambient-storm {
-  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.35) 0%, rgba(15, 23, 42, 0.6) 70%, transparent 100%);
-}
-
-/* Atmospheric Body Background Gradients */
-body.ambient-clear-day {
-  background: radial-gradient(circle at 85% 10%, rgba(251, 191, 36, 0.16) 0%, rgba(56, 189, 248, 0.08) 45%, var(--bg-app) 75%);
-}
+/* 2. Clear Night (darkened 18% & slightly desaturated, reads as night) */
 body.ambient-clear-night {
-  background: radial-gradient(circle at 85% 10%, rgba(147, 197, 253, 0.12) 0%, rgba(30, 58, 138, 0.14) 55%, var(--bg-app) 80%);
+  background: var(--bg-clear-night);
+  --glow-color-1: var(--glow-clear-night-1);
+  --glow-color-2: var(--glow-clear-night-2);
+  --glow-color-3: var(--glow-clear-night-3);
+  color: #F8FAFC;
 }
-body.ambient-rain {
-  background: linear-gradient(170deg, rgba(56, 189, 248, 0.14) 0%, rgba(203, 213, 225, 0.18) 50%, var(--bg-app) 100%);
-}
+
+/* 3. Cloudy Day (soft slate #7D8FA3 -> #5C6B82 -> #3D4B63) */
+body.ambient-cloudy-day,
 body.ambient-cloudy {
-  background: linear-gradient(155deg, rgba(148, 163, 184, 0.18) 0%, rgba(226, 232, 240, 0.10) 60%, var(--bg-app) 100%);
+  background: var(--bg-cloudy-day);
+  --glow-color-1: var(--glow-cloudy-day-1);
+  --glow-color-2: var(--glow-cloudy-day-2);
+  --glow-color-3: var(--glow-cloudy-day-3);
+  color: var(--text-primary);
 }
+
+/* 4. Cloudy Night (slate darkened by 20% & desaturated) */
+body.ambient-cloudy-night {
+  background: var(--bg-cloudy-night);
+  --glow-color-1: var(--glow-cloudy-night-1);
+  --glow-color-2: var(--glow-cloudy-night-2);
+  --glow-color-3: var(--glow-cloudy-night-3);
+  color: #F8FAFC;
+}
+
+/* 5. Rain Day (deep teal-blue #4A7BA6 -> #2D5578 -> #1A3652) */
+body.ambient-rain-day,
+body.ambient-rain {
+  background: var(--bg-rain-day);
+  --glow-color-1: var(--glow-rain-day-1);
+  --glow-color-2: var(--glow-rain-day-2);
+  --glow-color-3: var(--glow-rain-day-3);
+  color: #FFFFFF;
+}
+
+/* 6. Rain Night (deep teal darkened by 20% & desaturated) */
+body.ambient-rain-night {
+  background: var(--bg-rain-night);
+  --glow-color-1: var(--glow-rain-night-1);
+  --glow-color-2: var(--glow-rain-night-2);
+  --glow-color-3: var(--glow-rain-night-3);
+  color: #F8FAFC;
+}
+
+/* 7. Storm Day (near-night indigo #2B2E4A -> #1A1D33 -> #0D0F1F) */
+body.ambient-storm-day,
 body.ambient-storm {
-  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.22) 0%, rgba(30, 41, 59, 0.20) 65%, var(--bg-app) 100%);
+  background: var(--bg-storm-day);
+  --glow-color-1: var(--glow-storm-day-1);
+  --glow-color-2: var(--glow-storm-day-2);
+  --glow-color-3: var(--glow-storm-day-3);
+  color: #FFFFFF;
   animation: subtleStormPulse 12s infinite ease-in-out;
 }
 
-[data-theme="dark"] body.ambient-clear-day {
-  background: radial-gradient(circle at 85% 10%, rgba(245, 158, 11, 0.18) 0%, rgba(14, 165, 233, 0.06) 45%, var(--bg-app) 75%);
+/* 8. Storm Night (near-night indigo darkened by 18%) */
+body.ambient-storm-night {
+  background: var(--bg-storm-night);
+  --glow-color-1: var(--glow-storm-night-1);
+  --glow-color-2: var(--glow-storm-night-2);
+  --glow-color-3: var(--glow-storm-night-3);
+  color: #F8FAFC;
+  animation: subtleStormPulse 12s infinite ease-in-out;
 }
+
+/* Condition Ambient Gradients (In-Card Ambient Highlights) */
+.ambient-clear-day {
+  background: radial-gradient(circle at 85% 15%, rgba(251, 191, 36, 0.24) 0%, rgba(232, 93, 117, 0.14) 50%, transparent 75%);
+}
+
+.ambient-clear-night {
+  background: radial-gradient(circle at 85% 15%, rgba(99, 102, 241, 0.20) 0%, rgba(14, 15, 32, 0.40) 55%, transparent 80%);
+}
+
+.ambient-rain {
+  background: linear-gradient(160deg, rgba(56, 189, 248, 0.18) 0%, rgba(45, 85, 120, 0.22) 60%, rgba(26, 54, 82, 0.12) 100%);
+}
+
+.ambient-cloudy {
+  background: linear-gradient(145deg, rgba(148, 163, 184, 0.20) 0%, rgba(92, 107, 130, 0.14) 60%, transparent 100%);
+}
+
+.ambient-storm {
+  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.28) 0%, rgba(26, 29, 51, 0.35) 65%, transparent 100%);
+}
+
+/* Dark Theme Overrides for All Condition States */
+[data-theme="dark"] .ambient-clear-day,
+[data-theme="dark"] .ambient-clear-night,
+[data-theme="dark"] body.ambient-clear-day,
 [data-theme="dark"] body.ambient-clear-night {
-  background: radial-gradient(circle at 85% 10%, rgba(191, 219, 254, 0.10) 0%, rgba(15, 23, 42, 0.5) 60%, var(--bg-app) 80%);
+  background: var(--bg-clear-night);
+  --glow-color-1: var(--glow-clear-night-1);
+  --glow-color-2: var(--glow-clear-night-2);
+  --glow-color-3: var(--glow-clear-night-3);
+  color: #F8FAFC;
 }
-[data-theme="dark"] body.ambient-rain {
-  background: linear-gradient(170deg, rgba(14, 165, 233, 0.15) 0%, rgba(15, 23, 42, 0.5) 60%, var(--bg-app) 100%);
+
+[data-theme="dark"] .ambient-rain,
+[data-theme="dark"] body.ambient-rain,
+[data-theme="dark"] body.ambient-rain-day,
+[data-theme="dark"] body.ambient-rain-night {
+  background: var(--bg-rain-night);
+  --glow-color-1: var(--glow-rain-night-1);
+  --glow-color-2: var(--glow-rain-night-2);
+  --glow-color-3: var(--glow-rain-night-3);
+  color: #F8FAFC;
 }
-[data-theme="dark"] body.ambient-cloudy {
-  background: linear-gradient(155deg, rgba(71, 85, 105, 0.22) 0%, rgba(15, 23, 42, 0.5) 60%, var(--bg-app) 100%);
+
+[data-theme="dark"] .ambient-cloudy,
+[data-theme="dark"] body.ambient-cloudy,
+[data-theme="dark"] body.ambient-cloudy-day,
+[data-theme="dark"] body.ambient-cloudy-night {
+  background: var(--bg-cloudy-night);
+  --glow-color-1: var(--glow-cloudy-night-1);
+  --glow-color-2: var(--glow-cloudy-night-2);
+  --glow-color-3: var(--glow-cloudy-night-3);
+  color: #F8FAFC;
 }
-[data-theme="dark"] body.ambient-storm {
-  background: radial-gradient(circle at 50% 0%, rgba(99, 102, 241, 0.25) 0%, rgba(15, 23, 42, 0.7) 70%, var(--bg-app) 100%);
+
+[data-theme="dark"] .ambient-storm,
+[data-theme="dark"] body.ambient-storm,
+[data-theme="dark"] body.ambient-storm-day,
+[data-theme="dark"] body.ambient-storm-night {
+  background: var(--bg-storm-night);
+  --glow-color-1: var(--glow-storm-night-1);
+  --glow-color-2: var(--glow-storm-night-2);
+  --glow-color-3: var(--glow-storm-night-3);
+  color: #F8FAFC;
 }
 
 @keyframes subtleStormPulse {
@@ -1256,9 +1446,29 @@ body.ambient-storm {
 }
 
 @media (prefers-reduced-motion: reduce) {
-  body.ambient-storm {
+  body.ambient-storm,
+  body.ambient-storm-day,
+  body.ambient-storm-night {
     animation: none;
   }
+  .ambient-glow-layer {
+    display: none !important;
+  }
+  .ambient-glow-shape {
+    animation: none !important;
+  }
+}
+
+.reduced-effects .ambient-glow-layer,
+:root.reduced-effects .ambient-glow-layer,
+body.reduced-effects .ambient-glow-layer {
+  display: none !important;
+}
+
+.reduced-effects .ambient-glow-shape,
+:root.reduced-effects .ambient-glow-shape,
+body.reduced-effects .ambient-glow-shape {
+  animation: none !important;
 }
 
 
@@ -2387,11 +2597,13 @@ body.ambient-storm {
   display: flex;
   align-items: center;
   gap: 8px;
-  background: var(--bg-card);
-  border: 1px solid var(--border-color);
-  border-radius: var(--radius-xl);
-  padding: 6px 8px 6px 16px;
-  box-shadow: var(--card-shadow);
+  background: var(--glass-chip-bg);
+  backdrop-filter: var(--glass-chip-backdrop);
+  -webkit-backdrop-filter: var(--glass-chip-backdrop);
+  border: var(--glass-chip-border);
+  border-radius: var(--radius-full);
+  padding: 6px 8px 6px 18px;
+  box-shadow: var(--glass-chip-shadow);
 }
 
 .chat-input-bar input {
@@ -2540,18 +2752,32 @@ body.ambient-storm {
 }
 
 .disaster-item {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-backdrop-filter);
-  border: var(--glass-border);
-  border-left: 6px solid var(--alert-red);
-  border-radius: var(--radius-subcard);
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-card-backdrop);
+  -webkit-backdrop-filter: var(--glass-card-backdrop);
+  border: var(--glass-card-border);
+  border-radius: var(--glass-card-radius);
   padding: 18px 20px;
   display: flex;
   flex-direction: column;
   gap: 8px;
-  box-shadow: var(--glass-shadow);
+  box-shadow: var(--glass-card-shadow);
+  position: relative;
+  overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.disaster-item::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.25s forwards;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .disaster-item:hover {
@@ -2559,8 +2785,36 @@ body.ambient-storm {
   box-shadow: var(--glass-shadow-hover);
 }
 
-.disaster-item.moderate {
-  border-left-color: var(--alert-amber);
+.disaster-item.severe,
+.disaster-item.high,
+.disaster-item.severity-severe,
+.disaster-item.severity-high,
+.disaster-item.severity-red {
+  background: var(--glass-alert-severe-bg);
+  border: var(--glass-alert-severe-border);
+  box-shadow: var(--glass-alert-severe-shadow);
+}
+
+.disaster-item.moderate,
+.disaster-item.medium,
+.disaster-item.amber,
+.disaster-item.severity-moderate,
+.disaster-item.severity-medium,
+.disaster-item.severity-amber {
+  background: var(--glass-alert-moderate-bg);
+  border: var(--glass-alert-moderate-border);
+  box-shadow: var(--glass-alert-moderate-shadow);
+}
+
+.disaster-item.minor,
+.disaster-item.low,
+.disaster-item.yellow,
+.disaster-item.severity-minor,
+.disaster-item.severity-low,
+.disaster-item.severity-yellow {
+  background: var(--glass-alert-minor-bg);
+  border: var(--glass-alert-minor-border);
+  box-shadow: var(--glass-alert-minor-shadow);
 }
 
 .impact-checklist {
@@ -2705,17 +2959,32 @@ body.ambient-storm {
 }
 
 .pollutant-card {
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-backdrop-filter);
-  border: var(--glass-border);
-  border-radius: var(--radius-chip);
-  padding: 14px;
+  background: var(--glass-subcard-bg);
+  backdrop-filter: var(--glass-subcard-backdrop);
+  -webkit-backdrop-filter: var(--glass-subcard-backdrop);
+  border: var(--glass-subcard-border);
+  border-radius: var(--glass-subcard-radius);
+  padding: 16px;
   display: flex;
   flex-direction: column;
-  gap: 4px;
-  box-shadow: var(--glass-shadow);
+  gap: 6px;
+  box-shadow: var(--glass-subcard-shadow);
+  position: relative;
+  overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.pollutant-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s 1 forwards;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .pollutant-card:hover {
@@ -4457,7 +4726,7 @@ body.ambient-storm {
   flex-direction: column;
   gap: 3px;
   padding: 5px;
-  max-width: 110px;
+  max-width: 142px;
   pointer-events: auto;
 }
 
@@ -4467,11 +4736,11 @@ body.ambient-storm {
   gap: 6px;
   background: transparent;
   border: none;
-  padding: 6px 10px;
+  padding: 6px 8px;
   min-height: 44px;
   border-radius: var(--radius-sm, 8px);
   color: var(--text-secondary, #475569);
-  font-size: 12px;
+  font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
   touch-action: manipulation;
@@ -4499,6 +4768,7 @@ body.ambient-storm {
 .map-tile-label {
   overflow-wrap: break-word;
   white-space: nowrap;
+  font-size: 11px;
 }
 
 @media (max-width: 480px) {
@@ -4507,12 +4777,12 @@ body.ambient-storm {
     left: 8px;
     padding: 4px;
     gap: 2px;
-    max-width: 100px;
+    max-width: 128px;
   }
   .map-tile-btn {
     padding: 4px 6px;
     gap: 4px;
-    font-size: 11px;
+    font-size: 10.5px;
     min-height: 44px;
   }
 }
@@ -4544,9 +4814,12 @@ body.ambient-storm {
   width: 100%;
   padding: 10px 14px 10px 38px;
   border-radius: var(--radius-pill, 9999px);
-  border: 1px solid var(--border-color, #E2E8F0);
-  background: #FFFFFF;
-  color: var(--text-primary, #0F172A);
+  border: var(--glass-chip-border);
+  background: var(--glass-chip-bg);
+  backdrop-filter: var(--glass-chip-backdrop);
+  -webkit-backdrop-filter: var(--glass-chip-backdrop);
+  box-shadow: var(--glass-chip-shadow);
+  color: var(--text-primary);
   font-size: 13px;
   outline: none;
   transition: border-color 0.2s, box-shadow 0.2s;
@@ -4554,8 +4827,8 @@ body.ambient-storm {
 }
 
 .map-search-input:focus {
-  border-color: var(--primary-blue, #2563EB);
-  box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.12);
+  border-color: var(--primary-blue);
+  box-shadow: 0 0 0 3px rgba(2, 132, 199, 0.22), var(--glass-chip-shadow);
 }
 
 .map-search-icon {
@@ -5127,15 +5400,28 @@ body.ambient-storm {
 .minute-rain-card {
   margin-top: 2px;
   margin-bottom: 6px;
-  padding: 16px 18px;
-  background: linear-gradient(135deg, rgba(255, 255, 255, 0.88), rgba(240, 249, 255, 0.75));
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid rgba(186, 230, 253, 0.6);
-  border-radius: var(--radius-lg);
-  box-shadow: 0 4px 20px rgba(14, 116, 144, 0.06), 0 1px 3px rgba(0, 0, 0, 0.03);
+  padding: 18px 20px;
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-card-backdrop);
+  -webkit-backdrop-filter: var(--glass-card-backdrop);
+  border: var(--glass-card-border);
+  border-radius: var(--glass-card-radius);
+  box-shadow: var(--glass-card-shadow);
   position: relative;
   overflow: hidden;
+}
+
+.minute-rain-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s 1 forwards;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .minute-rain-header {
@@ -5327,13 +5613,28 @@ body.ambient-storm {
    FLAGSHIP UPGRADE 3: SMART LIFESTYLE & PERSONA DECISION HUB
    ========================================================================== */
 .lifestyle-hub-section {
-  padding: 18px 20px;
-  border-radius: var(--radius-lg);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(16px);
-  -webkit-backdrop-filter: blur(16px);
-  border: 1px solid var(--border-color);
-  box-shadow: var(--card-shadow);
+  padding: 20px 22px;
+  border-radius: var(--glass-card-radius);
+  background: var(--glass-card-bg);
+  backdrop-filter: var(--glass-card-backdrop);
+  -webkit-backdrop-filter: var(--glass-card-backdrop);
+  border: var(--glass-card-border);
+  box-shadow: var(--glass-card-shadow);
+  position: relative;
+  overflow: hidden;
+}
+
+.lifestyle-hub-section::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.28) 50%, transparent 100%);
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.3s 1 forwards;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .lifestyle-header {
@@ -5366,8 +5667,11 @@ body.ambient-storm {
 .lifestyle-chip {
   padding: 6px 14px;
   border-radius: var(--radius-pill);
-  border: 1px solid var(--border-color);
-  background: var(--bg-subtle);
+  border: var(--glass-chip-border);
+  background: var(--glass-chip-bg);
+  backdrop-filter: var(--glass-chip-backdrop);
+  -webkit-backdrop-filter: var(--glass-chip-backdrop);
+  box-shadow: var(--glass-chip-shadow);
   color: var(--text-secondary);
   font-size: 12px;
   font-weight: 600;
@@ -5398,17 +5702,32 @@ body.ambient-storm {
 
 .lifestyle-card {
   padding: 16px 18px;
-  border-radius: var(--radius-subcard);
-  background: var(--glass-bg);
-  backdrop-filter: var(--glass-backdrop-filter);
-  -webkit-backdrop-filter: var(--glass-backdrop-filter);
-  border: var(--glass-border);
-  box-shadow: var(--glass-shadow);
+  border-radius: var(--glass-subcard-radius);
+  background: var(--glass-subcard-bg);
+  backdrop-filter: var(--glass-subcard-backdrop);
+  -webkit-backdrop-filter: var(--glass-subcard-backdrop);
+  border: var(--glass-subcard-border);
+  box-shadow: var(--glass-subcard-shadow);
   display: flex;
   flex-direction: column;
   justify-content: space-between;
   gap: 10px;
+  position: relative;
+  overflow: hidden;
   transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.lifestyle-card::after {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 50%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent 0%, rgba(255, 255, 255, 0.22) 50%, transparent 100%);
+  animation: specularSheen 1.8s cubic-bezier(0.2, 0.8, 0.2, 1) 0.35s 1 forwards;
+  pointer-events: none;
+  z-index: 2;
 }
 
 .lifestyle-card:hover {

@@ -306,11 +306,12 @@ class MockLLMProvider(BaseLLMProvider):
                 f"compared to a typical normal baseline of 1200.0 mm. Current conditions should be evaluated using live forecasts."
             )
 
-        uq_match = re.search(r"User Query:\s*([^\n\r]+)", user_prompt)
-        uq_text = uq_match.group(1).strip().lower() if uq_match else ""
+        uq_match = re.search(r"(?:Original|User)\s+(?:Query|Request):\s*([^\n\r]+)", user_prompt, re.IGNORECASE)
+        uq_text = uq_match.group(1).strip().lower() if uq_match else user_prompt.lower()
 
         cs_match = re.search(r"Consistency Summary:\s*([^\n\r]+)", user_prompt)
-        if cs_match and any(w in uq_text for w in ["disagree", "consistency", "conflict", "sources agree", "difference"]):
+        is_low_conf = "data confidence indicator: low" in user_prompt.lower() or "source agreement: low" in user_prompt.lower()
+        if cs_match and (is_low_conf or any(w in uq_text for w in ["disagree", "consistency", "conflict", "sources agree", "difference"])):
             cs_text = cs_match.group(1).strip()
             if is_ta:
                 return (

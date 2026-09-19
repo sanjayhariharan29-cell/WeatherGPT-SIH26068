@@ -276,7 +276,7 @@ class AlertService:
         else:
             source_label = "IMD Official"
 
-        if alert_schemas:
+        if alert_schemas and imd_state_val not in ("UNAVAILABLE", "NOT_CONFIGURED"):
             status_val = "VERIFIED"
             system_state_val = "ONLINE"
 

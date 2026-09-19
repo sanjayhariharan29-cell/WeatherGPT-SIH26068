@@ -219,14 +219,80 @@ OPENWEATHER_LAYER_MAP = {
     "pressure_new": "pressure_new",
 }
 
+SATELLITE_LAYER_NAMES = {
+    "satellite",
+    "himawari",
+    "satellite_himawari",
+    "himawari_b13",
+    "himawari-b13"
+}
+
+
+async def _get_satellite_tile(z: int, x: int, y_int: int) -> Response:
+    """Proxies Himawari-9 AHI Clean Infrared (Band 13) satellite imagery tiles.
+
+    Attribution: JMA Himawari-9 / SSEC RealEarth (University of Wisconsin-Madison).
+    Coverage: East Asia, Southeast Asia, Western Pacific, and India/South Asia.
+    Refresh: ~10 minute rapid cycle.
+    """
+    cache_key = f"satellite_himawari_b13_{z}_{x}_{y_int}"
+    cached_tile = provider_cache.get(cache_key)
+    if cached_tile:
+        return Response(
+            content=cached_tile,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=600",
+                "X-Cache": "HIT",
+                "X-Satellite-Source": "Himawari-9 (JMA / SSEC RealEarth)",
+                "X-Satellite-Band": "AHI Band 13 (Clean Infrared)"
+            }
+        )
+
+    upstream_url = f"https://realearth.ssec.wisc.edu/tiles/HIMAWARI-B13/{z}/{x}/{y_int}.png"
+    logger.info(f"[Satellite Tile] Fetching Himawari-9 tile: {upstream_url}")
+
+    try:
+        async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
+            resp = await client.get(
+                upstream_url,
+                headers={"User-Agent": "WeatherGPT/1.0 (https://github.com/sanjayhariharan29-cell/WeatherGPT-SIH26068)"}
+            )
+            if resp.status_code == 200 and resp.content:
+                provider_cache.set(cache_key, resp.content, ttl=600)
+                return Response(
+                    content=resp.content,
+                    media_type="image/png",
+                    headers={
+                        "Cache-Control": "public, max-age=600",
+                        "X-Cache": "MISS",
+                        "X-Satellite-Source": "Himawari-9 (JMA / SSEC RealEarth)",
+                        "X-Satellite-Band": "AHI Band 13 (Clean Infrared)"
+                    }
+                )
+            else:
+                logger.warning(f"Himawari satellite tile upstream error {resp.status_code} for {upstream_url}")
+                raise HTTPException(
+                    status_code=resp.status_code if 400 <= resp.status_code < 600 else 502,
+                    detail=f"Himawari satellite tile upstream error ({resp.status_code})"
+                )
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.error(f"Error connecting to Himawari satellite tile upstream {upstream_url}: {exc}")
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to connect to Himawari satellite tile upstream: {str(exc)}"
+        )
+
 
 @router.get("/tiles/{layer}/{z}/{x}/{y}.png")
 @router.get("/tiles/{layer}/{z}/{x}/{y}")
 async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
     """
-    Proxies OpenWeather Weather Maps 2.0 tile layers without exposing API keys client-side.
-    Supported layers: radar, temp, rain, wind, clouds, pressure, waves (and canonical OpenWeather layer names).
-    Accepts URLs with or without .png suffix (e.g. /tiles/temp/7/93/60.png or /tiles/temp/7/93/60).
+    Proxies OpenWeather Weather Maps 2.0 and Himawari-9 satellite tile layers without exposing API keys client-side.
+    Supported layers: radar, temp, rain, wind, clouds, waves, satellite (Himawari-9 IR).
+    Accepts URLs with or without .png suffix (e.g. /tiles/satellite/7/93/60.png or /tiles/temp/7/93/60).
     """
     clean_layer = layer.lower().replace(".png", "")
     clean_y_str = str(y).replace(".png", "")
@@ -236,20 +302,24 @@ async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
     except ValueError:
         raise HTTPException(status_code=400, detail="Tile coordinate y must be an integer.")
 
-    if clean_layer not in OPENWEATHER_LAYER_MAP:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported weather tile layer '{layer}'. Valid layers: {list(OPENWEATHER_LAYER_MAP.keys())}"
-        )
-
-    canonical_layer = OPENWEATHER_LAYER_MAP[clean_layer]
-
     # Coordinate validation
     if z < 0 or z > 18:
         raise HTTPException(status_code=400, detail="Tile zoom level z must be between 0 and 18.")
     max_coord = 2 ** z
     if x < 0 or x >= max_coord or y_int < 0 or y_int >= max_coord:
         raise HTTPException(status_code=400, detail=f"Tile coordinates ({x}, {y_int}) out of bounds for zoom {z}.")
+
+    # Special handling for satellite infrared layers (Himawari-9 AHI / SSEC RealEarth)
+    if clean_layer in SATELLITE_LAYER_NAMES:
+        return await _get_satellite_tile(z, x, y_int)
+
+    if clean_layer not in OPENWEATHER_LAYER_MAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported weather tile layer '{layer}'. Valid layers: {list(OPENWEATHER_LAYER_MAP.keys()) + ['satellite', 'himawari']}"
+        )
+
+    canonical_layer = OPENWEATHER_LAYER_MAP[clean_layer]
 
     cache_key = f"ow_tile_{canonical_layer}_{z}_{x}_{y_int}"
     cached_tile = provider_cache.get(cache_key)
