@@ -10,10 +10,24 @@ class WeatherGPTApiClient {
     let savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
     const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.API_BASE || window.ENV.PRODUCTION_API_BASE)) || null;
 
-    // Auto-migrate dead/stale tunnel URLs from previous sessions
-    if (savedBase && (savedBase.includes("shaggy-candies-serve") || (savedBase.includes(".loca.lt") && envBase && !envBase.includes("shaggy-candies-serve") && savedBase !== envBase.trim().replace(/\/+$/, "")))) {
+    // Auto-migrate dead/stale tunnel or outdated local URLs from previous sessions
+    const isStaleLocalUrl = savedBase && (
+      savedBase.includes("shaggy-candies-serve") ||
+      savedBase.includes(".loca.lt") ||
+      savedBase.includes("major-shirts-sleep") ||
+      savedBase.includes("192.168.") ||
+      savedBase.includes("10.0.") ||
+      savedBase.includes("172.16.") ||
+      savedBase.includes("localhost") ||
+      savedBase.includes("127.0.0.1") ||
+      (this.isNativeAndroid() && savedBase === "/api/v1") ||
+      (this.isNativeAndroid() && envBase && savedBase !== envBase.trim().replace(/\/+$/, "") && !savedBase.startsWith("https://"))
+    );
+
+    if (isStaleLocalUrl && envBase) {
+      console.info(`[ApiClient] Auto-migrating stale API base URL "${savedBase}" -> "${envBase}"`);
       savedBase = envBase;
-      if (typeof localStorage !== "undefined" && envBase) {
+      if (typeof localStorage !== "undefined") {
         localStorage.setItem("weathergpt_api_base", envBase.trim().replace(/\/+$/, ""));
       }
     }
@@ -59,7 +73,11 @@ class WeatherGPTApiClient {
     const controller = new AbortController();
     const id = setTimeout(() => controller.abort(), timeoutMs);
     try {
-      const res = await fetch(`${this.baseUrl}/health`, {
+      let healthUrl = `${this.baseUrl}/health`;
+      if (!this.baseUrl || this.baseUrl === "/") {
+        healthUrl = "/api/v1/health";
+      }
+      const res = await fetch(healthUrl, {
         method: "GET",
         headers: { "Bypass-Tunnel-Reminder": "true" },
         signal: controller.signal
@@ -70,6 +88,17 @@ class WeatherGPTApiClient {
       clearTimeout(id);
       return false;
     }
+  }
+
+  // Active reachability check with 5-second memoization cache
+  async isNetworkReachable(timeoutMs = 2500) {
+    const now = Date.now();
+    if (this._reachabilityCache && (now - this._reachabilityCache.time < 5000)) {
+      return this._reachabilityCache.status;
+    }
+    const reachable = await this.checkHealth(timeoutMs).catch(() => false);
+    this._reachabilityCache = { time: now, status: reachable };
+    return reachable;
   }
 
   isNativeAndroid() {
@@ -180,8 +209,14 @@ class WeatherGPTApiClient {
 
   // Generic Fetch with Timeout, In-Flight Deduplication, Short-Term Caching & Error Handling
   async request(endpoint, options = {}) {
-    if (!navigator.onLine) {
-      throw new Error("NETWORK_OFFLINE: You are currently offline. Please check your internet connection.");
+    const isAuthEndpoint = endpoint.startsWith("/auth/");
+    if (!navigator.onLine && !isAuthEndpoint) {
+      // Android / mobile WebViews often falsely report navigator.onLine as false.
+      // Supplement with active reachability test against real backend before rejecting.
+      const isReachable = await this.isNetworkReachable(2500);
+      if (!isReachable) {
+        throw new Error("NETWORK_OFFLINE: You are currently offline. Please check your internet connection.");
+      }
     }
 
     // Guard against unconfigured relative /api/v1 on native Android
@@ -232,6 +267,7 @@ class WeatherGPTApiClient {
 
     // 3. Initiate New Network Request
     const executeFetch = async () => {
+      const startTime = Date.now();
       const controller = new AbortController();
       const timeoutId = setTimeout(() => controller.abort(), this.timeoutMs);
 
@@ -303,7 +339,12 @@ class WeatherGPTApiClient {
           const errorMsg = data?.detail || data?.error?.message || `HTTP ${response.status} Error`;
           const error = new Error(errorMsg);
           error.status = response.status;
+          error.statusText = response.statusText;
           error.data = data;
+          error.url = url;
+          error.endpoint = endpoint;
+          error.durationMs = Date.now() - startTime;
+          error.navigatorOnLine = navigator.onLine;
           throw error;
         }
 
@@ -320,8 +361,27 @@ class WeatherGPTApiClient {
         if (callerAbortListener && options.signal) {
           options.signal.removeEventListener("abort", callerAbortListener);
         }
+        err.url = `${this.baseUrl}${endpoint}`;
+        err.endpoint = endpoint;
+        err.durationMs = Date.now() - startTime;
+        err.navigatorOnLine = navigator.onLine;
+
         if (err.name === "AbortError") {
-          throw new Error("REQUEST_TIMEOUT: Request timed out. Backend took too long to respond.");
+          const timeoutErr = new Error("REQUEST_TIMEOUT: Request timed out. Backend took too long to respond.");
+          timeoutErr.url = err.url;
+          timeoutErr.status = 408;
+          timeoutErr.durationMs = err.durationMs;
+          throw timeoutErr;
+        }
+        if (!isAuthEndpoint && (err.name === "TypeError" || err.message?.includes("Failed to fetch") || err.message?.includes("NetworkError"))) {
+          const reachable = await this.isNetworkReachable(1500).catch(() => false);
+          if (!reachable) {
+            const offlineErr = new Error("NETWORK_OFFLINE: You are currently offline. Please check your internet connection.");
+            offlineErr.url = err.url;
+            offlineErr.status = 0;
+            offlineErr.durationMs = err.durationMs;
+            throw offlineErr;
+          }
         }
         throw err;
       }
@@ -349,14 +409,28 @@ class WeatherGPTApiClient {
   }
 
   async login(email, password) {
-    const res = await this.request("/auth/login", {
-      method: "POST",
-      body: JSON.stringify({ email, password })
-    });
-    if (res && res.access_token) {
-      this.setToken(res.access_token);
+    const startTime = Date.now();
+    console.info(`[Auth] Attempting login for "${email}" to ${this.baseUrl}/auth/login (OS onLine: ${navigator.onLine})`);
+    try {
+      const res = await this.request("/auth/login", {
+        method: "POST",
+        body: JSON.stringify({ email, password })
+      });
+      if (res && res.access_token) {
+        this.setToken(res.access_token);
+        console.info(`[Auth] Login successful for "${email}" in ${Date.now() - startTime}ms. Access token stored.`);
+      }
+      return res;
+    } catch (err) {
+      console.error(`[Auth] Login failed for "${email}" after ${Date.now() - startTime}ms:`, {
+        url: err.url || `${this.baseUrl}/auth/login`,
+        status: err.status,
+        message: err.message,
+        detail: err.data?.detail,
+        onLine: navigator.onLine
+      });
+      throw err;
     }
-    return res;
   }
 
   async demoLogin() {

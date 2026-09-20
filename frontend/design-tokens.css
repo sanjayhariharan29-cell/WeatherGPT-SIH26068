@@ -25,8 +25,8 @@
   --radius-full: 9999px;
 
   /* Brand Colors */
-  --primary-blue: #0284C7;
-  --secondary-blue: #0369A1;
+  --primary-blue: #0369A1;
+  --secondary-blue: #0284C7;
   --accent-cyan: #06B6D4;
   --blue-subtle: #F0F9FF;
 
@@ -100,44 +100,53 @@
 
   /* ==========================================================================
      GLASS HIERARCHY RECIPE TOKENS — LIGHT THEME (DEFAULT)
-     Primary / Hero (26px blur), Secondary (22px blur), Small Chips (18px blur)
+     High-opacity frosted glass for solid contrast against ambient backgrounds
      ========================================================================== */
   /* Primary / Hero Card Tokens */
-  --glass-hero-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.24) 0%, rgba(255, 255, 255, 0.12) 100%);
-  --glass-hero-backdrop: blur(26px) saturate(145%);
-  --glass-hero-border: 1px solid rgba(255, 255, 255, 0.30);
+  --glass-hero-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.86) 100%);
+  --glass-hero-backdrop: blur(28px) saturate(160%);
+  --glass-hero-border: 1px solid rgba(255, 255, 255, 0.90);
   --glass-hero-radius: 24px;
-  --glass-hero-shadow: 0 16px 45px rgba(0, 0, 0, 0.18), inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --glass-hero-shadow: 0 16px 45px rgba(15, 23, 42, 0.10), 0 1px 3px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.95);
 
   /* Standard / Secondary Glass Card Tokens */
-  --glass-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.20) 0%, rgba(255, 255, 255, 0.10) 100%);
-  --glass-card-backdrop: blur(22px) saturate(135%);
-  --glass-card-border: 1px solid rgba(255, 255, 255, 0.28);
+  --glass-card-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(255, 255, 255, 0.88) 100%);
+  --glass-card-backdrop: blur(24px) saturate(150%);
+  --glass-card-border: 1px solid rgba(226, 232, 240, 0.85);
   --glass-card-radius: 20px;
-  --glass-card-shadow: 0 12px 36px rgba(0, 0, 0, 0.16), inset 0 1px 0 rgba(255, 255, 255, 0.30);
+  --glass-card-shadow: 0 12px 36px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.04), inset 0 1px 0 rgba(255, 255, 255, 0.90);
 
   /* Subcard / Nested Card Tokens */
-  --glass-subcard-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.16) 0%, rgba(255, 255, 255, 0.08) 100%);
-  --glass-subcard-backdrop: blur(20px) saturate(130%);
-  --glass-subcard-border: 1px solid rgba(255, 255, 255, 0.26);
+  --glass-subcard-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.92) 0%, rgba(248, 250, 252, 0.88) 100%);
+  --glass-subcard-backdrop: blur(20px) saturate(140%);
+  --glass-subcard-border: 1px solid rgba(226, 232, 240, 0.90);
   --glass-subcard-radius: 16px;
-  --glass-subcard-shadow: 0 8px 26px rgba(0, 0, 0, 0.14), inset 0 1px 0 rgba(255, 255, 255, 0.28);
+  --glass-subcard-shadow: 0 6px 20px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.85);
 
   /* Small Chips, Filter Chips & Search Bar Tokens */
-  --glass-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.18) 0%, rgba(255, 255, 255, 0.10) 100%);
-  --glass-chip-backdrop: blur(18px) saturate(130%);
-  --glass-chip-border: 1px solid rgba(255, 255, 255, 0.25);
+  --glass-chip-bg: linear-gradient(180deg, rgba(255, 255, 255, 0.94) 0%, rgba(241, 245, 249, 0.90) 100%);
+  --glass-chip-backdrop: blur(18px) saturate(140%);
+  --glass-chip-border: 1px solid rgba(203, 213, 225, 0.85);
   --glass-chip-radius: 14px;
-  --glass-chip-shadow: 0 6px 18px rgba(0, 0, 0, 0.12), inset 0 1px 0 rgba(255, 255, 255, 0.25);
+  --glass-chip-shadow: 0 4px 14px rgba(15, 23, 42, 0.05), inset 0 1px 0 rgba(255, 255, 255, 0.80);
 
   /* Common Backward-Compatibility Aliases */
   --glass-bg: var(--glass-card-bg);
   --glass-border: var(--glass-card-border);
-  --glass-border-subtle: rgba(255, 255, 255, 0.22);
+  --glass-border-subtle: rgba(226, 232, 240, 0.70);
   --glass-backdrop-filter: var(--glass-card-backdrop);
   --glass-webkit-backdrop-filter: var(--glass-card-backdrop);
   --glass-shadow: var(--glass-card-shadow);
-  --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.35);
+  --glass-inner-glow: inset 0 1px 0 rgba(255, 255, 255, 0.90);
+
+  /* Light Mode High-Contrast Typography & Surface Tokens */
+  --text-main: #0F172A;
+  --text-primary: #0F172A;
+  --text-secondary: #334155;
+  --text-muted: #475569;
+  --bg-subtle: rgba(241, 245, 249, 0.92);
+  --border-color: rgba(203, 213, 225, 0.85);
+  --border-subtle: rgba(226, 232, 240, 0.90);
 
   /* ==========================================================================
      TINTED GLASS WARNING & ALERT RECIPE TOKENS

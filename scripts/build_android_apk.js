@@ -79,12 +79,19 @@ const apkPath = path.join(
 );
 
 if (fs.existsSync(apkPath)) {
+  const rootApkPath = path.join(ROOT_DIR, 'SkyZen-release.apk');
+  try {
+    fs.copyFileSync(apkPath, rootApkPath);
+  } catch (copyErr) {
+    console.warn(' Could not copy to root SkyZen-release.apk:', copyErr.message);
+  }
   const stats = fs.statSync(apkPath);
   const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);
   console.log('=============================================================');
   console.log(' [BUILD SUCCESS] Release APK Generated');
   console.log('=============================================================');
-  console.log(` File Path : ${apkPath}`);
+  console.log(` Build Path: ${apkPath}`);
+  console.log(` Root Path : ${rootApkPath}`);
   console.log(` File Size : ${sizeMB} MB (${stats.size} bytes)`);
   console.log(' Ready for direct installation on physical Android phones!');
   console.log('=============================================================\n');

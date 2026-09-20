@@ -20,7 +20,12 @@ const I18N_DICT = {
     "alerts.valid_until_sample": "Valid until 08:00 PM",
     "alerts.view_alert_link": "View alert",
     "app.page_title": "SkyZen — Weather Intelligence | MoES & IMD Decision Engine (WeatherGPT)",
+    "aqi.cpcb.not_configured": "CPCB Ground Monitoring Station API: Not Configured",
     "aqi.cpcb_unconfigured": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
+    "aqi.error_text": "Couldn't load air quality telemetry — check your connection",
+    "aqi.retry_telemetry": "Retry Air Quality",
+    "aqi.source.model": "Air Quality Model:",
+    "aqi.source.official": "Official AQI Source:",
     "aqi.fetching_station": "Fetching verified station telemetry...",
     "aqi.health_title": "Health & Activity Recommendations",
     "aqi.loading_aqi": "Loading AQI...",
@@ -215,6 +220,8 @@ const I18N_DICT = {
     "map.compare_sub": "Real-time backend comparison across locations",
     "map.cpcb_aqi": "CPCB Ground AQI",
     "map.cpcb_unconfigured": "CPCB Ground Monitoring Station API: Not Configured",
+    "map.error_msg": "Couldn't load location weather telemetry — check your connection",
+    "map.retry_telemetry": "Retry Telemetry",
     "map.just_now": "Just now",
     "map.layer_clouds": "Clouds",
     "map.layer_heat_risk": "Heat Risk",
@@ -376,6 +383,21 @@ const I18N_DICT = {
     "system.offline_notice": "You're offline. Reconnect to refresh weather.",
     "weather.climate_archive": "Climate Trend Archive (NASA POWER)",
     "weather.extended_future": "Extended Future Forecast",
+    "dashboard.daily_source": "Open-Meteo Multi-Day Consensus",
+    "map.aqi": "AQI",
+    "chat.verified_badge": "Verified",
+    "role.commuter": "Daily Commuter",
+    "role.farmer": "Farmer & Agriculture",
+    "role.fisherman": "Fisherman & Coastal",
+    "role.student": "Student & General",
+    "settings.theme.dark": "Dark",
+    "settings.theme.light": "Light",
+    "settings.theme.system": "System Default",
+    "weather.humidity": "Humidity",
+    "weather.pressure": "Pressure",
+    "weather.rain_prob": "Rain",
+    "weather.updated": "Updated",
+    "weather.wind": "Wind",
     "weather.offline": "Network Offline. Displaying cached weather telemetry.",
     "weather.today_hourly": "Today's Hourly Forecast",
     "weather.today_sub": "24-Hour Horizon",
@@ -475,7 +497,12 @@ const I18N_DICT = {
     "alerts.valid_until_sample": "இரவு 08:00 மணி வரை செல்லுபடியாகும்",
     "alerts.view_alert_link": "எச்சரிக்கையைக் காண்க",
     "app.page_title": "ஸ்கைசென் — வானிலை நுண்ணறிவு | புவி அறிவியல் அமைச்சகம் & ஐஎம்டி முடிவு இயந்திரம்",
+    "aqi.cpcb.not_configured": "சிபிசிபி தரை கண்காணிப்பு நிலைய ஏபிஐ: கட்டமைக்கப்படவில்லை",
     "aqi.cpcb_unconfigured": "சிபிசிபி அதிகாரப்பூர்வ ஏபிஐ அணுகல் கட்டமைக்கப்படவில்லை",
+    "aqi.error_text": "காற்றுத் தர தொலைஅளவியலை ஏற்ற முடியவில்லை — இணைப்பை சரிபார்க்கவும்",
+    "aqi.retry_telemetry": "காற்றுத் தரத்தை மீண்டும் முயற்சிக்கவும்",
+    "aqi.source.model": "காற்றுத் தர மாதிரி:",
+    "aqi.source.official": "அதிகாரப்பூர்வ காற்றுத் தர ஆதாரம்:",
     "aqi.fetching_station": "சரிபார்க்கப்பட்ட நிலையத் தரவு பெறப்படுகிறது...",
     "aqi.health_title": "உடல்நலம் & செயல்பாட்டு பரிந்துரைகள்",
     "aqi.loading_aqi": "காற்று தரம் ஏற்றப்படுகிறது...",
@@ -670,6 +697,8 @@ const I18N_DICT = {
     "map.compare_sub": "இடங்களுக்கிடையேயான நேரடி ஒப்பீடு",
     "map.cpcb_aqi": "சிபிசிபி தரைவழி காற்று தரம்",
     "map.cpcb_unconfigured": "சிபிசிபி தரை கண்காணிப்பு நிலைய ஏபிஐ: கட்டமைக்கப்படவில்லை",
+    "map.error_msg": "வானிலை தொலைஅளவியலை ஏற்ற முடியவில்லை — இணைப்பை சரிபார்க்கவும்",
+    "map.retry_telemetry": "தொலைஅளவியலை மீண்டும் முயற்சிக்கவும்",
     "map.just_now": "சற்று முன்",
     "map.layer_clouds": "மேகங்கள்",
     "map.layer_heat_risk": "வெப்ப ஆபத்து",
@@ -831,6 +860,21 @@ const I18N_DICT = {
     "system.offline_notice": "நீங்கள் ஆஃப்லைனில் உள்ளீர்கள். வானிலையைப் புதுப்பிக்க மீண்டும் இணையவும்.",
     "weather.climate_archive": "காலநிலை போக்கு காப்பகம் (நாசா பவர்)",
     "weather.extended_future": "நீட்டிக்கப்பட்ட எதிர்கால முன்னறிவிப்பு",
+    "dashboard.daily_source": "ஓபன்-மீட்டியோ பல நாள் ஒருமித்த கணிப்பு",
+    "map.aqi": "காற்று தரம் (AQI)",
+    "chat.verified_badge": "சரிபார்க்கப்பட்டது",
+    "role.commuter": "தினசரி பயணி",
+    "role.farmer": "விவசாயி & வேளாண்மை",
+    "role.fisherman": "மீனவர் & கடலோரப் பகுதி",
+    "role.student": "மாணவர் & பொதுப்பயனர்",
+    "settings.theme.dark": "இருண்ட தீம்",
+    "settings.theme.light": "வெளிச்ச தீம்",
+    "settings.theme.system": "சாதனத்தின் இயல்புநிலை",
+    "weather.humidity": "ஈரப்பதம்",
+    "weather.pressure": "அழுத்தம்",
+    "weather.rain_prob": "மழை",
+    "weather.updated": "புதுப்பிக்கப்பட்டது",
+    "weather.wind": "காற்று",
     "weather.offline": "இணைய இணைப்பு இல்லை. சேமிக்கப்பட்ட வானிலை காட்டப்படுகிறது.",
     "weather.today_hourly": "இன்றைய மணிநேர முன்னறிவிப்பு",
     "weather.today_sub": "24-மணிநேர எல்லை",
@@ -930,7 +974,12 @@ const I18N_DICT = {
     "alerts.valid_until_sample": "रात 08:00 बजे तक मान्य",
     "alerts.view_alert_link": "अलर्ट देखें",
     "app.page_title": "स्काईज़ेन — मौसम बुद्धिमत्ता | पृथ्वी विज्ञान मंत्रालय और आईएमडी निर्णय इंजन",
+    "aqi.cpcb.not_configured": "सीपीसीबी ग्राउंड मॉनिटरिंग स्टेशन एपीआई: कॉन्फ़िगर नहीं है",
     "aqi.cpcb_unconfigured": "सीपीसीबी आधिकारिक एपीआई एक्सेस कॉन्फ़िगर नहीं है",
+    "aqi.error_text": "वायु गुणवत्ता टेलीमेट्री लोड नहीं हो सकी — कनेक्शन जांचें",
+    "aqi.retry_telemetry": "वायु गुणवत्ता पुनः प्रयास करें",
+    "aqi.source.model": "वायु गुणवत्ता मॉडल:",
+    "aqi.source.official": "आधिकारिक वायु गुणवत्ता स्रोत:",
     "aqi.fetching_station": "सत्यापित स्टेशन टेलीमेट्री प्राप्त की जा रही है...",
     "aqi.health_title": "स्वास्थ्य और गतिविधि अनुशंसाएं",
     "aqi.loading_aqi": "एक्यूआई लोड हो रहा है...",
@@ -1125,6 +1174,8 @@ const I18N_DICT = {
     "map.compare_sub": "स्थानों के बीच रीयल-टाइम तुलना",
     "map.cpcb_aqi": "सीपीसीबी ज़मीनी एक्यूआई",
     "map.cpcb_unconfigured": "सीपीसीबी ग्राउंड मॉनिटरिंग स्टेशन एपीआई: कॉन्फ़िगर नहीं है",
+    "map.error_msg": "स्थान मौसम टेलीमेट्री लोड नहीं हो सकी — कनेक्शन जांचें",
+    "map.retry_telemetry": "टेलीमेट्री पुनः प्रयास करें",
     "map.just_now": "अभी-अभी",
     "map.layer_clouds": "बादल",
     "map.layer_heat_risk": "गर्मी का जोखिम",
@@ -1286,6 +1337,21 @@ const I18N_DICT = {
     "system.offline_notice": "आप ऑफ़लाइन हैं। मौसम ताज़ा करने के लिए पुनः कनेक्ट करें।",
     "weather.climate_archive": "जलवायु रुझान पुरालेख (नासा पावर)",
     "weather.extended_future": "विस्तारित भविष्य पूर्वानुमान",
+    "dashboard.daily_source": "ओपन-मेटियो बहु-दिवसीय सहमति",
+    "map.aqi": "वायु गुणवत्ता (AQI)",
+    "chat.verified_badge": "सत्यापित",
+    "role.commuter": "दैनिक यात्री",
+    "role.farmer": "किसान और कृषि",
+    "role.fisherman": "मछुआरा और तटीय",
+    "role.student": "छात्र और सामान्य",
+    "settings.theme.dark": "डार्क मोड",
+    "settings.theme.light": "लाइट मोड",
+    "settings.theme.system": "सिस्टम डिफ़ॉल्ट",
+    "weather.humidity": "नमी",
+    "weather.pressure": "दबाव",
+    "weather.rain_prob": "बारिश",
+    "weather.updated": "अपडेट किया गया",
+    "weather.wind": "हवा",
     "weather.offline": "नेटवर्क ऑफ़लाइन है। सहेजा गया मौसम डेटा दिखा रहा है।",
     "weather.today_hourly": "आज का प्रति घंटा पूर्वानुमान",
     "weather.today_sub": "24-घंटे का क्षितिज",
@@ -1372,6 +1438,414 @@ const I18N_DICT = {
 
 // Dynamic Labels Localizer Dictionary for factual values preserved
 const DYNAMIC_LABELS = {
+  "Clouds": {
+    "ta": "மேகமூட்டம்",
+    "hi": "बादल"
+  },
+  "Scattered Clouds": {
+    "ta": "சிதறிய மேகமூட்டம்",
+    "hi": "बिखरे हुए बादल"
+  },
+  "Broken Clouds": {
+    "ta": "சிதறிய மேகங்கள்",
+    "hi": "खंडित बादल"
+  },
+  "Overcast Clouds": {
+    "ta": "முழு மேகமூட்டம்",
+    "hi": "घने बादल"
+  },
+  "Few Clouds": {
+    "ta": "லேசான மேகமூட்டம்",
+    "hi": "हल्के बादल"
+  },
+  "Clear": {
+    "ta": "தெளிவான வானம்",
+    "hi": "साफ़"
+  },
+  "Rain": {
+    "ta": "மழை",
+    "hi": "बारिश"
+  },
+  "Drizzle": {
+    "ta": "தூறல்",
+    "hi": "बूंदाबांदी"
+  },
+  "Light Drizzle": {
+    "ta": "லேசான தூறல்",
+    "hi": "हल्की बूंदाबांदी"
+  },
+  "Heavy Drizzle": {
+    "ta": "கடும் தூறல்",
+    "hi": "तेज़ बूंदाबांदी"
+  },
+  "Very Heavy Rain": {
+    "ta": "மிகக் கனமழை",
+    "hi": "अत्यंत भारी बारिश"
+  },
+  "Extreme Rain": {
+    "ta": "தீவிர கனமழை",
+    "hi": "अत्यधिक भारी बारिश"
+  },
+  "Torrential Rain": {
+    "ta": "கடும் மழை",
+    "hi": "मूसलाधार बारिश"
+  },
+  "Heavy Rain & Wind": {
+    "ta": "கனமழை & காற்று",
+    "hi": "भारी बारिश और हवा"
+  },
+  "Shower Rain": {
+    "ta": "மழைப்பொழிவு",
+    "hi": "बौछारें"
+  },
+  "Heavy Thunderstorm": {
+    "ta": "கடும் இடியுடன் கூடிய மழை",
+    "hi": "भारी आंधी-तूफान"
+  },
+  "Snow": {
+    "ta": "பனிப்பொழிவு",
+    "hi": "बर्फबारी"
+  },
+  "Light Snow": {
+    "ta": "லேசான பனிப்பொழிவு",
+    "hi": "हल्की बर्फबारी"
+  },
+  "Heavy Snow": {
+    "ta": "கடும் பனிப்பொழிவு",
+    "hi": "भारी बर्फबारी"
+  },
+  "Sleet": {
+    "ta": "பனிமழை",
+    "hi": "ओलावृष्टि"
+  },
+  "Smoke": {
+    "ta": "புகைமூட்டம்",
+    "hi": "धुआं"
+  },
+  "Fog": {
+    "ta": "அடர்ந்த மூடுபனி",
+    "hi": "कोहरा"
+  },
+  "Dust": {
+    "ta": "தூசிப் புயல்",
+    "hi": "धूल भरी आंधी"
+  },
+  "Sand": {
+    "ta": "மணல் புயல்",
+    "hi": "रेत भरी आंधी"
+  },
+  "Ash": {
+    "ta": "சாம்பல் மேகம்",
+    "hi": "राख"
+  },
+  "Squall": {
+    "ta": "திடீர் சூறாவளி",
+    "hi": "झक्कड़"
+  },
+  "Tornado": {
+    "ta": "சூறாவளிப் புயல்",
+    "hi": "बवंडर"
+  },
+  "Data unavailable": {
+    "ta": "தரவு கிடைக்கவில்லை",
+    "hi": "डेटा अनुपलब्ध"
+  },
+  "Data Unavailable": {
+    "ta": "தரவு கிடைக்கவில்லை",
+    "hi": "डेटा अनुपलब्ध"
+  },
+  "Select a location": {
+    "ta": "ஒரு இடத்தை தேர்ந்தெடுக்கவும்",
+    "hi": "एक स्थान चुनें"
+  },
+  "Fetching verified telemetry...": {
+    "ta": "சரிபார்க்கப்பட்ட நிலையத் தரவு பெறப்படுகிறது...",
+    "hi": "सत्यापित टेलीमेट्री प्राप्त हो रही है..."
+  },
+  "Resolving location...": {
+    "ta": "இருப்பிடம் கண்டறியப்படுகிறது...",
+    "hi": "स्थान खोजा जा रहा है..."
+  },
+  "Telemetry available": {
+    "ta": "தொலைஅளவியல் கிடைக்கிறது",
+    "hi": "टेलीमेट्री उपलब्ध"
+  },
+  "Reporting": {
+    "ta": "தகவல் அளிக்கிறது",
+    "hi": "रिपोर्टिंग"
+  },
+  "Unavailable": {
+    "ta": "கிடைக்கவில்லை",
+    "hi": "अनुपलब्ध"
+  },
+  "Active Observation & Forecast": {
+    "ta": "செயலில் உள்ள கண்காணிப்பு & முன்னறிவிப்பு",
+    "hi": "सक्रिय अवलोकन और पूर्वानुमान"
+  },
+  "Institutional Access Pending": {
+    "ta": "நிறுவன அணுகல் நிலுவையில் உள்ளது",
+    "hi": "संस्थागत एक्सेस लंबित"
+  },
+  "No observation": {
+    "ta": "கண்காணிப்பு இல்லை",
+    "hi": "कोई अवलोकन नहीं"
+  },
+  "No live data": {
+    "ta": "நேரலைத் தரவு இல்லை",
+    "hi": "कोई लाइव डेटा नहीं"
+  },
+  "Recent": {
+    "ta": "சமீபத்திய",
+    "hi": "हाल ही में"
+  },
+  "Recently": {
+    "ta": "சமீபத்தில்",
+    "hi": "हाल ही में"
+  },
+  "Just now": {
+    "ta": "சற்று முன்",
+    "hi": "अभी"
+  },
+  "OpenWeather": {
+    "ta": "ஓபன்வெதர்",
+    "hi": "ओपनवेदर"
+  },
+  "Open-Meteo": {
+    "ta": "ஓபன்-மீட்டியோ",
+    "hi": "ओपन-मेटियो"
+  },
+  "OpenMeteo": {
+    "ta": "ஓபன்-மீட்டியோ",
+    "hi": "ओपन-मेटियो"
+  },
+  "IMD": {
+    "ta": "ஐஎம்டி",
+    "hi": "आईएमडी"
+  },
+  "CPCB": {
+    "ta": "சிபிசிபி",
+    "hi": "सीपीसीबी"
+  },
+  "(Primary)": {
+    "ta": "(முதன்மை)",
+    "hi": "(प्राथमिक)"
+  },
+  "(Secondary)": {
+    "ta": "(இரண்டாம் நிலை)",
+    "hi": "(द्वितीयक)"
+  },
+  "Primary": {
+    "ta": "முதன்மை",
+    "hi": "प्राथमिक"
+  },
+  "Secondary": {
+    "ta": "இரண்டாம் நிலை",
+    "hi": "द्वितीयक"
+  },
+  "Primary Live Active": {
+    "ta": "முதன்மை நேரலை செயலில்",
+    "hi": "प्राथमिक लाइव सक्रिय"
+  },
+  "Primary Live Provider": {
+    "ta": "முதன்மை நேரலை வழங்குநர்",
+    "hi": "प्राथमिक लाइव प्रदाता"
+  },
+  "Secondary Forecast Source": {
+    "ta": "இரண்டாம் நிலை முன்னறிவிப்பு மூலம்",
+    "hi": "द्वितीयक पूर्वानुमान स्रोत"
+  },
+  "Secondary Forecast": {
+    "ta": "இரண்டாம் நிலை முன்னறிவிப்பு",
+    "hi": "द्वितीयक पूर्वानुमान"
+  },
+  "Institutional Adapter (Pending Approval)": {
+    "ta": "நிறுவன இணைப்பு (ஒப்புதல் நிலுவையில் உள்ளது)",
+    "hi": "संस्थागत एडॉप्टर (स्वीकृति लंबित)"
+  },
+  "Approval In Progress": {
+    "ta": "ஒப்புதல் செயல்பாட்டில் உள்ளது",
+    "hi": "स्वीकृति प्रगति पर है"
+  },
+  "OpenWeather (Primary)": {
+    "ta": "ஓபன்வெதர் (முதன்மை)",
+    "hi": "ओपनवेदर (प्राथमिक)"
+  },
+  "Open-Meteo (Secondary)": {
+    "ta": "ஓபன்-மீட்டியோ (இரண்டாம் நிலை)",
+    "hi": "ओपन-मेटियो (द्वितीयक)"
+  },
+  "OpenWeather (Primary), Open-Meteo (Secondary)": {
+    "ta": "ஓபன்வெதர் (முதன்மை), ஓபன்-மீட்டியோ (இரண்டாம் நிலை)",
+    "hi": "ओपनवेदर (प्राथमिक), ओपन-मेटियो (द्वितीयक)"
+  },
+  "OpenWeather (Primary) · Open-Meteo (Secondary)": {
+    "ta": "ஓபன்வெதர் (முதன்மை) · ஓபன்-மீட்டியோ (இரண்டாம் நிலை)",
+    "hi": "ओपनवेदर (प्राथमिक) · ओपन-मेटियो (द्वितीयक)"
+  },
+  "OpenWeather & Open-Meteo Telemetry": {
+    "ta": "ஓபன்வெதர் & ஓபன்-மீட்டியோ நேரலைத் தரவு",
+    "hi": "ओपनवेदर और ओपन-मेटियो टेलीमेट्री"
+  },
+  "OpenWeather · Open-Meteo": {
+    "ta": "ஓபன்வெதர் · ஓபன்-மீட்டியோ",
+    "hi": "ओपनवेदर · ओपन-मेटियो"
+  },
+  "OpenWeather & Multi-Source Telemetry": {
+    "ta": "ஓபன்வெதர் & பல மூலங்களின் தொலைஅளவியல்",
+    "hi": "ओपनवेदर और बहु-स्रोत टेलीमेट्री"
+  },
+  "Open-Meteo Telemetry": {
+    "ta": "ஓபன்-மீட்டியோ நேரலைத் தரவு",
+    "hi": "ओपन-मेटियो टेलीमेट्री"
+  },
+  "Open-Meteo Multi-Day Consensus": {
+    "ta": "ஓபன்-மீட்டியோ பல நாள் ஒருமித்த கணிப்பு",
+    "hi": "ओपन-मेटियो बहु-दिवसीय सहमति"
+  },
+  "Open-Meteo (Modelled Atmospheric Chemistry)": {
+    "ta": "ஓபன்-மீட்டியோ (மாதிரி வளிமண்டல வேதியியல்)",
+    "hi": "ओपन-मेटियो (मॉडल किया गया वायुमंडलीय रसायन विज्ञान)"
+  },
+  "Central Pollution Control Board (CPCB)": {
+    "ta": "மத்திய மாசுக் கட்டுப்பாட்டு வாரியம் (சிபிசிபி)",
+    "hi": "केंद्रीय प्रदूषण नियंत्रण बोर्ड (सीपीसीबी)"
+  },
+  "Modelled Air Quality (Source: OpenWeather)": {
+    "ta": "மாதிரி காற்றுத் தரம் (மூலம்: ஓபன்வெதர்)",
+    "hi": "मॉडल की गई वायु गुणवत्ता (स्रोत: ओपनवेदर)"
+  },
+  "Modelled Air Quality (Source: Open-Meteo)": {
+    "ta": "மாதிரி காற்றுத் தரம் (மூலம்: ஓபன்-மீட்டியோ)",
+    "hi": "मॉडल की गई वायु गुणवत्ता (स्रोत: ओपन-मेटियो)"
+  },
+  "Modelled Air Quality (Source: CPCB)": {
+    "ta": "மாதிரி காற்றுத் தரம் (மூலம்: சிபிசிபி)",
+    "hi": "मॉडल की गई वायु गुणवत्ता (स्रोत: सीपीसीबी)"
+  },
+  "Modelled Air Quality (Open-Meteo)": {
+    "ta": "மாதிரி காற்றுத் தரம் (ஓபன்-மீட்டியோ)",
+    "hi": "मॉडल की गई वायु गुणवत्ता (ओपन-मेटियो)"
+  },
+  "Modelled Air Quality": {
+    "ta": "மாதிரி காற்றுத் தரம்",
+    "hi": "मॉडल की गई वायु गुणवत्ता"
+  },
+  "Multi-Source Agreement Verified": {
+    "ta": "பல மூலங்களின் ஒருமித்த முடிவு உறுதி செய்யப்பட்டது",
+    "hi": "बहु-स्रोत सहमति सत्यापित"
+  },
+  "Direct Telemetry Stream": {
+    "ta": "நேரடித் தரவு ஸ்ட்ரீம்",
+    "hi": "प्रत्यक्ष टेलीमेट्री स्ट्रीम"
+  },
+  "Multi-Source Verified": {
+    "ta": "பல மூலங்களால் சரிபார்க்கப்பட்டது",
+    "hi": "बहु-स्रोत सत्यापित"
+  },
+  "Air quality telemetry unavailable": {
+    "ta": "காற்றுத் தரத் தொலைஅளவியல் கிடைக்கவில்லை",
+    "hi": "वायु गुणवत्ता टेलीमेट्री अनुपलब्ध"
+  },
+  "Air Quality Model:": {
+    "ta": "காற்றுத் தர மாதிரி:",
+    "hi": "वायु गुणवत्ता मॉडल:"
+  },
+  "Official AQI Source:": {
+    "ta": "அதிகாரப்பூர்வ காற்றுத் தர ஆதாரம்:",
+    "hi": "आधिकारिक वायु गुणवत्ता स्रोत:"
+  },
+  "CPCB Official Station:": {
+    "ta": "சிபிசிபி அதிகாரப்பூர்வ நிலையம்:",
+    "hi": "सीपीसीबी आधिकारिक स्टेशन:"
+  },
+  "CPCB Official Station": {
+    "ta": "சிபிசிபி அதிகாரப்பூர்வ நிலையம்",
+    "hi": "सीपीसीबी आधिकारिक स्टेशन"
+  },
+  "Official Ground Monitoring Station": {
+    "ta": "அதிகாரப்பூர்வ தரை கண்காணிப்பு நிலையம்",
+    "hi": "आधिकारिक ग्राउंड मॉनिटरिंग स्टेशन"
+  },
+  "Source:": {
+    "ta": "மூலம்:",
+    "hi": "स्रोत:"
+  },
+  "Sources:": {
+    "ta": "மூலங்கள்:",
+    "hi": "स्रोत:"
+  },
+  "Source: OpenWeather": {
+    "ta": "மூலம்: ஓபன்வெதர்",
+    "hi": "स्रोत: ओपनवेदर"
+  },
+  "Source: Open-Meteo": {
+    "ta": "மூலம்: ஓபன்-மீட்டியோ",
+    "hi": "स्रोत: ओपन-मेटियो"
+  },
+  "Source: CPCB": {
+    "ta": "மூலம்: சிபிசிபி",
+    "hi": "स्रोत: सीपीसीबी"
+  },
+  "Source: Cached Telemetry": {
+    "ta": "மூலம்: சேமிக்கப்பட்ட வானிலை தரவு",
+    "hi": "स्रोत: कैश्ड टेलीमेट्री"
+  },
+  "Source: OpenWeather (Primary)": {
+    "ta": "மூலம்: ஓபன்வெதர் (முதன்மை)",
+    "hi": "स्रोत: ओपनवेदर (प्राथमिक)"
+  },
+  "Sources: OpenWeather (Primary) · Open-Meteo (Secondary)": {
+    "ta": "மூலங்கள்: ஓபன்வெதர் (முதன்மை) · ஓபன்-மீட்டியோ (இரண்டாம் நிலை)",
+    "hi": "स्रोत: ओपनवेदर (प्राथमिक) · ओपन-मेटियो (द्वितीयक)"
+  },
+  "Feels like --°C": {
+    "ta": "உணரப்படும் வெப்பநிலை --°C",
+    "hi": "महसूस होता है --°C"
+  },
+  "FETCHING...": {
+    "ta": "பெறப்படுகிறது...",
+    "hi": "प्राप्त हो रहा है..."
+  },
+  "LIVE": {
+    "ta": "நேரலை",
+    "hi": "लाइव"
+  },
+  "OFFLINE": {
+    "ta": "ஆஃப்லைன்",
+    "hi": "ऑफ़लाइन"
+  },
+  "DATA STALE": {
+    "ta": "பழைய தரவு",
+    "hi": "पुराना डेटा"
+  },
+  "DEGRADED": {
+    "ta": "குறைந்த தரம்",
+    "hi": "सीमित"
+  },
+  "UNAVAILABLE": {
+    "ta": "கிடைக்கவில்லை",
+    "hi": "अनुपलब्ध"
+  },
+  "Temperature:": {
+    "ta": "வெப்பநிலை:",
+    "hi": "तापमान:"
+  },
+  "Temp:": {
+    "ta": "வெப்பநிலை:",
+    "hi": "तापमान:"
+  },
+  "Affected Area:": {
+    "ta": "பாதிக்கப்பட்ட பகுதி:",
+    "hi": "प्रभावित क्षेत्र:"
+  },
+  "Area:": {
+    "ta": "பகுதி:",
+    "hi": "क्षेत्र:"
+  },
+  "Valid until:": {
+    "ta": "செல்லுபடியாகும் நேரம்:",
+    "hi": "मान्य समय:"
+  },
   "Rain Chance": {
     "ta": "மழை வாய்ப்பு",
     "hi": "बारिश की संभावना"
@@ -1923,6 +2397,22 @@ const DYNAMIC_LABELS = {
   "Offline Cached Record": {
     "ta": "ஆஃப்லைன் சேமிக்கப்பட்ட பதிவு",
     "hi": "ऑफ़लाइन सहेजा गया रिकॉर्ड"
+  },
+  "Couldn't load location weather telemetry — check your connection": {
+    "ta": "வானிலை தொலைஅளவியலை ஏற்ற முடியவில்லை — இணைப்பை சரிபார்க்கவும்",
+    "hi": "स्थान मौसम टेलीमेट्री लोड नहीं हो सकी — कनेक्शन जांचें"
+  },
+  "Retry Telemetry": {
+    "ta": "தொலைஅளவியலை மீண்டும் முயற்சிக்கவும்",
+    "hi": "टेलीमेट्री पुनः प्रयास करें"
+  },
+  "Couldn't load air quality telemetry — check your connection": {
+    "ta": "காற்றுத் தர தொலைஅளவியலை ஏற்ற முடியவில்லை — இணைப்பை சரிபார்க்கவும்",
+    "hi": "वायु गुणवत्ता टेलीमेट्री लोड नहीं हो सकी — कनेक्शन जांचें"
+  },
+  "Retry Air Quality": {
+    "ta": "காற்றுத் தரத்தை மீண்டும் முயற்சிக்கவும்",
+    "hi": "वायु गुणवत्ता पुनः प्रयास करें"
   }
 };
 
@@ -1958,13 +2448,13 @@ window.I18N = {
     }
   },
 
-  t: function(key) {
-    return this.getTranslation(key);
+  t: function(key, fallback = null) {
+    return this.getTranslation(key, fallback);
   },
 
-  getTranslation: function(key) {
+  getTranslation: function(key, fallback = null) {
     const dict = I18N_DICT[this.currentLanguage] || I18N_DICT["en"];
-    return dict[key] || (I18N_DICT["en"] ? I18N_DICT["en"][key] : "") || key;
+    return dict[key] || (I18N_DICT["en"] ? I18N_DICT["en"][key] : "") || fallback || key;
   },
 
   localizeDynamic: function(label) {
@@ -1982,6 +2472,66 @@ window.I18N = {
         return v[lang];
       }
     }
+
+    // Pattern: "Feels like X°C"
+    const mFeels = trimmed.match(/^Feels like\s+([-\d\.]+\s*°C|--\s*°C)$/i);
+    if (mFeels) {
+      const feelsPrefix = lang === 'ta' ? 'உணரப்படும் வெப்பநிலை' : (lang === 'hi' ? 'महसूस होता है' : 'Feels like');
+      return `${feelsPrefix} ${mFeels[1]}`;
+    }
+
+    // Pattern: "Modelled Air Quality (Source: ...)"
+    const mModel = trimmed.match(/^Modelled Air Quality\s*\((?:Source:\s*)?(.*?)\)$/i);
+    if (mModel) {
+      const inner = mModel[1].trim();
+      const locInner = this.localizeDynamic(inner);
+      if (lang === 'ta') return `மாதிரி காற்றுத் தரம் (மூலம்: ${locInner})`;
+      if (lang === 'hi') return `मॉडल की गई वायु गुणवत्ता (स्रोत: ${locInner})`;
+    }
+
+    // Pattern: "CPCB Official Station: StationName Updated X"
+    const mStation = trimmed.match(/^CPCB Official Station:\s*(.*?)$/i);
+    if (mStation) {
+      const rest = mStation[1].trim();
+      if (lang === 'ta') return `சிபிசிபி அதிகாரப்பூர்வ நிலையம்: ${this.localizeDynamic(rest)}`;
+      if (lang === 'hi') return `सीपीसीबी आधिकारिक स्टेशन: ${this.localizeDynamic(rest)}`;
+    }
+
+    // Pattern: "Source: ..."
+    const mSrc = trimmed.match(/^Source:\s*(.*?)$/i);
+    if (mSrc) {
+      const rest = mSrc[1].trim();
+      if (lang === 'ta') return `மூலம்: ${this.localizeDynamic(rest)}`;
+      if (lang === 'hi') return `स्रोत: ${this.localizeDynamic(rest)}`;
+    }
+
+    // Pattern: "Sources: ..."
+    const mSrcs = trimmed.match(/^Sources:\s*(.*?)$/i);
+    if (mSrcs) {
+      const rest = mSrcs[1].trim();
+      if (lang === 'ta') return `மூலங்கள்: ${this.localizeDynamic(rest)}`;
+      if (lang === 'hi') return `स्रोत: ${this.localizeDynamic(rest)}`;
+    }
+
+    // Delimited compound provider strings: "OpenWeather (Primary), Open-Meteo (Secondary)" or "A · B" or "A & B"
+    if (trimmed.includes(',') || trimmed.includes('·') || trimmed.includes('&')) {
+      let delim = ', ';
+      if (trimmed.includes(' · ')) delim = ' · ';
+      else if (trimmed.includes(' & ')) delim = ' & ';
+      else if (trimmed.includes(', ')) delim = ', ';
+
+      const parts = trimmed.split(delim);
+      const translatedParts = parts.map(p => this.localizeDynamic(p.trim()));
+      const anyChanged = translatedParts.some((tp, idx) => tp !== parts[idx].trim());
+      if (anyChanged) {
+        let joiner = delim;
+        if (delim === ' & ') {
+          joiner = lang === 'ta' ? ' & ' : (lang === 'hi' ? ' और ' : ' & ');
+        }
+        return translatedParts.join(joiner);
+      }
+    }
+
     return label;
   },
 

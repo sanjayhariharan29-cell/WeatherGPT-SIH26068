@@ -466,7 +466,7 @@
         </div>
         <p style="margin: 0 0 8px 0; color: var(--text-secondary); font-size: 11px;">If you see "Failed to fetch", pick your connection:</p>
         <select id="authServerSelect" class="styled-select" style="width: 100%; margin-bottom: 8px; font-size: 11.5px; padding: 6px 8px;">
-          <option value="https://major-shirts-sleep.loca.lt/api/v1" selected>1. Live Cloud Tunnel (major-shirts-sleep.loca.lt)</option>
+          <option value="https://skyzen-backend.onrender.com/api/v1" selected>1. Render Cloud (skyzen-backend.onrender.com)</option>
           <option value="http://192.168.1.50:8000/api/v1">2. Same Wi-Fi Host (192.168.1.50:8000)</option>
           <option value="http://localhost:8000/api/v1">3. Localhost (localhost:8000)</option>
           <option value="/api/v1">4. Web Relative (/api/v1)</option>
@@ -516,7 +516,7 @@
           <span class="nav-label" data-i18n="nav.alerts">Alerts</span>
         </button>
         <button class="nav-item" data-screen="chat" onclick="navigateToScreen('chat')" title="AI Meteorologist Assistant" aria-label="SkyZen AI Assistant">
-          <span class="material-symbols-rounded nav-icon">psychology</span>
+          <span class="material-symbols-rounded nav-icon">smart_toy</span>
           <span class="nav-label" data-i18n="nav.ai">SkyZen AI</span>
         </button>
         <button class="nav-item" data-screen="air-quality" onclick="navigateToScreen('air-quality')" title="Air Quality Index" aria-label="Air Quality (AQI)">
@@ -562,8 +562,9 @@
       </div>
 
       <!-- Top Header Navigation -->
-      <header class="header-glass" role="banner">
-        <div class="brand">
+      <header class="header-glass is-home" id="mainHeader" role="banner">
+        <!-- Home-only Large Branded Header Block -->
+        <div class="brand home-only">
           <div class="logo-badge" aria-hidden="true">
             <img src="./assets/skyzen_official_logo.png" alt="SkyZen" class="brand-logo-img">
           </div>
@@ -574,8 +575,16 @@
           </div>
         </div>
 
-        <!-- Clean Location Search Bar at Top of Home -->
-        <div class="header-search-container" id="headerSearchContainer">
+        <!-- Subpage Minimal Back & Brand Bar (Visible on sub-screens only) -->
+        <div class="subpage-brand subpage-only">
+          <button type="button" class="subpage-back-btn" onclick="navigateToScreen('home')" title="Back to Home Dashboard" aria-label="Back to Home">
+            <span class="material-symbols-rounded icon-sm">arrow_back</span>
+            <span class="subpage-brand-text">SkyZen</span>
+          </button>
+        </div>
+
+        <!-- Clean Location Search Bar at Top of Home (Home only) -->
+        <div class="header-search-container home-only" id="headerSearchContainer">
           <div class="header-search-bar">
             <span class="material-symbols-rounded search-icon" aria-hidden="true">search</span>
             <input 
@@ -616,7 +625,7 @@
           </select>
           <button id="geoBtn" class="icon-btn" title="Use Device Geolocation (GPS)" aria-label="Use Device Geolocation">
             <span class="material-symbols-rounded icon-sm">my_location</span>
-            <span data-i18n="btn.gps">GPS</span>
+            <span data-i18n="btn.gps" class="home-only">GPS</span>
           </button>
           <button id="refreshBtn" class="icon-btn" title="Refresh Weather Telemetry" aria-label="Refresh Weather Telemetry">
             <span class="material-symbols-rounded icon-sm">refresh</span>
@@ -1306,10 +1315,10 @@
             <!-- Inline Error Container with Retry -->
             <div id="mapCardErrorContainer" class="inline-error-card hidden" role="alert">
               <span class="material-symbols-rounded inline-error-icon">cloud_off</span>
-              <p id="mapCardErrorMsg" class="inline-error-msg">Couldn't load location weather telemetry — check your connection</p>
+              <p id="mapCardErrorMsg" class="inline-error-msg" data-i18n="map.error_msg">Couldn't load location weather telemetry — check your connection</p>
               <button id="mapCardRetryBtn" type="button" class="inline-retry-btn">
                 <span class="material-symbols-rounded icon-xs">refresh</span>
-                <span>Retry Telemetry</span>
+                <span data-i18n="map.retry_telemetry">Retry Telemetry</span>
               </button>
             </div>
 
@@ -1462,11 +1471,11 @@
           <div id="aqiErrorCard" class="error-card hidden" role="alert" style="margin-bottom:14px;">
             <div style="display:flex; align-items:center; gap:8px;">
               <span class="material-symbols-rounded icon-sm" style="color:var(--alert-red);">error</span>
-              <p id="aqiErrorText">Couldn't load air quality telemetry — check your connection</p>
+              <p id="aqiErrorText" data-i18n="aqi.error_text">Couldn't load air quality telemetry — check your connection</p>
             </div>
             <button id="aqiRetryBtn" class="retry-btn" type="button">
               <span class="material-symbols-rounded icon-sm">refresh</span>
-              <span>Retry Air Quality</span>
+              <span data-i18n="aqi.retry_telemetry">Retry Air Quality</span>
             </button>
           </div>
 
@@ -1480,7 +1489,7 @@
               <span class="badge" id="aqiCategory" style="background:var(--bg-tertiary); color:var(--text-muted); font-size:14px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill); width:fit-content;" data-i18n="map.pending_telemetry">Pending Telemetry</span>
               <p style="font-size:13px; color:var(--text-secondary);" id="aqiSummaryText" data-i18n="map.loading_ambient">Loading verified ambient air quality telemetry...</p>
               <div id="aqiSourceContainer" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:flex; flex-direction:column; gap:2px;">
-                <div><span id="aqiSourceLabel">Air Quality Model:</span> <strong id="aqiSourceText">--</strong></div>
+                <div><span id="aqiSourceLabel" data-i18n="aqi.source.model">Air Quality Model:</span> <strong id="aqiSourceText">--</strong></div>
                 <div id="aqiCpcbStatus" style="color:var(--text-secondary); font-size:10px;" data-i18n="map.cpcb_unconfigured">CPCB Ground Monitoring Station API: Not Configured</div>
                 <div id="aqiTimestamp" style="color:var(--text-muted); font-size:10px;">Updated: --</div>
               </div>
@@ -1563,7 +1572,7 @@
           <div class="hub-list">
             <div class="hub-item" onclick="navigateToScreen('chat')">
               <div class="hub-item-left">
-                <span class="material-symbols-rounded" style="color:#42A5F5;">psychology</span>
+                <span class="material-symbols-rounded" style="color:#42A5F5;">smart_toy</span>
                 <span data-i18n="more.ai_chat_item">Ask SkyZen Conversational Assistant</span>
               </div>
               <span class="material-symbols-rounded">chevron_right</span>
@@ -1836,7 +1845,7 @@
             <div class="auth-form-group">
               <label for="envSelect" data-i18n="settings.env_server">API Environment Server</label>
               <select id="envSelect" class="styled-select" aria-label="API Environment Server">
-                <option value="https://major-shirts-sleep.loca.lt/api/v1" selected>Live Cloud Backend (https://major-shirts-sleep.loca.lt)</option>
+                <option value="https://skyzen-backend.onrender.com/api/v1" selected>Render Cloud Backend (https://skyzen-backend.onrender.com)</option>
                 <option value="http://192.168.1.50:8000/api/v1">Wi-Fi Host (192.168.1.50:8000)</option>
                 <option value="/api/v1">Same-Origin Web Shell (/api/v1)</option>
                 <option value="custom" data-i18n="settings.env_custom_server">Custom Production Server (HTTPS)...</option>
@@ -1884,7 +1893,7 @@
           <span class="nav-label" data-i18n="nav.forecast">Forecast</span>
         </button>
         <button class="nav-item" data-screen="chat" onclick="navigateToScreen('chat')" aria-label="AI Meteorologist Assistant" aria-selected="false" title="SkyZen AI Assistant">
-          <span class="material-symbols-rounded nav-icon" aria-hidden="true">psychology</span>
+          <span class="material-symbols-rounded nav-icon" aria-hidden="true">smart_toy</span>
           <span class="nav-label" data-i18n="nav.ai">AI</span>
         </button>
         <button class="nav-item" data-screen="air-quality" onclick="navigateToScreen('air-quality')" aria-label="Air Quality Index" aria-selected="false" title="Air Quality (AQI)">

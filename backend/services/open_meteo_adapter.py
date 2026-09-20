@@ -78,12 +78,12 @@ class OpenMeteoAdapter(BaseWeatherProvider):
             cw = payload.get("current_weather", {}) or {}
 
             # Prioritize current block if present, fallback to current_weather block
-            temp = float(current.get("temperature_2m", cw.get("temperature", 0.0)))
-            feels_like = float(current.get("apparent_temperature", temp)) if current.get("apparent_temperature") is not None else None
-            hum = float(current.get("relative_humidity_2m", 50.0))
-            wind = float(current.get("wind_speed_10m", cw.get("windspeed", 0.0)))
+            temp = round(float(current.get("temperature_2m", cw.get("temperature", 0.0))), 1)
+            feels_like = round(float(current.get("apparent_temperature", temp)), 1) if current.get("apparent_temperature") is not None else None
+            hum = round(float(current.get("relative_humidity_2m", 50.0)), 1)
+            wind = round(float(current.get("wind_speed_10m", cw.get("windspeed", 0.0))), 1)
             wind_dir = float(current.get("wind_direction_10m", cw.get("winddirection", 0.0))) if (current.get("wind_direction_10m") is not None or cw.get("winddirection") is not None) else None
-            pressure = float(current.get("surface_pressure", 1013.25)) if current.get("surface_pressure") is not None else None
+            pressure = round(float(current.get("surface_pressure", 1013.25)), 1) if current.get("surface_pressure") is not None else None
             precip = float(current.get("precipitation", 0.0))
             code = int(current.get("weather_code", cw.get("weathercode", 0)))
             cond = self._map_wmo_code(code)
@@ -115,9 +115,9 @@ class OpenMeteoAdapter(BaseWeatherProvider):
                         matched_idx = idx
                         break
                 if matched_idx >= 0 and matched_idx < len(h_probs) and h_probs[matched_idx] is not None:
-                    rain_prob = float(h_probs[matched_idx])
+                    rain_prob = round(float(h_probs[matched_idx]), 1)
                 elif h_probs and h_probs[0] is not None:
-                    rain_prob = float(h_probs[0])
+                    rain_prob = round(float(h_probs[0]), 1)
             elif precip > 0:
                 rain_prob = 100.0
 

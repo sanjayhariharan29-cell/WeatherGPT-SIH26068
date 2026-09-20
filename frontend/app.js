@@ -33,6 +33,28 @@ function isDevMode() {
 }
 window.isDevMode = isDevMode;
 
+/**
+ * Universal numeric formatting helper: rounds numbers to specified decimals
+ * and prevents raw IEEE-754 floating-point artifacts (e.g. 9.251999999999999999).
+ * @param {number|string|null|undefined} val - Numeric value to format
+ * @param {number} decimals - Number of decimal places (0 for integers/percentages, 1 for wind/temp)
+ * @param {string} fallback - Fallback string if value is null/undefined/NaN (default: "--")
+ * @returns {string} Formatted number string
+ */
+function formatNumber(val, decimals = 0, fallback = "--") {
+  if (val === undefined || val === null || val === "" || isNaN(Number(val))) {
+    return fallback;
+  }
+  const num = Number(val);
+  if (!isFinite(num)) return fallback;
+  if (decimals === 0) {
+    return Math.round(num).toString();
+  }
+  const factor = Math.pow(10, decimals);
+  return (Math.round(num * factor) / factor).toString();
+}
+window.formatNumber = formatNumber;
+
 function updateChatInitialGreeting() {
   const history = document.getElementById("chatHistory");
   if (!history) return;
@@ -111,7 +133,7 @@ async function initApp() {
 }
 
 function isAppAuthenticated() {
-  return Boolean(currentUser && currentUser.is_verified);
+  return Boolean((currentUser && currentUser.is_verified) || (window.currentUser && window.currentUser.is_verified));
 }
 
 // 1. Mobile & Desktop Navigation Engine
@@ -157,6 +179,20 @@ function navigateToScreen(screenName) {
       s.classList.remove("active");
     }
   });
+
+  // Scope large branded header to Home only; use slim utility bar on sub-screens
+  const mainHeader = document.getElementById("mainHeader");
+  if (mainHeader) {
+    if (screenName === "home") {
+      mainHeader.classList.add("is-home");
+      mainHeader.classList.remove("is-subpage");
+    } else {
+      mainHeader.classList.remove("is-home");
+      mainHeader.classList.add("is-subpage");
+    }
+  }
+  document.body.classList.toggle("on-home-screen", screenName === "home");
+  document.body.classList.toggle("on-subpage-screen", screenName !== "home");
 
   window.location.hash = screenName;
   window.scrollTo({ top: 0, behavior: "smooth" });
@@ -276,9 +312,43 @@ function updateSystemStateBanner(state, details = {}) {
   }
 }
 
+async function isAppReachable(timeoutMs = 2500) {
+  if (window.apiClient && typeof window.apiClient.isNetworkReachable === "function") {
+    return await window.apiClient.isNetworkReachable(timeoutMs);
+  }
+  if (window.apiClient && typeof window.apiClient.checkHealth === "function") {
+    return await window.apiClient.checkHealth(timeoutMs);
+  }
+  try {
+    const controller = new AbortController();
+    const timer = setTimeout(() => controller.abort(), timeoutMs);
+    const res = await fetch("/api/v1/health", {
+      method: "GET",
+      headers: { "Bypass-Tunnel-Reminder": "true" },
+      signal: controller.signal
+    });
+    clearTimeout(timer);
+    return res.ok;
+  } catch (e) {
+    return false;
+  }
+}
+window.isAppReachable = isAppReachable;
+
 function setupNetworkMonitoring() {
-  function updateNetworkStatus() {
+  async function updateNetworkStatus() {
     if (navigator.onLine) {
+      if (currentSystemState === "OFFLINE") {
+        updateSystemStateBanner("ONLINE");
+      }
+      return;
+    }
+
+    // Android/mobile OS flags frequently report false-offline even when mobile data/Wi-Fi is active.
+    // Verify true network reachability against real backend health endpoint before triggering the offline banner.
+    const reachable = await isAppReachable(2500);
+    if (reachable) {
+      console.info("[Network] navigator.onLine is false, but backend /health is reachable. Maintaining ONLINE state.");
       if (currentSystemState === "OFFLINE") {
         updateSystemStateBanner("ONLINE");
       }
@@ -295,7 +365,9 @@ function setupNetworkMonitoring() {
       loadCurrentWeather(true);
     }, 600);
   });
-  window.addEventListener("offline", updateNetworkStatus);
+  window.addEventListener("offline", () => {
+    updateNetworkStatus();
+  });
   updateNetworkStatus();
 }
 
@@ -334,10 +406,20 @@ function setButtonLoading(btn, isLoading, loadingText = null, loadingIcon = "pro
 
     const icon = btn.querySelector(".material-symbols-rounded");
     if (icon) {
-      icon.textContent = loadingIcon;
+      icon.removeAttribute("data-svg-rendered");
+      if (window.SkyZenIcons && window.SkyZenIcons.icons && window.SkyZenIcons.icons[loadingIcon]) {
+        icon.innerHTML = `<svg class="skyzen-svg-icon" viewBox="0 0 24 24" aria-hidden="true" focusable="false">${window.SkyZenIcons.icons[loadingIcon]}</svg>`;
+        icon.setAttribute("data-svg-rendered", "true");
+        icon.setAttribute("data-icon-name", loadingIcon);
+      } else {
+        icon.textContent = loadingIcon;
+      }
       icon.classList.add("spin-anim");
     } else {
       btn.innerHTML = `<span class="material-symbols-rounded icon-sm spin-anim">${loadingIcon}</span> ` + (loadingText ? `<span>${escapeHTML(loadingText)}</span>` : btn.textContent);
+      if (window.SkyZenIcons && typeof window.SkyZenIcons.renderAll === "function") {
+        window.SkyZenIcons.renderAll(btn);
+      }
       return;
     }
 
@@ -355,6 +437,9 @@ function setButtonLoading(btn, isLoading, loadingText = null, loadingIcon = "pro
     if (btn.dataset.origHtml) {
       btn.innerHTML = btn.dataset.origHtml;
       delete btn.dataset.origHtml;
+      if (window.SkyZenIcons && typeof window.SkyZenIcons.renderAll === "function") {
+        window.SkyZenIcons.renderAll(btn);
+      }
       if (window.I18N && typeof window.I18N.apply === "function") {
         window.I18N.apply(btn);
       }
@@ -449,6 +534,29 @@ function setupEventListeners() {
       }
     });
   }
+
+  window.onLanguageChanged = function(lang) {
+    currentLanguage = lang;
+    const langText = document.getElementById("chatLangText");
+    if (langText) {
+      if (lang === "en") langText.textContent = "English";
+      else if (lang === "ta") langText.textContent = "தமிழ்";
+      else if (lang === "hi") langText.textContent = "हिंदी";
+    }
+    const langSelect = document.getElementById("langSelect");
+    if (langSelect) {
+      langSelect.value = lang;
+    }
+    if (window.lastWeatherData && typeof renderDashboard === 'function') {
+      try { renderDashboard(window.lastWeatherData); } catch (_) {}
+    }
+    if (window.lastMapPayload && typeof renderMapSelectionCard === 'function') {
+      try { renderMapSelectionCard(window.lastMapPayload, window.lastMapLat, window.lastMapLon); } catch (_) {}
+    }
+    if (window.lastAqiData && typeof renderAqiDetails === 'function') {
+      try { renderAqiDetails(window.lastAqiData); } catch (_) {}
+    }
+  };
 
   window.updateUserLanguage = async function(lang) {
     if (isAppAuthenticated()) {
@@ -1248,14 +1356,6 @@ async function refreshForegroundLocation(triggerReason = "manual") {
 
   lastForegroundRefreshTime = now;
 
-  // Offline guard: do not attempt network geocoding when offline
-  if (!navigator.onLine) {
-    console.info("[Location] Device offline. Falling back to last known location.");
-    loadLastKnownLocation();
-    loadCurrentWeather(false);
-    return;
-  }
-
   // Check geolocation API support
   if (!navigator.geolocation) {
     console.warn("[Location] Geolocation not supported in browser.");
@@ -1270,10 +1370,39 @@ async function refreshForegroundLocation(triggerReason = "manual") {
   }
 
   isLocating = true;
+  let isGeoResolutionHandled = false;
+  let geoSafetyTimeout = null;
+
+  const cleanupGeoLoading = () => {
+    if (geoSafetyTimeout) {
+      clearTimeout(geoSafetyTimeout);
+      geoSafetyTimeout = null;
+    }
+    isLocating = false;
+    if (geoBtn) {
+      setButtonLoading(geoBtn, false);
+    }
+  };
+
+  // Fail-safe watchdog timer: if OS or WebView GPS provider hangs or drops callbacks, recover cleanly
+  geoSafetyTimeout = setTimeout(() => {
+    if (!isGeoResolutionHandled) {
+      isGeoResolutionHandled = true;
+      console.warn("[Location] Geolocation request timed out via safety watchdog timer.");
+      cleanupGeoLoading();
+      loadLastKnownLocation();
+      if (triggerReason === "user_click") {
+        showMobileNotice("GPS signal timed out. Using last known location.", "warning", 3500);
+      }
+      loadCurrentWeather(false);
+    }
+  }, isUserExplicit ? 9000 : 6000);
 
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
-      isLocating = false;
+      if (isGeoResolutionHandled) return;
+      isGeoResolutionHandled = true;
+      cleanupGeoLoading();
       geoConsecutiveFailures = 0;
       geoBackoffUntil = 0;
       hideLocationPermissionPrompt();
@@ -1371,7 +1500,9 @@ async function refreshForegroundLocation(triggerReason = "manual") {
       }
     },
     (err) => {
-      isLocating = false;
+      if (isGeoResolutionHandled) return;
+      isGeoResolutionHandled = true;
+      cleanupGeoLoading();
       geoConsecutiveFailures++;
       const backoffMs = getGeoBackoffDelayMs(geoConsecutiveFailures);
       geoBackoffUntil = Date.now() + backoffMs;
@@ -2024,7 +2155,9 @@ function setupAuthPortalEngine() {
     if (!window.apiClient) return;
     const currentBase = window.apiClient.getBaseUrl();
     if (authServerLabel) {
-      if (currentBase.includes("major-shirts-sleep") || currentBase.includes("loca.lt")) {
+      if (currentBase.includes("skyzen-backend.onrender.com") || currentBase.includes("onrender.com")) {
+        authServerLabel.textContent = "Server: Render Cloud";
+      } else if (currentBase.includes("major-shirts-sleep") || currentBase.includes("loca.lt")) {
         authServerLabel.textContent = "Server: Live Cloud Tunnel";
       } else if (currentBase.includes("192.168.1.50")) {
         authServerLabel.textContent = "Server: Wi-Fi (192.168.1.50)";
@@ -2182,44 +2315,168 @@ function setupAuthPortalEngine() {
           }
         }
       } catch (err) {
-        console.error("Login error:", err);
+        const attemptedUrl = err.url || (window.apiClient ? `${window.apiClient.getBaseUrl()}/auth/login` : "https://skyzen-backend.onrender.com/api/v1/auth/login");
+        const currentBaseUrl = (window.apiClient && window.apiClient.getBaseUrl()) || "";
+        const isRenderUrl = currentBaseUrl.includes("skyzen-backend.onrender.com");
+        const duration = err.durationMs ? `${err.durationMs}ms` : "";
+
+        console.error("[Auth] Login error details:", {
+          email,
+          attemptedUrl,
+          status: err.status,
+          statusText: err.statusText,
+          message: err.message,
+          data: err.data,
+          durationMs: err.durationMs,
+          navigatorOnLine: navigator.onLine,
+          userAgent: navigator.userAgent
+        });
+
+        // Determine specific human-readable title & diagnostic tag
+        let errorTitle = "Login Failed";
+        let errorTag = "ERROR";
+        let errorExplanation = "";
 
         if (err.status === 401) {
-          setAuthMessage("loginMessage", "Invalid email or password. Please check your credentials.", "error");
-        } else if (err.message && err.message.includes("NETWORK_OFFLINE")) {
-          setAuthMessage("loginMessage", "Network offline. Please check your connection.", "error");
-        } else if (err.message && err.message.includes("REQUEST_TIMEOUT")) {
-          setAuthMessage("loginMessage", "Server took too long to respond. Please try again.", "error");
+          errorTitle = "Invalid Credentials";
+          errorTag = "HTTP 401";
+          errorExplanation = "The email or password you entered is incorrect. Please check your credentials and try again.";
+        } else if (err.status === 404) {
+          errorTitle = "Account Not Found";
+          errorTag = "HTTP 404";
+          errorExplanation = "No user account was found with this email address. Please create an account or verify your email.";
+        } else if (err.status === 422) {
+          errorTitle = "Validation Error";
+          errorTag = "HTTP 422";
+          const detailMsg = err.data?.detail ? (Array.isArray(err.data.detail) ? err.data.detail.map(d => d.msg || d).join(", ") : JSON.stringify(err.data.detail)) : "Input format is invalid.";
+          errorExplanation = `Invalid input format: ${detailMsg}`;
+        } else if (err.status >= 500 && err.status <= 504) {
+          errorTitle = `Server Error (${err.status})`;
+          errorTag = `HTTP ${err.status}`;
+          errorExplanation = `The backend server reported an error (${err.status} ${err.statusText || ""}). The Render cloud instance may be starting up or restarting. Please retry in 20–30 seconds.`;
+        } else if (err.message && (err.message.includes("REQUEST_TIMEOUT") || err.status === 408)) {
+          errorTitle = "Connection Timeout";
+          errorTag = "TIMEOUT";
+          errorExplanation = "The request took longer than 35s to complete. Render free-tier servers spin down when idle — the instance is likely waking up (cold start). Please tap 'Sign In' again in 10 seconds.";
+        } else if (err.message && err.message.includes("PRODUCTION_BACKEND_URL_REQUIRED")) {
+          errorTitle = "Backend Server Not Configured";
+          errorTag = "CONFIG ERROR";
+          errorExplanation = "Your device is set to use a relative server URL (/api/v1), which does not work in the native Android app. Please tap 'Reset to Render Cloud' below.";
         } else {
-          const isDemoActive = Boolean(window.ENV && window.ENV.DEMO_MODE === true);
-          const currentUrl = (window.apiClient && window.apiClient.getBaseUrl()) || "server";
-          const errDetail = err.message ? `: ${err.message}` : "";
-          const demoBtnHtml = isDemoActive
-            ? `<button type="button" id="loginFallbackDemoBtn" class="auth-primary-btn" style="padding:4px 10px; font-size:11px; height:auto; min-height:28px; width:auto; border-radius:6px;">🚀 Launch Demo Mode</button>`
-            : "";
-          setAuthMessage(
-            "loginMessage",
-            `<div style="font-weight:600; margin-bottom:4px;">Cannot reach server (${escapeHTML(currentUrl)})</div>` +
-            `<div style="font-size:11.5px; opacity:0.9; margin-bottom:8px;">${escapeHTML(errDetail || "Failed to fetch")}</div>` +
-            `<div style="display:flex; gap:8px; flex-wrap:wrap;">` +
-            demoBtnHtml +
-            `<button type="button" id="loginOpenServerBtn" class="auth-secondary-btn" style="padding:4px 10px; font-size:11px; height:auto; min-height:28px; width:auto; border-radius:6px;">⚙️ Fix Server URL</button>` +
-            `</div>`,
-            "error",
-            true
-          );
-          setTimeout(() => {
-            const fbDemo = document.getElementById("loginFallbackDemoBtn");
-            if (fbDemo) fbDemo.onclick = executeDemoLogin;
-            const opServ = document.getElementById("loginOpenServerBtn");
-            if (opServ) {
-              opServ.onclick = () => {
-                const box = document.getElementById("authServerConfigBox");
-                if (box) box.classList.remove("hidden");
-              };
-            }
-          }, 50);
+          errorTitle = "Cannot Reach Server";
+          errorTag = "NETWORK";
+          const rawMsg = err.message || "Failed to fetch";
+          errorExplanation = `Unable to connect to the backend server (${rawMsg}). ${!navigator.onLine ? "Your device OS currently reports offline. " : ""}Please verify your connection or check if the backend URL is reachable.`;
         }
+
+        // Stale URL warning if not pointing to production Render
+        let staleUrlWarningHtml = "";
+        if (!isRenderUrl && currentBaseUrl) {
+          staleUrlWarningHtml = `
+            <div style="margin-top:6px; padding:8px 10px; background:rgba(234, 88, 12, 0.12); border:1px solid rgba(234, 88, 12, 0.35); border-radius:6px; font-size:11.5px; color:#c2410c;">
+              <div style="font-weight:700; display:flex; align-items:center; gap:4px; margin-bottom:2px;">
+                <span>⚠️ Non-Production Server Detected</span>
+              </div>
+              <div>Device is currently configured to: <code>${escapeHTML(currentBaseUrl)}</code></div>
+              <button type="button" id="loginResetToRenderBtn" class="auth-primary-btn" style="margin-top:6px; width:100%; padding:6px 10px; font-size:11.5px; height:auto; min-height:30px; border-radius:6px; background:#0284c7;">
+                Reset Server to Render Cloud & Retry
+              </button>
+            </div>
+          `;
+        }
+
+        const isDemoActive = Boolean(window.ENV && window.ENV.DEMO_MODE === true);
+        const demoBtnHtml = isDemoActive
+          ? `<button type="button" id="loginFallbackDemoBtn" class="auth-primary-btn" style="padding:4px 10px; font-size:11px; height:auto; min-height:28px; width:auto; border-radius:6px;">🚀 Launch Demo Mode</button>`
+          : "";
+
+        const diagPayload = {
+          timestamp: new Date().toISOString(),
+          attemptedUrl,
+          currentBaseUrl,
+          status: err.status || "N/A",
+          statusText: err.statusText || "N/A",
+          error: err.message || "Unknown error",
+          duration: duration || "N/A",
+          deviceOnline: navigator.onLine,
+          userAgent: navigator.userAgent
+        };
+
+        const messageHtml = `
+          <div style="display:flex; align-items:center; justify-content:space-between; gap:6px; margin-bottom:4px;">
+            <strong style="font-size:13px; color:#b91c1c;">${escapeHTML(errorTitle)}</strong>
+            <span style="font-size:10px; font-weight:700; padding:2px 6px; border-radius:4px; background:rgba(185, 28, 28, 0.15); color:#b91c1c;">${escapeHTML(errorTag)}</span>
+          </div>
+          <div style="font-size:12px; color:var(--text-secondary); line-height:1.4; margin-bottom:6px;">
+            ${escapeHTML(errorExplanation)}
+          </div>
+          ${staleUrlWarningHtml}
+          <div style="display:flex; gap:6px; flex-wrap:wrap; margin-top:6px;">
+            ${demoBtnHtml}
+            <button type="button" id="loginOpenServerBtn" class="auth-secondary-btn" style="padding:4px 10px; font-size:11px; height:auto; min-height:28px; width:auto; border-radius:6px;">⚙️ Server Settings</button>
+          </div>
+          <details style="margin-top:8px; font-size:11px; border-top:1px dashed rgba(203, 213, 225, 0.6); padding-top:6px;">
+            <summary style="cursor:pointer; font-weight:600; color:var(--text-secondary); user-select:none;">
+              🔍 Diagnostics for Support (Tap to View)
+            </summary>
+            <div style="margin-top:6px; padding:8px; background:rgba(15, 23, 42, 0.05); border-radius:6px; font-family:monospace; font-size:10.5px; line-height:1.45; word-break:break-all; color:var(--text-primary);">
+              <div><strong>Target:</strong> ${escapeHTML(attemptedUrl)}</div>
+              <div><strong>Status:</strong> ${escapeHTML(String(err.status || "N/A"))} (${escapeHTML(err.statusText || "N/A")})</div>
+              <div><strong>Error:</strong> ${escapeHTML(err.message || "Failed to fetch")}</div>
+              <div><strong>Duration:</strong> ${escapeHTML(duration || "N/A")}</div>
+              <div><strong>OS onLine:</strong> ${navigator.onLine}</div>
+              <div><strong>Time:</strong> ${escapeHTML(new Date().toLocaleTimeString())}</div>
+            </div>
+            <button type="button" id="copyLoginDiagBtn" class="auth-secondary-btn" style="margin-top:6px; width:100%; padding:5px 8px; font-size:11px; min-height:28px; border-radius:6px; display:flex; align-items:center; justify-content:center; gap:4px;">
+              <span class="material-symbols-rounded icon-xs">content_copy</span>
+              <span id="copyLoginDiagText">Copy Diagnostics</span>
+            </button>
+          </details>
+        `;
+
+        setAuthMessage("loginMessage", messageHtml, "error", true);
+
+        // Bind dynamic action buttons
+        setTimeout(() => {
+          const resetBtn = document.getElementById("loginResetToRenderBtn");
+          if (resetBtn) {
+            resetBtn.onclick = () => {
+              const renderUrl = "https://skyzen-backend.onrender.com/api/v1";
+              if (window.apiClient) window.apiClient.setBaseUrl(renderUrl);
+              updateAuthServerDisplay();
+              const envSel = document.getElementById("envSelect");
+              if (envSel) envSel.value = renderUrl;
+              const authSel = document.getElementById("authServerSelect");
+              if (authSel) authSel.value = renderUrl;
+              setAuthMessage("loginMessage", "Server reset to Render Cloud (https://skyzen-backend.onrender.com/api/v1). You can now tap Sign In.", "info");
+            };
+          }
+
+          const copyBtn = document.getElementById("copyLoginDiagBtn");
+          if (copyBtn) {
+            copyBtn.onclick = async () => {
+              try {
+                await navigator.clipboard.writeText(JSON.stringify(diagPayload, null, 2));
+                const txt = document.getElementById("copyLoginDiagText");
+                if (txt) txt.textContent = "Copied to Clipboard! ✓";
+                setTimeout(() => { if (txt) txt.textContent = "Copy Diagnostics"; }, 2000);
+              } catch (clipErr) {
+                console.warn("Clipboard copy failed:", clipErr);
+              }
+            };
+          }
+
+          const fbDemo = document.getElementById("loginFallbackDemoBtn");
+          if (fbDemo) fbDemo.onclick = executeDemoLogin;
+
+          const opServ = document.getElementById("loginOpenServerBtn");
+          if (opServ) {
+            opServ.onclick = () => {
+              const box = document.getElementById("authServerConfigBox");
+              if (box) box.classList.remove("hidden");
+            };
+          }
+        }, 50);
       } finally {
         if (submitBtn) setButtonLoading(submitBtn, false);
       }
@@ -2811,12 +3068,16 @@ function renderAqiErrorState(location, lat = null, lon = null) {
   const aqiContent = document.getElementById("aqiContentContainer");
   const aqiRetryBtn = document.getElementById("aqiRetryBtn");
 
+  const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+
   if (aqiSkeleton) aqiSkeleton.classList.add("hidden");
   if (aqiContent) aqiContent.classList.add("hidden");
   if (aqiErrorCard) {
-    if (aqiErrorText) aqiErrorText.textContent = "Couldn't load air quality telemetry — check your connection";
+    if (aqiErrorText) aqiErrorText.textContent = locDyn("Couldn't load air quality telemetry — check your connection");
     aqiErrorCard.classList.remove("hidden");
     if (aqiRetryBtn) {
+      const retrySpan = aqiRetryBtn.querySelector("span:not(.material-symbols-rounded)") || aqiRetryBtn;
+      if (retrySpan) retrySpan.textContent = locDyn("Retry Air Quality");
       aqiRetryBtn.onclick = () => {
         aqiErrorCard.classList.add("hidden");
         loadAirQuality(location, lat, lon);
@@ -3099,7 +3360,9 @@ function renderWeatherCard(data) {
       freshnessTag.textContent = "Cached Telemetry (Offline)";
       freshnessTag.textContent = locDyn(freshnessTag.textContent);
       freshnessTag.className = "freshness-tag partial";
-      updateSystemStateBanner("OFFLINE");
+      if (currentSystemState === "OFFLINE" || (!navigator.onLine && currentSystemState !== "ONLINE")) {
+        updateSystemStateBanner("OFFLINE");
+      }
     } else if (data.system_state === "DEGRADED") {
       freshnessTag.textContent = "Degraded Telemetry";
       freshnessTag.textContent = locDyn(freshnessTag.textContent);
@@ -3137,7 +3400,7 @@ function renderWeatherCard(data) {
   const tempValElem = document.getElementById("tempVal");
   if (tempValElem) {
     if (data.weather?.temperature !== undefined && data.weather?.temperature !== null) {
-      tempValElem.textContent = Math.round(data.weather.temperature);
+      tempValElem.textContent = formatNumber(data.weather.temperature, 0);
     } else {
       tempValElem.textContent = "--";
     }
@@ -3159,11 +3422,12 @@ function renderWeatherCard(data) {
   const locFeels = locDyn("Feels like");
   if (feelsElem) {
     const resolvedSource = data.source_identity || data.source || (data.sources && data.sources.length ? data.sources.join(", ") : "OpenWeather");
-    const srcTag = ` • Source: ${resolvedSource}`;
+    const locSource = locDyn(resolvedSource);
+    const srcTag = ` • ${locDyn("Source:")} ${locSource}`;
     if (data.weather?.feels_like !== undefined && data.weather?.feels_like !== null) {
-      feelsElem.textContent = `${locFeels} ${Math.round(data.weather.feels_like)}°C${srcTag}`;
+      feelsElem.textContent = `${locFeels} ${formatNumber(data.weather.feels_like, 0)}°C${srcTag}`;
     } else {
-      feelsElem.textContent = `Source: ${resolvedSource}`;
+      feelsElem.textContent = `${locDyn("Source:")} ${locSource}`;
     }
   }
 
@@ -3171,25 +3435,25 @@ function renderWeatherCard(data) {
   const rainElem = document.getElementById("rainProbVal");
   if (rainElem) {
     rainElem.textContent = (data.weather?.rain_probability !== undefined && data.weather?.rain_probability !== null)
-      ? `${data.weather.rain_probability}%` : "--";
+      ? `${formatNumber(data.weather.rain_probability, 0)}%` : "--";
   }
 
   const windElem = document.getElementById("windVal");
   if (windElem) {
     windElem.textContent = (data.weather?.wind_speed !== undefined && data.weather?.wind_speed !== null)
-      ? `${data.weather.wind_speed} km/h` : "--";
+      ? `${formatNumber(data.weather.wind_speed, 1)} km/h` : "--";
   }
 
   const humElem = document.getElementById("humidityVal");
   if (humElem) {
     humElem.textContent = (data.weather?.humidity !== undefined && data.weather?.humidity !== null)
-      ? `${data.weather.humidity}%` : "--";
+      ? `${formatNumber(data.weather.humidity, 0)}%` : "--";
   }
 
   const visElem = document.getElementById("visibilityVal");
   if (visElem) {
     visElem.textContent = (data.weather?.visibility !== undefined && data.weather?.visibility !== null)
-      ? `${data.weather.visibility} km` : "--";
+      ? `${formatNumber(data.weather.visibility, 1)} km` : "--";
   }
 
   // Consensus / Agreement
@@ -3319,7 +3583,7 @@ function renderSourcesBreakdown(data) {
 
     if (rec) {
       if (rec.status === "HEALTHY" && rec.temperature !== null && rec.temperature !== undefined) {
-        tempDisplay = `${Math.round(rec.temperature)}°C`;
+        tempDisplay = `${formatNumber(rec.temperature, 0)}°C`;
         condDisplay = rec.condition || "Reporting";
         statusChipClass = (rec.freshness || "FRESH").toLowerCase();
         statusChipText = rec.is_real_time ? `LIVE • ${rec.freshness}` : rec.freshness;
@@ -3344,21 +3608,23 @@ function renderSourcesBreakdown(data) {
       }
     }
 
+    const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+    const roleText = kp.key === 'OpenWeather' ? 'Primary Live Provider' : (kp.key === 'Open-Meteo' ? 'Secondary Forecast Source' : 'Institutional Adapter (Pending Approval)');
     card.innerHTML = `
       <div class="provider-card-top">
         <span class="provider-name">
           <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">sensors</span>
-          ${escapeHTML(kp.key)}
+          ${escapeHTML(locDyn(kp.key))}
         </span>
-        <span class="provider-status-chip ${statusChipClass}">${escapeHTML(statusChipText)}</span>
+        <span class="provider-status-chip ${statusChipClass}">${escapeHTML(locDyn(statusChipText))}</span>
       </div>
       <div class="provider-metrics-row">
         <span class="provider-temp">${tempDisplay}</span>
-        <span class="provider-condition">${escapeHTML(condDisplay)}</span>
+        <span class="provider-condition">${escapeHTML(locDyn(condDisplay))}</span>
       </div>
       <div class="provider-meta-row">
-        <span>${escapeHTML(timeText)}</span>
-        <span>${kp.key === 'OpenWeather' ? 'Primary Live Provider' : (kp.key === 'Open-Meteo' ? 'Secondary Forecast Source' : 'Institutional Adapter (Pending Approval)')}</span>
+        <span>${escapeHTML(locDyn(timeText))}</span>
+        <span>${escapeHTML(locDyn(roleText))}</span>
       </div>
     `;
 
@@ -3560,8 +3826,8 @@ function renderForecastGrid(data, cachedAt = null) {
       });
       
       const fTime = item.forecast_time ? (item.forecast_time.includes("T") ? item.forecast_time.split("T")[1]?.slice(0, 5) : item.forecast_time) : "Daily";
-      const tempText = (item.temperature !== undefined && item.temperature !== null) ? `${Math.round(item.temperature)}°C` : "--°C";
-      const rainText = (item.rain_probability !== undefined && item.rain_probability !== null) ? `${item.rain_probability}%` : "--%";
+      const tempText = (item.temperature !== undefined && item.temperature !== null) ? `${formatNumber(item.temperature, 0)}°C` : "--°C";
+      const rainText = (item.rain_probability !== undefined && item.rain_probability !== null) ? `${formatNumber(item.rain_probability, 0)}%` : "--%";
       const iconName = getWeatherMaterialIcon(item.condition);
 
       card.innerHTML = `
@@ -3611,12 +3877,14 @@ function renderForecastGrid(data, cachedAt = null) {
             <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue);">${icon}</span>
             <span>${escapeHTML(localizedCond)}</span>
           </div>
-          <div class="daily-col-rain">
-            <span class="material-symbols-rounded icon-sm">water_drop</span>
-            <span>${rainChance}%</span>
-          </div>
-          <div class="daily-col-temps">
-            <span>${maxTemp}°</span><span class="min-temp">${minTemp}°</span>
+          <div class="daily-col-metrics">
+            <div class="daily-col-rain">
+              <span class="material-symbols-rounded icon-sm">water_drop</span>
+              <span>${rainChance}%</span>
+            </div>
+            <div class="daily-col-temps">
+              <span>${maxTemp}°</span><span class="min-temp">${minTemp}°</span>
+            </div>
           </div>
         `;
         dailyList.appendChild(row);
@@ -3838,10 +4106,158 @@ function filterAlerts(filterCategory) {
 }
 
 // 8. Air Quality Engine
+function renderAqiDetails(aqiData) {
+  if (!aqiData) return;
+  const aqiValElem = document.getElementById("aqiVal");
+  const aqiCatElem = document.getElementById("aqiCategory");
+  const aqiDialElem = document.getElementById("aqiDial");
+  const aqiSummaryElem = document.getElementById("aqiSummaryText");
+  const v25 = document.getElementById("valPm25");
+  const v10 = document.getElementById("valPm10");
+  const vNo2 = document.getElementById("valNo2");
+  const vSo2 = document.getElementById("valSo2");
+  const vO3 = document.getElementById("valO3");
+  const vCo = document.getElementById("valCo");
+
+  const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+  const t = (k, fb) => (window.I18N && window.I18N.t) ? window.I18N.t(k, fb) : fb;
+
+  if (aqiData.aqi === null || aqiData.aqi === undefined || aqiData.is_available === false) {
+    if (aqiValElem) aqiValElem.textContent = "--";
+    if (aqiCatElem) {
+      aqiCatElem.textContent = locDyn("Unavailable");
+      aqiCatElem.style.background = "var(--bg-tertiary)";
+      aqiCatElem.style.color = "var(--text-muted)";
+    }
+    if (aqiDialElem) aqiDialElem.className = "aqi-dial";
+    if (aqiSummaryElem) aqiSummaryElem.textContent = locDyn("Air quality telemetry unavailable");
+    if (v25) v25.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (v10) v10.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vNo2) vNo2.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vSo2) vSo2.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vO3) vO3.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vCo) vCo.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    return;
+  }
+
+  if (aqiValElem) aqiValElem.textContent = formatNumber(aqiData.aqi, 0);
+  if (aqiCatElem) {
+    aqiCatElem.textContent = locDyn(aqiData.category);
+    if (aqiData.aqi <= 50) {
+      aqiCatElem.style.background = "var(--success-green-bg)";
+      aqiCatElem.style.color = "#166534";
+      if (aqiDialElem) aqiDialElem.className = "aqi-dial";
+    } else if (aqiData.aqi <= 100) {
+      aqiCatElem.style.background = "var(--alert-warning-bg)";
+      aqiCatElem.style.color = "#92400E";
+      if (aqiDialElem) aqiDialElem.className = "aqi-dial moderate";
+    } else {
+      aqiCatElem.style.background = "var(--alert-red-bg)";
+      aqiCatElem.style.color = "#991B1B";
+      if (aqiDialElem) aqiDialElem.className = "aqi-dial unhealthy";
+    }
+  }
+
+  // Authentic AQI Source Separation & Status
+  const sourceLabelElem = document.getElementById("aqiSourceLabel");
+  const sourceTextElem = document.getElementById("aqiSourceText");
+  const cpcbStatusElem = document.getElementById("aqiCpcbStatus");
+  const timestampElem = document.getElementById("aqiTimestamp");
+
+  if (aqiData.source === "CPCB_MANUAL" || aqiData.source_type === "manual_cpcb") {
+    if (sourceLabelElem) sourceLabelElem.textContent = locDyn("CPCB Manual Export:");
+    if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station}) [Manual Export]` : "CPCB Ground Station (Manual Export)";
+
+    const freshnessState = aqiData.freshness || aqiData.status || "STALE";
+    if (cpcbStatusElem) {
+      if (freshnessState === "LIVE" && aqiData.is_real_time) {
+        cpcbStatusElem.textContent = `CPCB Station: ${aqiData.station || 'Manual'} • State: LIVE (Recent Export)`;
+        cpcbStatusElem.style.color = "var(--success-green)";
+      } else {
+        cpcbStatusElem.textContent = `CPCB Station: ${aqiData.station || 'Manual'} • State: ${freshnessState} (Manual Export)`;
+        cpcbStatusElem.style.color = freshnessState === "AGING" ? "#d97706" : "var(--alert-red)";
+      }
+    }
+
+    if (timestampElem) {
+      const obsTime = aqiData.observed_at ? new Date(aqiData.observed_at) : (aqiData.retrieved_at ? new Date(aqiData.retrieved_at) : null);
+      if (obsTime && !isNaN(obsTime.getTime())) {
+        const timeStr = obsTime.toLocaleDateString() + " " + obsTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        if (freshnessState === "LIVE" && aqiData.is_real_time) {
+          timestampElem.textContent = `Current Observation: ${timeStr} • [LIVE]`;
+        } else {
+          timestampElem.textContent = `Exported: ${timeStr} • [${freshnessState}]`;
+        }
+      } else {
+        timestampElem.textContent = `State: ${freshnessState}`;
+      }
+    }
+  } else if (aqiData.is_official_cpcb) {
+    if (sourceLabelElem) sourceLabelElem.textContent = t("aqi.source.official", "Official AQI Source:");
+    if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station})` : locDyn("Central Pollution Control Board (CPCB)");
+    if (cpcbStatusElem) {
+      cpcbStatusElem.textContent = aqiData.station ? `${locDyn("Ground Monitoring Station:")} ${aqiData.station}` : locDyn("Official Ground Monitoring Station");
+      cpcbStatusElem.style.color = "var(--success-green)";
+    }
+    if (timestampElem && aqiData.retrieved_at) {
+      try {
+        const d = new Date(aqiData.retrieved_at);
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        timestampElem.textContent = `${t("weather.updated", "Updated")}: ${timeStr} UTC`;
+      } catch (_) {
+        timestampElem.textContent = `${t("weather.updated", "Updated")}: Telemetry`;
+      }
+    }
+  } else {
+    if (sourceLabelElem) sourceLabelElem.textContent = t("aqi.source.model", "Air Quality Model:");
+    if (sourceTextElem) sourceTextElem.textContent = locDyn(aqiData.source || "Open-Meteo (Modelled Atmospheric Chemistry)");
+    if (cpcbStatusElem) {
+      cpcbStatusElem.textContent = t("aqi.cpcb.not_configured", "CPCB Ground Monitoring Station API: Not Configured");
+      cpcbStatusElem.style.color = "var(--text-secondary)";
+    }
+    if (timestampElem && aqiData.retrieved_at) {
+      try {
+        const d = new Date(aqiData.retrieved_at);
+        const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+        timestampElem.textContent = `${t("weather.updated", "Updated")}: ${timeStr} UTC`;
+      } catch (_) {
+        timestampElem.textContent = `${t("weather.updated", "Updated")}: Modelled estimate`;
+      }
+    }
+  }
+
+  if (aqiData.pollutants) {
+    const p = aqiData.pollutants;
+    if (v25) v25.innerHTML = `${formatNumber(p.pm2_5, 1)} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (v10) v10.innerHTML = `${formatNumber(p.pm10, 1)} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vNo2) vNo2.innerHTML = `${formatNumber(p.no2, 1)} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vSo2) vSo2.innerHTML = `${formatNumber(p.so2, 1)} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vO3) vO3.innerHTML = `${formatNumber(p.o3, 1)} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+    if (vCo) vCo.innerHTML = `${formatNumber(p.co, 1)} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
+  }
+
+  if (aqiData.recommendations && aqiData.recommendations.length > 0) {
+    const recContainer = document.getElementById("aqiRecommendations");
+    if (recContainer) {
+      recContainer.innerHTML = "";
+      aqiData.recommendations.forEach(r => {
+        const item = document.createElement("div");
+        item.className = "impact-item";
+        item.innerHTML = `
+          <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">check_circle</span>
+          <span style="font-size:13px;">${escapeHTML(locDyn(r))}</span>
+        `;
+        recContainer.appendChild(item);
+      });
+    }
+  }
+}
+
 async function loadAirQuality(location, lat = null, lon = null) {
   renderAqiLoadingSkeleton();
   try {
     const aqiData = await window.apiClient.getAirQuality(location, lat, lon);
+    window.lastAqiData = aqiData;
     const aqiSkeleton = document.getElementById("aqiSkeleton");
     const aqiErrorCard = document.getElementById("aqiErrorCard");
     const aqiContent = document.getElementById("aqiContentContainer");
@@ -3849,146 +4265,7 @@ async function loadAirQuality(location, lat = null, lon = null) {
     if (aqiErrorCard) aqiErrorCard.classList.add("hidden");
     if (aqiContent) aqiContent.classList.remove("hidden");
 
-    const aqiValElem = document.getElementById("aqiVal");
-    const aqiCatElem = document.getElementById("aqiCategory");
-    const aqiDialElem = document.getElementById("aqiDial");
-    const aqiSummaryElem = document.getElementById("aqiSummaryText");
-    const v25 = document.getElementById("valPm25");
-    const v10 = document.getElementById("valPm10");
-    const vNo2 = document.getElementById("valNo2");
-    const vSo2 = document.getElementById("valSo2");
-    const vO3 = document.getElementById("valO3");
-    const vCo = document.getElementById("valCo");
-
-    if (!aqiData || aqiData.aqi === null || aqiData.aqi === undefined || aqiData.is_available === false) {
-      if (aqiValElem) aqiValElem.textContent = "--";
-      if (aqiCatElem) {
-        aqiCatElem.textContent = "Unavailable";
-        aqiCatElem.style.background = "var(--bg-tertiary)";
-        aqiCatElem.style.color = "var(--text-muted)";
-      }
-      if (aqiDialElem) aqiDialElem.className = "aqi-dial";
-      if (aqiSummaryElem) aqiSummaryElem.textContent = "Air quality telemetry is currently unavailable for this location.";
-      if (v25) v25.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (v10) v10.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vNo2) vNo2.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vSo2) vSo2.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vO3) vO3.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vCo) vCo.innerHTML = `-- <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      return;
-    }
-
-    if (aqiValElem) aqiValElem.textContent = aqiData.aqi;
-    if (aqiCatElem) {
-      aqiCatElem.textContent = aqiData.category;
-      if (aqiData.aqi <= 50) {
-        aqiCatElem.style.background = "var(--success-green-bg)";
-        aqiCatElem.style.color = "#166534";
-        if (aqiDialElem) aqiDialElem.className = "aqi-dial";
-      } else if (aqiData.aqi <= 100) {
-        aqiCatElem.style.background = "var(--alert-warning-bg)";
-        aqiCatElem.style.color = "#92400E";
-        if (aqiDialElem) aqiDialElem.className = "aqi-dial moderate";
-      } else {
-        aqiCatElem.style.background = "var(--alert-red-bg)";
-        aqiCatElem.style.color = "#991B1B";
-        if (aqiDialElem) aqiDialElem.className = "aqi-dial unhealthy";
-      }
-    }
-
-    // Authentic AQI Source Separation & Status
-    const sourceLabelElem = document.getElementById("aqiSourceLabel");
-    const sourceTextElem = document.getElementById("aqiSourceText");
-    const cpcbStatusElem = document.getElementById("aqiCpcbStatus");
-    const timestampElem = document.getElementById("aqiTimestamp");
-
-    if (aqiData.source === "CPCB_MANUAL" || aqiData.source_type === "manual_cpcb") {
-      if (sourceLabelElem) sourceLabelElem.textContent = "CPCB Manual Export:";
-      if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station}) [Manual Export]` : "CPCB Ground Station (Manual Export)";
-
-      const freshnessState = aqiData.freshness || aqiData.status || "STALE";
-      if (cpcbStatusElem) {
-        if (freshnessState === "LIVE" && aqiData.is_real_time) {
-          cpcbStatusElem.textContent = `CPCB Station: ${aqiData.station || 'Manual'} • State: LIVE (Recent Export)`;
-          cpcbStatusElem.style.color = "var(--success-green)";
-        } else {
-          cpcbStatusElem.textContent = `CPCB Station: ${aqiData.station || 'Manual'} • State: ${freshnessState} (Manual Export)`;
-          cpcbStatusElem.style.color = freshnessState === "AGING" ? "#d97706" : "var(--alert-red)";
-        }
-      }
-
-      if (timestampElem) {
-        const obsTime = aqiData.observed_at ? new Date(aqiData.observed_at) : (aqiData.retrieved_at ? new Date(aqiData.retrieved_at) : null);
-        if (obsTime && !isNaN(obsTime.getTime())) {
-          const timeStr = obsTime.toLocaleDateString() + " " + obsTime.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          if (freshnessState === "LIVE" && aqiData.is_real_time) {
-            timestampElem.textContent = `Current Observation: ${timeStr} • [LIVE]`;
-          } else {
-            timestampElem.textContent = `Exported: ${timeStr} • [${freshnessState}]`;
-          }
-        } else {
-          timestampElem.textContent = `State: ${freshnessState}`;
-        }
-      }
-    } else if (aqiData.is_official_cpcb) {
-      if (sourceLabelElem) sourceLabelElem.textContent = window.I18N ? window.I18N.t("aqi.source.official", "Official AQI Source:") : "Official AQI Source:";
-      if (sourceTextElem) sourceTextElem.textContent = aqiData.station ? `CPCB (${aqiData.station})` : "Central Pollution Control Board (CPCB)";
-      if (cpcbStatusElem) {
-        cpcbStatusElem.textContent = aqiData.station ? `Ground Monitoring Station: ${aqiData.station}` : "Official Ground Monitoring Station";
-        cpcbStatusElem.style.color = "var(--success-green)";
-      }
-      if (timestampElem && aqiData.retrieved_at) {
-        try {
-          const d = new Date(aqiData.retrieved_at);
-          const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          timestampElem.textContent = `${window.I18N ? window.I18N.t("weather.updated", "Updated") : "Updated"}: ${timeStr} UTC`;
-        } catch (_) {
-          timestampElem.textContent = "Updated: Telemetry";
-        }
-      }
-    } else {
-      if (sourceLabelElem) sourceLabelElem.textContent = window.I18N ? window.I18N.t("aqi.source.model", "Air Quality Model:") : "Air Quality Model:";
-      if (sourceTextElem) sourceTextElem.textContent = aqiData.source || "Open-Meteo (Modelled Atmospheric Chemistry)";
-      if (cpcbStatusElem) {
-        cpcbStatusElem.textContent = window.I18N ? window.I18N.t("aqi.cpcb.not_configured", "CPCB Ground Monitoring Station API: Not Configured") : "CPCB Ground Monitoring Station API: Not Configured";
-        cpcbStatusElem.style.color = "var(--text-secondary)";
-      }
-      if (timestampElem && aqiData.retrieved_at) {
-        try {
-          const d = new Date(aqiData.retrieved_at);
-          const timeStr = d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          timestampElem.textContent = `${window.I18N ? window.I18N.t("weather.updated", "Updated") : "Updated"}: ${timeStr} UTC`;
-        } catch (_) {
-          timestampElem.textContent = "Updated: Modelled estimate";
-        }
-      }
-    }
-
-    if (aqiData.pollutants) {
-      const p = aqiData.pollutants;
-      if (v25) v25.innerHTML = `${p.pm2_5} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (v10) v10.innerHTML = `${p.pm10} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vNo2) vNo2.innerHTML = `${p.no2} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vSo2) vSo2.innerHTML = `${p.so2} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vO3) vO3.innerHTML = `${p.o3} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-      if (vCo) vCo.innerHTML = `${p.co} <span style="font-size:11px; font-weight:500;">µg/m³</span>`;
-    }
-
-    if (aqiData.recommendations && aqiData.recommendations.length > 0) {
-      const recContainer = document.getElementById("aqiRecommendations");
-      if (recContainer) {
-        recContainer.innerHTML = "";
-        aqiData.recommendations.forEach(r => {
-          const item = document.createElement("div");
-          item.className = "impact-item";
-          item.innerHTML = `
-            <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">check_circle</span>
-            <span style="font-size:13px;">${escapeHTML(r)}</span>
-          `;
-          recContainer.appendChild(item);
-        });
-      }
-    }
+    renderAqiDetails(aqiData);
   } catch (e) {
     console.warn("Could not fetch air quality telemetry:", e);
     renderAqiErrorState(location, lat, lon);
@@ -4111,14 +4388,20 @@ function formatSourcesBadge(sourceStr, sourcesList) {
   }
   if (hasIMD) badges.push("IMD");
 
+  const locDyn = (str) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(str) : str;
+
   if (badges.length === 0) {
     const filteredList = list.filter(s => !s.toUpperCase().includes("IMD"));
     const deduped = Array.from(new Set(filteredList.filter(Boolean)));
-    return deduped.length > 0 
-      ? (deduped.length === 1 ? `Source: ${deduped[0]}` : `Sources: ${deduped.join(" · ")}`)
-      : "Source: Open-Meteo";
+    if (deduped.length === 0) {
+      return locDyn("Source: Open-Meteo");
+    } else if (deduped.length === 1) {
+      return `${locDyn("Source:")} ${locDyn(deduped[0])}`;
+    } else {
+      return `${locDyn("Sources:")} ${deduped.map(locDyn).join(" · ")}`;
+    }
   }
-  return badges.length === 1 ? `Source: ${badges[0]}` : `Sources: ${badges.join(" · ")}`;
+  return badges.length === 1 ? `${locDyn("Source:")} ${locDyn(badges[0])}` : `${locDyn("Sources:")} ${badges.map(locDyn).join(" · ")}`;
 }
 
 function sanitizeAiResponse(rawAnswer) {
@@ -4373,9 +4656,12 @@ function appendBotMessage(data) {
 
   const traceId = `trace_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
   const whyId = `why_${Date.now()}_${Math.random().toString(36).substr(2, 5)}`;
-  const tempVal = trace.temperature?.current_c != null ? `${trace.temperature.current_c}°C` : (data.weather_summary?.temperature != null ? `${data.weather_summary.temperature}°C` : "--");
-  const windVal = trace.wind?.speed_kmh != null ? `${trace.wind.speed_kmh} km/h` : (data.weather_summary?.wind_speed != null ? `${data.weather_summary.wind_speed} km/h` : "--");
-  const rainVal = trace.rainfall_indicators?.probability_percent != null ? `${trace.rainfall_indicators.probability_percent}%` : (data.weather_summary?.rain_probability != null ? `${data.weather_summary.rain_probability}%` : "--");
+  const rawTemp = trace.temperature?.current_c != null ? trace.temperature.current_c : data.weather_summary?.temperature;
+  const tempVal = rawTemp != null ? `${formatNumber(rawTemp, 1)}°C` : "--";
+  const rawWind = trace.wind?.speed_kmh != null ? trace.wind.speed_kmh : data.weather_summary?.wind_speed;
+  const windVal = rawWind != null ? `${formatNumber(rawWind, 1)} km/h` : "--";
+  const rawRain = trace.rainfall_indicators?.probability_percent != null ? trace.rainfall_indicators.probability_percent : data.weather_summary?.rain_probability;
+  const rainVal = rawRain != null ? `${formatNumber(rawRain, 0)}%` : "--";
   const freshnessVal = trace.data_freshness ? String(trace.data_freshness).toUpperCase() : "FRESH";
 
   const currentLang = String(data.language || currentLanguage || "en").toLowerCase();
@@ -5564,9 +5850,35 @@ function handleMapMyLocation() {
     setButtonLoading(myLocBtn, true, "Locating...");
   }
 
+  let isMapLocationHandled = false;
+  let mapGeoSafetyTimeout = null;
+
+  const cleanupMapGeo = () => {
+    if (mapGeoSafetyTimeout) {
+      clearTimeout(mapGeoSafetyTimeout);
+      mapGeoSafetyTimeout = null;
+    }
+    if (myLocBtn) {
+      setButtonLoading(myLocBtn, false);
+    }
+  };
+
+  mapGeoSafetyTimeout = setTimeout(() => {
+    if (!isMapLocationHandled) {
+      isMapLocationHandled = true;
+      console.warn("[Map Location] GPS request timed out via safety watchdog timer.");
+      cleanupMapGeo();
+      showMobileNotice("GPS signal timed out. Please check location settings.", "warning", 3500);
+    }
+  }, 9000);
+
   // Single-shot GPS position (no continuous tracking)
   navigator.geolocation.getCurrentPosition(
     async (pos) => {
+      if (isMapLocationHandled) return;
+      isMapLocationHandled = true;
+      cleanupMapGeo();
+
       const lat = pos.coords.latitude;
       const lon = pos.coords.longitude;
       const accuracy = pos.coords.accuracy;
@@ -5598,6 +5910,10 @@ function handleMapMyLocation() {
       await selectLocationAndFetchWeather(lat, lon, "My Location (GPS)", true);
     },
     (err) => {
+      if (isMapLocationHandled) return;
+      isMapLocationHandled = true;
+      cleanupMapGeo();
+
       if (myLocBtn) {
         setButtonLoading(myLocBtn, false);
       }
@@ -5736,19 +6052,21 @@ function updateMapSelectionCardLoading(lat, lon, knownName) {
   const errContainer = document.getElementById("mapCardErrorContainer");
   const cardBody = document.getElementById("mapCardBody");
 
+  const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+
   if (card) card.classList.remove("hidden");
   if (errContainer) errContainer.classList.add("hidden");
   if (cardBody) cardBody.classList.remove("hidden");
 
-  if (nameElem) nameElem.textContent = knownName || "Resolving location...";
+  if (nameElem) nameElem.textContent = knownName ? locDyn(knownName) : locDyn("Resolving location...");
   if (coordsElem) coordsElem.textContent = `${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`;
   if (statusBadge && statusText) {
     statusBadge.className = "map-selection-status-badge live";
-    statusText.textContent = "FETCHING...";
+    statusText.textContent = locDyn("FETCHING...");
   }
   if (tempElem) tempElem.innerHTML = `<span class="skeleton-shimmer" style="display:inline-block; width:54px; height:28px; border-radius:4px; vertical-align:middle;"></span>`;
-  if (condElem) condElem.textContent = "Fetching verified telemetry...";
-  if (feelsElem) feelsElem.textContent = "Feels like --°C";
+  if (condElem) condElem.textContent = locDyn("Fetching verified telemetry...");
+  if (feelsElem) feelsElem.textContent = locDyn("Feels like --°C");
   if (alertBox) alertBox.classList.add("hidden");
 }
 
@@ -5774,19 +6092,25 @@ function renderMapSelectionCard(payload, lat, lon) {
   const errContainer = document.getElementById("mapCardErrorContainer");
   const cardBody = document.getElementById("mapCardBody");
 
+  const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+
+  window.lastMapPayload = payload;
+  window.lastMapLat = lat;
+  window.lastMapLon = lon;
+
   if (card) card.classList.remove("hidden");
   if (errContainer) errContainer.classList.add("hidden");
   if (cardBody) cardBody.classList.remove("hidden");
 
   // Name and Coords
-  if (nameElem) nameElem.textContent = payload.locationName || "Selected Location";
+  if (nameElem) nameElem.textContent = payload.locationName ? locDyn(payload.locationName) : locDyn("Selected Location");
   if (coordsElem) coordsElem.textContent = `${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`;
 
   // Real-time Status Badge (Requirement 3: Never infer LIVE from HTTP alone)
   let statusClass = "live";
   let displayStatus = "LIVE";
 
-  if (!navigator.onLine) {
+  if (!navigator.onLine && currentSystemState === "OFFLINE") {
     statusClass = "offline";
     displayStatus = "OFFLINE";
   } else if (payload.is_stale) {
@@ -5805,31 +6129,31 @@ function renderMapSelectionCard(payload, lat, lon) {
 
   if (statusBadge && statusText) {
     statusBadge.className = `map-selection-status-badge ${statusClass}`;
-    statusText.textContent = displayStatus;
+    statusText.textContent = locDyn(displayStatus);
   }
 
   // Freshness
   if (freshnessElem) {
     const timeStr = payload.updated_at ? formatRelativeTime(payload.updated_at) : "Just now";
-    freshnessElem.textContent = timeStr;
+    freshnessElem.textContent = locDyn(timeStr);
   }
 
   // Weather Metrics
   const w = payload.weather;
   if (w && w.temperature !== undefined && w.temperature !== null) {
-    if (tempElem) tempElem.textContent = `${Math.round(w.temperature)}°C`;
+    if (tempElem) tempElem.textContent = `${formatNumber(w.temperature, 0)}°C`;
     if (feelsElem) {
-      const fl = w.feels_like !== undefined ? Math.round(w.feels_like) : Math.round(w.temperature);
-      feelsElem.textContent = `Feels like ${fl}°C`;
+      const fl = w.feels_like !== undefined ? w.feels_like : w.temperature;
+      feelsElem.textContent = locDyn(`Feels like ${formatNumber(fl, 0)}°C`);
     }
-    if (condElem) condElem.textContent = w.condition || "Clear";
-    if (rainElem) rainElem.textContent = `${w.precipitation_probability ?? w.rain_probability ?? 0}%`;
-    if (windElem) windElem.textContent = `${Math.round(w.wind_speed || 0)} km/h`;
-    if (humElem) humElem.textContent = `${Math.round(w.humidity || 0)}%`;
-    if (pressElem) pressElem.textContent = w.pressure ? `${Math.round(w.pressure)} hPa` : "N/A";
+    if (condElem) condElem.textContent = locDyn(w.condition || "Clear");
+    if (rainElem) rainElem.textContent = `${formatNumber(w.precipitation_probability ?? w.rain_probability ?? 0, 0)}%`;
+    if (windElem) windElem.textContent = `${formatNumber(w.wind_speed, 1)} km/h`;
+    if (humElem) humElem.textContent = `${formatNumber(w.humidity, 0)}%`;
+    if (pressElem) pressElem.textContent = w.pressure ? `${formatNumber(w.pressure, 0)} hPa` : "N/A";
   } else {
     if (tempElem) tempElem.textContent = "--°C";
-    if (condElem) condElem.textContent = "Data unavailable";
+    if (condElem) condElem.textContent = locDyn("Data unavailable");
     if (rainElem) rainElem.textContent = "--%";
     if (windElem) windElem.textContent = "-- km/h";
     if (humElem) humElem.textContent = "--%";
@@ -5838,13 +6162,14 @@ function renderMapSelectionCard(payload, lat, lon) {
 
   // Source Transparency & Agreement
   if (sourceElem) {
-    sourceElem.textContent = payload.source_identity || payload.source || (payload.sources ? payload.sources.join(", ") : "OpenWeather & Open-Meteo Telemetry");
+    const rawSource = payload.source_identity || payload.source || (payload.sources ? payload.sources.join(", ") : "OpenWeather & Open-Meteo Telemetry");
+    sourceElem.textContent = locDyn(rawSource);
   }
   if (agreementElem) {
     if (payload.sources && payload.sources.length > 1) {
-      agreementElem.textContent = "Multi-Source Agreement Verified";
+      agreementElem.textContent = locDyn("Multi-Source Agreement Verified");
     } else {
-      agreementElem.textContent = "Direct Telemetry Stream";
+      agreementElem.textContent = locDyn("Direct Telemetry Stream");
     }
   }
 
@@ -5853,22 +6178,23 @@ function renderMapSelectionCard(payload, lat, lon) {
   if (aqiData && aqiData.aqi !== undefined && aqiData.aqi !== null) {
     const aqiVal = Math.round(aqiData.aqi);
     const cat = aqiData.category || "Moderate";
-    if (aqiElem) aqiElem.textContent = `${aqiVal} (${cat})`;
+    const locCat = locDyn(cat);
+    if (aqiElem) aqiElem.textContent = `${aqiVal} (${locCat})`;
 
     if (aqiData.is_station_data || (aqiData.station && aqiData.station.trim().length > 0)) {
       if (aqiSourceElem) {
         const time = aqiData.updated_at ? ` Updated ${formatRelativeTime(aqiData.updated_at)}` : "";
-        aqiSourceElem.textContent = `CPCB Official Station: ${aqiData.station}${time}`;
+        aqiSourceElem.textContent = locDyn(`CPCB Official Station: ${aqiData.station}${time}`);
       }
     } else {
       if (aqiSourceElem) {
         const aqiSrc = aqiData.source_identity || aqiData.source || "Open-Meteo";
-        aqiSourceElem.textContent = `Modelled Air Quality (Source: ${aqiSrc})`;
+        aqiSourceElem.textContent = locDyn(`Modelled Air Quality (Source: ${aqiSrc})`);
       }
     }
   } else {
     if (aqiElem) aqiElem.textContent = "--";
-    if (aqiSourceElem) aqiSourceElem.textContent = "Air quality telemetry unavailable";
+    if (aqiSourceElem) aqiSourceElem.textContent = locDyn("Air quality telemetry unavailable");
   }
 
   // Official Warning Priority
@@ -5887,9 +6213,9 @@ function renderMapSelectionCard(payload, lat, lon) {
       const alertValid = document.getElementById("mapAlertPriorityValid");
 
       const isImdLive = (alert.source || "").toUpperCase().includes("IMD") && alert.is_official === true && !isFixture;
-      if (alertTitle) alertTitle.textContent = isFixture ? "[SIMULATED TEST FIXTURE]" : (isImdLive ? "OFFICIAL IMD WARNING" : "WEATHER WARNING");
+      if (alertTitle) alertTitle.textContent = isFixture ? "[SIMULATED TEST FIXTURE]" : locDyn(isImdLive ? "OFFICIAL IMD WARNING" : "WEATHER WARNING");
       if (alertSev) {
-        alertSev.textContent = isFixture ? "TEST DATA" : severity;
+        alertSev.textContent = isFixture ? "TEST DATA" : locDyn(severity);
         alertSev.className = isFixture ? "severity-pill moderate" : `severity-pill ${severity.toLowerCase()}`;
       }
       if (alertDesc) {
@@ -5899,8 +6225,8 @@ function renderMapSelectionCard(payload, lat, lon) {
           alertDesc.textContent = alert.title ? `${alert.title}: ${alert.description || ''}` : (alert.description || '');
         }
       }
-      if (alertArea) alertArea.textContent = `Affected Area: ${alert.area_desc || payload.locationName}`;
-      if (alertValid) alertValid.textContent = `Valid until: ${alert.expires ? formatRelativeTime(alert.expires) : 'Next 24h'}`;
+      if (alertArea) alertArea.textContent = `${locDyn("Affected Area:")} ${alert.area_desc || payload.locationName}`;
+      if (alertValid) alertValid.textContent = `${locDyn("Valid until:")} ${alert.expires ? formatRelativeTime(alert.expires) : 'Next 24h'}`;
 
       alertBox.className = isFixture ? "map-alert-priority-box test-fixture" : "map-alert-priority-box";
       alertBox.classList.remove("hidden");
@@ -5926,20 +6252,27 @@ function renderMapSelectionCardError(lat, lon, knownName, err) {
   const retryBtn = document.getElementById("mapCardRetryBtn");
   const cardBody = document.getElementById("mapCardBody");
 
+  const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+
   if (card) card.classList.remove("hidden");
-  if (nameElem) nameElem.textContent = knownName || `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+  if (nameElem) nameElem.textContent = knownName ? locDyn(knownName) : `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
   if (coordsElem) coordsElem.textContent = `${lat.toFixed(2)}° N, ${lon.toFixed(2)}° E`;
 
   if (statusBadge && statusText) {
     statusBadge.className = "map-selection-status-badge offline";
-    statusText.textContent = navigator.onLine ? "UNAVAILABLE" : "OFFLINE";
+    statusText.textContent = locDyn(navigator.onLine ? "UNAVAILABLE" : "OFFLINE");
   }
 
   if (cardBody) cardBody.classList.add("hidden");
   if (errContainer) {
     errContainer.classList.remove("hidden");
     if (errMsg) {
-      errMsg.textContent = `Couldn't load location weather telemetry for ${knownName || `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`} — check your connection.`;
+      const locName = knownName || `${lat.toFixed(2)}°, ${lon.toFixed(2)}°`;
+      errMsg.textContent = (window.I18N && window.I18N.currentLanguage === 'ta')
+        ? `${locName} க்கான வானிலை தொலைஅளவியலை ஏற்ற முடியவில்லை — இணைப்பை சரிபார்க்கவும்.`
+        : (window.I18N && window.I18N.currentLanguage === 'hi')
+        ? `${locName} के लिए मौसम टेलीमेट्री लोड नहीं हो सकी — कनेक्शन जांचें।`
+        : `Couldn't load location weather telemetry for ${locName} — check your connection.`;
     }
     if (retryBtn) {
       retryBtn.onclick = () => {
@@ -6379,10 +6712,10 @@ async function populateLocationComparison() {
       }
     }
 
-    const temp = wData?.weather?.temperature !== undefined ? `${Math.round(wData.weather.temperature)}°C` : "--°C";
+    const temp = wData?.weather?.temperature !== undefined ? `${formatNumber(wData.weather.temperature, 0)}°C` : "--°C";
     const cond = wData?.weather?.condition || "Telemetry";
-    const rain = wData?.weather?.precipitation_probability ?? wData?.weather?.rain_probability ?? 0;
-    const wind = Math.round(wData?.weather?.wind_speed || 0);
+    const rain = formatNumber(wData?.weather?.precipitation_probability ?? wData?.weather?.rain_probability ?? 0, 0);
+    const wind = formatNumber(wData?.weather?.wind_speed ?? 0, 1);
     const status = wData?.is_stale ? "DATA STALE" : (wData?.realtime_state || "LIVE");
 
     const card = document.createElement("div");
@@ -6495,18 +6828,28 @@ function renderMapFallbackTelemetry() {
 }
 
 function formatRelativeTime(dateStr) {
-  if (!dateStr) return "Just now";
+  const locDyn = (s) => (window.I18N && window.I18N.localizeDynamic) ? window.I18N.localizeDynamic(s) : s;
+  const lang = (window.I18N && window.I18N.currentLanguage) || "en";
+  if (!dateStr) return locDyn("Just now");
   try {
     const d = new Date(dateStr);
     const diffSec = Math.max(0, Math.floor((Date.now() - d.getTime()) / 1000));
-    if (diffSec < 60) return "Just now";
+    if (diffSec < 60) return locDyn("Just now");
     const diffMin = Math.floor(diffSec / 60);
-    if (diffMin < 60) return `${diffMin} min ago`;
+    if (diffMin < 60) {
+      if (lang === 'ta') return `${diffMin} நிமிடங்களுக்கு முன்`;
+      if (lang === 'hi') return `${diffMin} मिनट पहले`;
+      return `${diffMin} min ago`;
+    }
     const diffHr = Math.floor(diffMin / 60);
-    if (diffHr < 24) return `${diffHr}h ago`;
+    if (diffHr < 24) {
+      if (lang === 'ta') return `${diffHr} மணிநேரத்திற்கு முன்`;
+      if (lang === 'hi') return `${diffHr} घंटे पहले`;
+      return `${diffHr}h ago`;
+    }
     return d.toLocaleDateString();
   } catch (e) {
-    return "Recently";
+    return locDyn("Recently");
   }
 }
 
@@ -7822,10 +8165,11 @@ function renderLifestyleInsights(data, filter = currentLifestyleFilter) {
   }
 
   const temp = Number(data.weather.temperature);
-  const humidity = Number(data.weather.humidity !== undefined ? data.weather.humidity : 50);
-  const wind = Number(data.weather.wind_speed !== undefined ? data.weather.wind_speed : 0);
-  const rainProb = Number(data.weather.rain_probability) || 0;
-  const uv = Number(data.weather.uv_index) || 3;
+  const humidity = formatNumber(data.weather.humidity !== undefined ? data.weather.humidity : 50, 0);
+  const rawWind = Number(data.weather.wind_speed !== undefined ? data.weather.wind_speed : 0);
+  const wind = formatNumber(rawWind, 1);
+  const rainProb = formatNumber(data.weather.rain_probability || 0, 0);
+  const uv = formatNumber(data.weather.uv_index || 3, 0);
   const cond = (data.weather.condition || "").toLowerCase();
 
   const hasHeavyAlert = Array.isArray(allCurrentAlerts) && allCurrentAlerts.some(a => 

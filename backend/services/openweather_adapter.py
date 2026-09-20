@@ -81,11 +81,11 @@ class OpenWeatherAdapter(BaseWeatherProvider):
             weather_list = payload.get("weather", []) or []
             rain_data = payload.get("rain", {}) or {}
 
-            temp = float(main.get("temp", 0.0))
-            feels_like = float(main.get("feels_like", temp))
-            humidity = float(main.get("humidity", 50.0))
-            pressure = float(main.get("pressure", 1013.25))
-            wind_speed = float(wind_data.get("speed", 0.0)) * 3.6  # Convert m/s to km/h
+            temp = round(float(main.get("temp", 0.0)), 1)
+            feels_like = round(float(main.get("feels_like", temp)), 1)
+            humidity = round(float(main.get("humidity", 50.0)), 1)
+            pressure = round(float(main.get("pressure", 1013.25)), 1)
+            wind_speed = round(float(wind_data.get("speed", 0.0)) * 3.6, 1)  # Convert m/s to km/h
             wind_deg = float(wind_data.get("deg", 0.0)) if wind_data.get("deg") is not None else None
 
             # Rainfall in last 1 hour if available
@@ -169,9 +169,9 @@ class OpenWeatherAdapter(BaseWeatherProvider):
                 w_list = entry.get("weather", []) or []
                 cond = w_list[0].get("main", "Cloudy") if w_list else "Cloudy"
                 dt_txt = entry.get("dt_txt", now_utc)
-                temp = float(main.get("temp", 0.0))
-                pop = float(entry.get("pop", 0.0)) * 100.0
-                wind_speed = float(wind_data.get("speed", 0.0)) * 3.6
+                temp = round(float(main.get("temp", 0.0)), 1)
+                pop = round(float(entry.get("pop", 0.0)) * 100.0, 1)
+                wind_speed = round(float(wind_data.get("speed", 0.0)) * 3.6, 1)
 
                 items.append(
                     NormalizedForecastItem(

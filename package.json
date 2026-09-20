@@ -10,6 +10,7 @@
     "cap:add": "npx cap add android",
     "cap:sync": "npx cap sync android",
     "cap:copy": "npx cap copy android",
+    "build:apk": "node scripts/build_android_apk.js",
     "build:android": "node scripts/build_android_apk.js",
     "build:android:release": "node scripts/build_android_apk.js",
     "build:release": "node scripts/build_android_apk.js"
