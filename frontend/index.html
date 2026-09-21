@@ -389,30 +389,49 @@
 
       <!-- View 6: First-Launch Profile Onboarding -->
       <div id="authViewOnboarding" class="auth-view hidden">
-        <div class="auth-view-header">
-          <div class="auth-badge-icon" style="background:#EFF6FF; color:#1D4ED8; border-color:#BFDBFE;">
-            <span class="material-symbols-rounded">badge</span>
+        <!-- Top Navigation / Progress Indicator -->
+        <div class="auth-card-top-nav onboarding-nav">
+          <div class="onboarding-step-pill">
+            <span class="step-pulse-dot"></span>
+            <span data-i18n="onboarding.step">Step 2 of 2 • Profile Setup</span>
           </div>
-          <h2 class="auth-title">Welcome to SkyZen</h2>
-          <p class="auth-subtitle">Set up your profile to personalize meteorological intelligence and advisories.</p>
+          <span class="onboarding-brand-subtag">MoES & IMD</span>
+        </div>
+
+        <div class="auth-card-header text-left onboarding-header">
+          <div class="onboarding-avatar-badge" aria-hidden="true">
+            <span class="material-symbols-rounded">manage_accounts</span>
+          </div>
+          <h2 class="auth-title onboarding-title">
+            <span data-i18n="onboarding.welcome_title">Welcome to SkyZen</span><span class="accent-dot">.</span>
+          </h2>
+          <p class="auth-subtitle onboarding-subtitle" data-i18n="onboarding.welcome_subtitle">
+            Personalize your meteorological intelligence, sector advisories, and alert thresholds.
+          </p>
         </div>
 
         <div id="onboardingMessage" class="auth-message-box hidden" role="alert"></div>
 
-        <form id="onboardingForm" class="auth-form" novalidate>
-          <div class="auth-field">
-            <label for="onboardingFullName" class="auth-label">Full Name</label>
-            <div class="auth-input-wrapper">
+        <form id="onboardingForm" class="auth-form onboarding-form" novalidate>
+          <div class="auth-field onboarding-field">
+            <label for="onboardingFullName" class="auth-label">
+              <span data-i18n="onboarding.name_label">Full Name</span>
+              <span class="field-required-dot" title="Required">*</span>
+            </label>
+            <div class="auth-input-wrapper onboarding-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">person</span>
               <input type="text" id="onboardingFullName" class="auth-input with-icon" placeholder="Enter your full name" required autocomplete="name">
             </div>
           </div>
 
-          <div class="auth-field">
-            <label for="onboardingRole" class="auth-label">Primary Role / Persona</label>
-            <div class="auth-input-wrapper">
+          <div class="auth-field onboarding-field">
+            <label for="onboardingRole" class="auth-label">
+              <span data-i18n="onboarding.role_label">Primary Role / Persona</span>
+              <span class="field-required-dot" title="Required">*</span>
+            </label>
+            <div class="auth-input-wrapper onboarding-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">work</span>
-              <select id="onboardingRole" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
+              <select id="onboardingRole" class="auth-input with-icon styled-select" required>
                 <option value="student" data-i18n="role.student_desc">Student — Daily commute & campus weather</option>
                 <option value="commuter" data-i18n="role.commuter_desc">Commuter — Public transit, road & rain alerts</option>
                 <option value="farmer" data-i18n="role.farmer_desc">Farmer — Agricultural rainfall & harvest planning</option>
@@ -420,31 +439,46 @@
                 <option value="disaster_response" data-i18n="role.disaster_desc">Disaster / Emergency — Early warning & cyclone relief</option>
                 <option value="general" data-i18n="role.general_desc">General User — Everyday weather overview</option>
               </select>
+              <span class="material-symbols-rounded select-chevron-icon">expand_more</span>
             </div>
           </div>
 
-          <div class="auth-field">
-            <label for="onboardingLanguage" class="auth-label" data-i18n="onboarding.lang">Preferred Language</label>
-            <div class="auth-input-wrapper">
+          <div class="auth-field onboarding-field">
+            <label for="onboardingLanguage" class="auth-label">
+              <span data-i18n="onboarding.lang">Preferred Language</span>
+              <span class="field-required-dot" title="Required">*</span>
+            </label>
+            <div class="auth-input-wrapper onboarding-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">language</span>
-              <select id="onboardingLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
+              <select id="onboardingLanguage" class="auth-input with-icon styled-select" required>
                 <option value="en" data-i18n="settings.language.en">English</option>
-                <option value="ta" data-i18n="settings.language.ta">Tamil</option>
-                <option value="hi" data-i18n="settings.language.hi">Hindi</option>
+                <option value="ta" data-i18n="settings.language.ta">Tamil (தமிழ்)</option>
+                <option value="hi" data-i18n="settings.language.hi">Hindi (हिन्दी)</option>
               </select>
+              <span class="material-symbols-rounded select-chevron-icon">expand_more</span>
             </div>
           </div>
 
-          <div class="auth-field" style="margin-top:4px;">
-            <label class="auth-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-              <input type="checkbox" id="onboardingNotifications" checked style="width:18px; height:18px; accent-color:#1D4ED8; cursor:pointer;">
-              <span style="font-size:13px; font-weight:500; color:var(--text-primary);">Enable severe meteorological alerts & advisories</span>
+          <!-- Glass Alert Notification Switch Card -->
+          <div class="onboarding-toggle-card">
+            <div class="toggle-card-content">
+              <div class="toggle-card-icon-wrap" aria-hidden="true">
+                <span class="material-symbols-rounded">notifications_active</span>
+              </div>
+              <div class="toggle-card-text">
+                <span class="toggle-card-title" data-i18n="onboarding.alerts_title">Severe Meteorological Alerts</span>
+                <span class="toggle-card-desc" data-i18n="onboarding.alerts_desc">Early warning advisories for rain, cyclones & heatwaves</span>
+              </div>
+            </div>
+            <label class="switch-toggle" for="onboardingNotifications" aria-label="Toggle severe meteorological alerts">
+              <input type="checkbox" id="onboardingNotifications" checked>
+              <span class="switch-slider"></span>
             </label>
           </div>
 
-          <button type="submit" id="onboardingSubmitBtn" class="auth-primary-btn" style="margin-top:8px;" aria-label="Complete Profile and Enter SkyZen">
+          <button type="submit" id="onboardingSubmitBtn" class="auth-primary-btn onboarding-submit-btn" aria-label="Complete Profile and Enter SkyZen">
             <span class="material-symbols-rounded icon-sm">check_circle</span>
-            <span id="onboardingSubmitText">Complete Setup & Enter SkyZen</span>
+            <span id="onboardingSubmitText" data-i18n="onboarding.submit">Complete Setup & Enter SkyZen</span>
           </button>
         </form>
       </div>
