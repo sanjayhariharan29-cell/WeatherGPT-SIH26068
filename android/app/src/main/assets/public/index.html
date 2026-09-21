@@ -1237,16 +1237,20 @@
               <span class="material-symbols-rounded icon-sm">warning</span>
               <span data-i18n="map.layer_warnings">Severe Alerts</span>
             </button>
-            <button class="map-layer-pill radar" data-map-layer="radar" role="radio" aria-checked="false" id="mapRadarLayerPill">
-              <span class="material-symbols-rounded icon-sm">radar</span>
-              <span data-i18n="map.live_radar_title">Live Radar</span>
-            </button>
           </div>
           
           <!-- Leaflet Map Container -->
           <div id="mapContainer" class="map-view-container" role="application" aria-label="Interactive Weather Map">
             <!-- Left-Side Weather Tile Layer Switcher Dock (Zoom Earth Style) -->
             <div id="mapLeftLayerToggle" class="map-left-layer-toggle" role="toolbar" aria-label="Weather Tile Layers">
+              <!-- Dock Header with Collapse/Expand Toggle -->
+              <div class="map-sidebar-header">
+                <span class="map-sidebar-title" data-i18n="map.layers_title">Layers</span>
+                <button type="button" id="mapSidebarToggleBtn" class="map-sidebar-toggle-btn" aria-label="Toggle Layer Dock" title="Collapse / Expand Dock">
+                  <span class="material-symbols-rounded icon-xs">chevron_left</span>
+                </button>
+              </div>
+
               <!-- LIVE MAPS Section -->
               <div class="map-sidebar-group">
                 <div class="map-sidebar-section-title" data-i18n="map.section_live">LIVE MAPS</div>
@@ -1270,18 +1274,6 @@
                 <button type="button" class="map-tile-btn" data-layer="wind" title="Wind Speed" aria-label="Wind Tile Layer">
                   <span class="material-symbols-rounded icon-sm">air</span>
                   <span class="map-tile-label" data-i18n="map.tile_wind">Wind</span>
-                </button>
-                <button type="button" class="map-tile-btn" data-layer="temp" title="Temperature" aria-label="Temperature Tile Layer">
-                  <span class="material-symbols-rounded icon-sm">thermostat</span>
-                  <span class="map-tile-label" data-i18n="map.tile_temp">Temperature</span>
-                </button>
-                <button type="button" class="map-tile-btn" data-layer="clouds" title="Cloud Cover" aria-label="Cloud Tile Layer">
-                  <span class="material-symbols-rounded icon-sm">cloud</span>
-                  <span class="map-tile-label" data-i18n="map.tile_clouds">Clouds</span>
-                </button>
-                <button type="button" class="map-tile-btn" data-layer="waves" title="Waves & Pressure" aria-label="Waves Tile Layer">
-                  <span class="material-symbols-rounded icon-sm">waves</span>
-                  <span class="map-tile-label" data-i18n="map.tile_waves">Waves & Pressure</span>
                 </button>
               </div>
             </div>

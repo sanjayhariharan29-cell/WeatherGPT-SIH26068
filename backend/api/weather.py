@@ -209,19 +209,14 @@ async def get_air_quality(
 
 OPENWEATHER_LAYER_MAP = {
     "radar": "precipitation_new",
-    "temp": "temp_new",
     "rain": "precipitation_new",
     "wind": "wind_new",
-    "clouds": "clouds_new",
-    "pressure": "pressure_new",
-    "waves": "pressure_new",
+    "temp": "temp_new",
     "precipitation": "precipitation_new",
     "precipitation_new": "precipitation_new",
     "rain_new": "precipitation_new",
     "wind_new": "wind_new",
-    "clouds_new": "clouds_new",
     "temp_new": "temp_new",
-    "pressure_new": "pressure_new",
 }
 
 SATELLITE_LAYER_NAMES = {
@@ -452,7 +447,7 @@ async def _get_openweather_tile(canonical_layer: str, z: int, x: int, y_int: int
 async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
     """
     Proxies OpenWeather Weather Maps 2.0, RainViewer Doppler radar, and Himawari-9 satellite tile layers without exposing API keys client-side.
-    Supported layers: radar, temp, rain, wind, clouds, waves, satellite (Himawari-9 IR).
+    Supported layers: radar, satellite (Himawari-9 IR), rain, wind, temp.
     Accepts URLs with or without .png suffix (e.g. /tiles/satellite/7/93/60.png or /tiles/temp/7/93/60).
     """
     clean_layer = layer.lower().replace(".png", "")

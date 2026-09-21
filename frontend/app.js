@@ -5770,7 +5770,7 @@ function setupIntelligentMapControls() {
     });
   }
 
-  // 4. Risk Layer Pills
+  // 4. Risk / Hazard Layer Pills (Station Indicators)
   const layerPills = document.querySelectorAll(".map-layer-pill");
   layerPills.forEach(pill => {
     pill.addEventListener("click", () => {
@@ -5782,14 +5782,9 @@ function setupIntelligentMapControls() {
       pill.setAttribute("aria-checked", "true");
       activeMapLayer = pill.getAttribute("data-map-layer") || "weather";
 
-      if (activeMapLayer === "radar") {
-        loadDopplerRadarLayer();
-      } else {
-        removeDopplerRadarLayer();
-      }
-
+      // Re-style station markers without disrupting the underlying meteorological tile layer
       restyleMapMarkers();
-      showMobileNotice(`Map layer: ${pill.textContent.trim()}`, "info", 1800);
+      showMobileNotice(`Hazard Indicator: ${pill.textContent.trim()}`, "info", 1500);
     });
   });
 
@@ -6744,12 +6739,6 @@ function switchWeatherMapLayer(layerName) {
     } else if (layerName === "temp") {
       layerAttribution = "Temperature Heatmap &copy; OpenWeather (temp_new)";
       layerOpacity = 0.75;
-    } else if (layerName === "clouds") {
-      layerAttribution = "Cloud Cover &copy; OpenWeather (clouds_new)";
-      layerOpacity = 0.72;
-    } else if (layerName === "waves") {
-      layerAttribution = "Atmospheric Pressure &copy; OpenWeather (pressure_new)";
-      layerOpacity = 0.75;
     }
   }
 
@@ -6862,6 +6851,26 @@ function switchWeatherMapLayer(layerName) {
 }
 
 function setupMapLeftLayerToggle() {
+  const toggleDock = document.getElementById("mapLeftLayerToggle");
+  const toggleBtn = document.getElementById("mapSidebarToggleBtn");
+
+  if (toggleBtn && toggleDock) {
+    try {
+      const isCollapsed = localStorage.getItem("skyzen_map_sidebar_collapsed") === "true";
+      if (isCollapsed) {
+        toggleDock.classList.add("collapsed");
+      }
+    } catch (e) {}
+
+    toggleBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      const isNowCollapsed = toggleDock.classList.toggle("collapsed");
+      try {
+        localStorage.setItem("skyzen_map_sidebar_collapsed", String(isNowCollapsed));
+      } catch (e) {}
+    });
+  }
+
   const tileBtns = document.querySelectorAll(".map-tile-btn");
   tileBtns.forEach(btn => {
     btn.addEventListener("click", (e) => {

@@ -51,8 +51,8 @@ def mock_openweather_tile_upstream(monkeypatch):
 
 
 def test_01_backend_tile_proxy_all_layers():
-    """1. Test that all 6 required layers return valid image/png from backend proxy."""
-    required_layers = ["radar", "temp", "rain", "wind", "clouds", "waves"]
+    """1. Test that the 4 active layers (satellite, radar, rain, wind) return valid image/png from backend proxy."""
+    required_layers = ["satellite", "radar", "rain", "wind"]
     for layer in required_layers:
         res = client.get(f"/api/v1/weather/tiles/{layer}/7/93/60.png")
         assert res.status_code == 200, f"Failed for layer: {layer}"
@@ -62,7 +62,7 @@ def test_01_backend_tile_proxy_all_layers():
 
 def test_02_backend_tile_proxy_canonical_names():
     """2. Test canonical OpenWeather layer names are supported."""
-    canonical_layers = ["precipitation_new", "temp_new", "wind_new", "clouds_new", "pressure_new"]
+    canonical_layers = ["precipitation_new", "temp_new", "wind_new"]
     for layer in canonical_layers:
         res = client.get(f"/api/v1/weather/tiles/{layer}/7/93/60.png")
         assert res.status_code == 200, f"Failed for canonical layer: {layer}"
@@ -107,27 +107,33 @@ def test_05_backend_tile_proxy_invalid_layer_rejection():
 
 def test_06_backend_tile_proxy_cache_headers():
     """6. Test Cache-Control headers and caching behavior."""
-    res1 = client.get("/api/v1/weather/tiles/clouds/7/93/60.png")
+    res1 = client.get("/api/v1/weather/tiles/wind/7/93/60.png")
     assert res1.status_code == 200
     assert "Cache-Control" in res1.headers
 
     # Immediate second request should hit cache
-    res2 = client.get("/api/v1/weather/tiles/clouds/7/93/60.png")
+    res2 = client.get("/api/v1/weather/tiles/wind/7/93/60.png")
     assert res2.status_code == 200
 
 
 def test_07_left_side_layer_toggle_dom_structure():
-    """7. Test that #mapLeftLayerToggle exists with all 6 buttons: Radar, Temp, Rain, Wind, Clouds, Waves."""
+    """7. Test that #mapLeftLayerToggle exists with 4 core layers, toggle button, and no redundant radar pill."""
     index_path = os.path.join(FRONTEND_DIR, "index.html")
     with open(index_path, "r", encoding="utf-8") as f:
         html = f.read()
 
     assert 'id="mapLeftLayerToggle"' in html, "mapLeftLayerToggle container must exist"
     assert 'class="map-left-layer-toggle"' in html
+    assert 'id="mapSidebarToggleBtn"' in html, "Sidebar collapse toggle button must exist"
 
-    expected_buttons = ["radar", "temp", "rain", "wind", "clouds", "waves"]
+    expected_buttons = ["satellite", "radar", "rain", "wind"]
     for b in expected_buttons:
         assert f'data-layer="{b}"' in html, f"Button with data-layer='{b}' missing in DOM"
+
+    # Verify removed layers and redundant pill are absent
+    assert 'data-layer="clouds"' not in html
+    assert 'data-layer="waves"' not in html
+    assert 'id="mapRadarLayerPill"' not in html
 
 
 def test_08_left_side_layer_toggle_styles():
@@ -210,9 +216,8 @@ def test_12_zoom_earth_redesign_structure():
     # Forecast Maps buttons
     assert 'data-layer="rain"' in html
     assert 'data-layer="wind"' in html
-    assert 'data-layer="temp"' in html
-    assert 'data-layer="clouds"' in html
-    assert 'data-layer="waves"' in html
+    assert 'data-layer="clouds"' not in html
+    assert 'data-layer="waves"' not in html
 
     # Timeline scrubber components
     assert 'id="mapTimelineScrubber"' in html

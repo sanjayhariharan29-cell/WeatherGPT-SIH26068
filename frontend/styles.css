@@ -5253,13 +5253,97 @@ body.reduced-effects .ambient-glow-shape {
   max-width: 154px;
   max-height: calc(100% - 90px);
   overflow-y: auto;
+  scrollbar-width: none;
+  -ms-overflow-style: none;
   pointer-events: auto;
+  transition: width 0.24s cubic-bezier(0.16, 1, 0.3, 1), max-width 0.24s cubic-bezier(0.16, 1, 0.3, 1), padding 0.24s ease;
+}
+
+.map-left-layer-toggle::-webkit-scrollbar {
+  display: none;
+}
+
+.map-sidebar-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 2px 4px 4px 4px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.85);
+  margin-bottom: 2px;
+}
+
+.map-sidebar-title {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  color: #0f172a;
+  text-transform: uppercase;
+  user-select: none;
+}
+
+.map-sidebar-toggle-btn {
+  background: transparent;
+  border: 1px solid transparent;
+  border-radius: var(--radius-sm, 6px);
+  padding: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  color: #475569;
+  touch-action: manipulation;
+  transition: all 0.2s ease;
+  width: 24px;
+  height: 24px;
+}
+
+.map-sidebar-toggle-btn:hover {
+  background: rgba(2, 132, 199, 0.12);
+  color: #0284c7;
+  border-color: rgba(2, 132, 199, 0.25);
+}
+
+.map-sidebar-toggle-btn .material-symbols-rounded {
+  font-size: 18px;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.map-left-layer-toggle.collapsed {
+  max-width: 48px;
+  width: 48px;
+  padding: 6px 4px;
+  align-items: center;
+}
+
+.map-left-layer-toggle.collapsed .map-sidebar-header {
+  justify-content: center;
+  width: 100%;
+  padding: 0 0 4px 0;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.6);
+}
+
+.map-left-layer-toggle.collapsed .map-sidebar-title,
+.map-left-layer-toggle.collapsed .map-sidebar-section-title,
+.map-left-layer-toggle.collapsed .map-tile-label {
+  display: none !important;
+}
+
+.map-left-layer-toggle.collapsed .map-tile-btn {
+  justify-content: center;
+  padding: 8px 4px;
+  width: 38px;
+  min-height: 38px;
+}
+
+.map-left-layer-toggle.collapsed .map-sidebar-toggle-btn .material-symbols-rounded {
+  transform: rotate(180deg);
 }
 
 .map-sidebar-group {
   display: flex;
   flex-direction: column;
   gap: 3px;
+  width: 100%;
 }
 
 .map-sidebar-section-title {
@@ -5338,6 +5422,33 @@ body.reduced-effects .ambient-glow-shape {
   background: rgba(15, 23, 42, 0.94);
   border: 1px solid rgba(255, 255, 255, 0.16);
   box-shadow: 0 8px 32px rgba(0, 0, 0, 0.48), 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .map-sidebar-header,
+:root:not([data-theme="light"]) .map-sidebar-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="dark"] .map-left-layer-toggle.collapsed .map-sidebar-header,
+:root:not([data-theme="light"]) .map-left-layer-toggle.collapsed .map-sidebar-header {
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+[data-theme="dark"] .map-sidebar-title,
+:root:not([data-theme="light"]) .map-sidebar-title {
+  color: #f1f5f9;
+}
+
+[data-theme="dark"] .map-sidebar-toggle-btn,
+:root:not([data-theme="light"]) .map-sidebar-toggle-btn {
+  color: #94a3b8;
+}
+
+[data-theme="dark"] .map-sidebar-toggle-btn:hover,
+:root:not([data-theme="light"]) .map-sidebar-toggle-btn:hover {
+  background: rgba(56, 189, 248, 0.18);
+  color: #38bdf8;
+  border-color: rgba(56, 189, 248, 0.3);
 }
 
 [data-theme="dark"] .map-sidebar-section-title,
@@ -5543,17 +5654,43 @@ body.reduced-effects .ambient-glow-shape {
 
 @media (max-width: 480px) {
   .map-left-layer-toggle {
-    top: 56px;
+    top: 50px;
     left: 8px;
-    padding: 4px;
+    padding: 3px;
     gap: 2px;
-    max-width: 130px;
+    max-width: 125px;
+    max-height: calc(100% - 58px);
+    overflow-y: auto;
+    scrollbar-width: none;
+    -ms-overflow-style: none;
+  }
+  .map-sidebar-header {
+    padding: 1px 2px 2px 2px;
+    margin-bottom: 1px;
+  }
+  .map-sidebar-section-title {
+    padding: 2px 4px 1px 4px;
+    margin-top: 3px;
+    font-size: 9px;
+  }
+  .map-left-layer-toggle.collapsed {
+    max-width: 40px;
+    width: 40px;
+    padding: 3px 2px;
+  }
+  .map-left-layer-toggle.collapsed .map-tile-btn {
+    width: 34px;
+    min-height: 34px;
+    padding: 4px 2px;
   }
   .map-tile-btn {
-    padding: 4px 6px;
+    padding: 3px 6px;
     gap: 4px;
-    font-size: 10.5px;
-    min-height: 44px;
+    font-size: 10px;
+    min-height: 32px;
+  }
+  .map-tile-btn .material-symbols-rounded {
+    font-size: 16px;
   }
   .map-timeline-scrubber {
     bottom: 8px;
