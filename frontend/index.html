@@ -1245,36 +1245,45 @@
           
           <!-- Leaflet Map Container -->
           <div id="mapContainer" class="map-view-container" role="application" aria-label="Interactive Weather Map">
-            <!-- Left-Side Weather Tile Layer Switcher Dock -->
+            <!-- Left-Side Weather Tile Layer Switcher Dock (Zoom Earth Style) -->
             <div id="mapLeftLayerToggle" class="map-left-layer-toggle" role="toolbar" aria-label="Weather Tile Layers">
-              <button type="button" class="map-tile-btn active" data-layer="radar" title="Radar" aria-label="Radar Tile Layer">
-                <span class="material-symbols-rounded icon-sm">radar</span>
-                <span class="map-tile-label" data-i18n="map.tile_radar">Radar</span>
-              </button>
-              <button type="button" class="map-tile-btn" data-layer="temp" title="Temperature" aria-label="Temperature Tile Layer">
-                <span class="material-symbols-rounded icon-sm">thermostat</span>
-                <span class="map-tile-label" data-i18n="map.tile_temp">Temp</span>
-              </button>
-              <button type="button" class="map-tile-btn" data-layer="rain" title="Rainfall" aria-label="Rain Tile Layer">
-                <span class="material-symbols-rounded icon-sm">rainy</span>
-                <span class="map-tile-label" data-i18n="map.tile_rain">Rain</span>
-              </button>
-              <button type="button" class="map-tile-btn" data-layer="wind" title="Wind Speed" aria-label="Wind Tile Layer">
-                <span class="material-symbols-rounded icon-sm">air</span>
-                <span class="map-tile-label" data-i18n="map.tile_wind">Wind</span>
-              </button>
-              <button type="button" class="map-tile-btn" data-layer="clouds" title="Cloud Cover" aria-label="Cloud Tile Layer">
-                <span class="material-symbols-rounded icon-sm">cloud</span>
-                <span class="map-tile-label" data-i18n="map.tile_clouds">Clouds</span>
-              </button>
-              <button type="button" class="map-tile-btn" data-layer="satellite" title="Satellite Infrared (Himawari-9)" aria-label="Satellite Tile Layer (Himawari)">
-                <span class="material-symbols-rounded icon-sm">satellite_alt</span>
-                <span class="map-tile-label" data-i18n="map.tile_satellite">Satellite (Himawari)</span>
-              </button>
-              <button type="button" class="map-tile-btn" data-layer="waves" title="Waves & Pressure" aria-label="Waves Tile Layer">
-                <span class="material-symbols-rounded icon-sm">waves</span>
-                <span class="map-tile-label" data-i18n="map.tile_waves">Waves</span>
-              </button>
+              <!-- LIVE MAPS Section -->
+              <div class="map-sidebar-group">
+                <div class="map-sidebar-section-title" data-i18n="map.section_live">LIVE MAPS</div>
+                <button type="button" class="map-tile-btn active" data-layer="satellite" title="Satellite Infrared (Himawari-9)" aria-label="Satellite Tile Layer (Himawari)">
+                  <span class="material-symbols-rounded icon-sm">satellite_alt</span>
+                  <span class="map-tile-label" data-i18n="map.tile_satellite">Satellite (Himawari)</span>
+                </button>
+                <button type="button" class="map-tile-btn" data-layer="radar" title="Radar (RainViewer Doppler)" aria-label="Radar Tile Layer">
+                  <span class="material-symbols-rounded icon-sm">radar</span>
+                  <span class="map-tile-label" data-i18n="map.tile_radar">Radar (Doppler)</span>
+                </button>
+              </div>
+
+              <!-- FORECAST MAPS Section -->
+              <div class="map-sidebar-group">
+                <div class="map-sidebar-section-title" data-i18n="map.section_forecast">FORECAST MAPS</div>
+                <button type="button" class="map-tile-btn" data-layer="rain" title="Precipitation" aria-label="Precipitation Tile Layer">
+                  <span class="material-symbols-rounded icon-sm">rainy</span>
+                  <span class="map-tile-label" data-i18n="map.tile_rain">Precipitation</span>
+                </button>
+                <button type="button" class="map-tile-btn" data-layer="wind" title="Wind Speed" aria-label="Wind Tile Layer">
+                  <span class="material-symbols-rounded icon-sm">air</span>
+                  <span class="map-tile-label" data-i18n="map.tile_wind">Wind</span>
+                </button>
+                <button type="button" class="map-tile-btn" data-layer="temp" title="Temperature" aria-label="Temperature Tile Layer">
+                  <span class="material-symbols-rounded icon-sm">thermostat</span>
+                  <span class="map-tile-label" data-i18n="map.tile_temp">Temperature</span>
+                </button>
+                <button type="button" class="map-tile-btn" data-layer="clouds" title="Cloud Cover" aria-label="Cloud Tile Layer">
+                  <span class="material-symbols-rounded icon-sm">cloud</span>
+                  <span class="map-tile-label" data-i18n="map.tile_clouds">Clouds</span>
+                </button>
+                <button type="button" class="map-tile-btn" data-layer="waves" title="Waves & Pressure" aria-label="Waves Tile Layer">
+                  <span class="material-symbols-rounded icon-sm">waves</span>
+                  <span class="map-tile-label" data-i18n="map.tile_waves">Waves & Pressure</span>
+                </button>
+              </div>
             </div>
 
             <div id="mapFallback" class="map-fallback hidden">
@@ -1288,6 +1297,35 @@
               <div class="spinner" style="width:14px; height:14px; border-width:2px; margin:0;"></div>
               <span id="mapTileStatusText">Loading Radar Tiles...</span>
               <button id="mapTileRetryBtn" type="button" class="tile-retry-btn hidden">Retry</button>
+            </div>
+
+            <!-- Floating Timeline Scrubber (Radar & Satellite History) -->
+            <div id="mapTimelineScrubber" class="map-timeline-scrubber" aria-label="Radar Timeline Controls">
+              <div class="timeline-controls-left">
+                <button id="radarPlayPauseBtn" type="button" class="timeline-btn play-btn" title="Play / Pause" aria-label="Play or Pause Radar Loop">
+                  <span class="material-symbols-rounded">play_arrow</span>
+                </button>
+                <button id="radarStepBackBtn" type="button" class="timeline-btn step-btn" title="Previous Frame (-10m)" aria-label="Step Back 1 Frame">
+                  <span class="material-symbols-rounded">skip_previous</span>
+                </button>
+                <button id="radarStepForwardBtn" type="button" class="timeline-btn step-btn" title="Next Frame (+10m)" aria-label="Step Forward 1 Frame">
+                  <span class="material-symbols-rounded">skip_next</span>
+                </button>
+              </div>
+
+              <div class="timeline-slider-track-wrap">
+                <input type="range" id="radarTimelineSlider" class="timeline-slider" min="0" max="12" step="1" value="12" aria-label="Radar Timeline Scrubber">
+                <div class="timeline-ticks">
+                  <span>-2h</span>
+                  <span>-1h</span>
+                  <span class="live-tick">NOW</span>
+                </div>
+              </div>
+
+              <div class="timeline-meta">
+                <span id="radarFrameTimeBadge" class="timeline-time-badge">--:-- Live</span>
+                <span id="radarLiveStatusTag" class="timeline-live-tag">LIVE</span>
+              </div>
             </div>
           </div>
 

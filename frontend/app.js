@@ -1943,23 +1943,46 @@ async function restoreSessionOrShowAuth() {
   const splashStatusText = document.getElementById("splashStatusText");
   const storedToken = window.apiClient.getToken();
 
+  console.info("[Auth] restoreSessionOrShowAuth: Startup inspection", {
+    hasToken: Boolean(storedToken),
+    tokenLength: storedToken ? storedToken.length : 0,
+    apiBase: window.apiClient.getBaseUrl()
+  });
+
   if (storedToken) {
     if (splashStatusText) splashStatusText.textContent = "Verifying secure session...";
     try {
       let user = null;
       try {
         user = await window.apiClient.getAuthMe();
+        console.info("[Auth] restoreSessionOrShowAuth: /auth/me verified successfully", {
+          id: user?.id,
+          email: user?.email,
+          role: user?.role,
+          is_verified: user?.is_verified,
+          onboarding_completed: user?.onboarding_completed
+        });
       } catch (authMeErr) {
+        console.warn("[Auth] restoreSessionOrShowAuth: /auth/me call returned error", {
+          status: authMeErr?.status || "network_or_unknown",
+          statusText: authMeErr?.statusText,
+          message: authMeErr?.message,
+          detail: authMeErr?.data?.detail
+        });
+
         // If token expired or 401, attempt silent session refresh before dropping credentials
         if (authMeErr && (authMeErr.status === 401 || (authMeErr.message && authMeErr.message.toLowerCase().includes("expired")))) {
-          console.info("[Auth] Access token near/past expiry on load. Attempting session renewal...");
+          console.info("[Auth] Access token rejected or expired on load (status " + authMeErr.status + "). Attempting silent session renewal via /auth/refresh...");
           const refreshRes = await window.apiClient.refreshToken();
           if (refreshRes && refreshRes.user) {
             user = refreshRes.user;
+            console.info("[Auth] Session renewal succeeded with refreshed user:", user?.email);
           } else {
             user = await window.apiClient.getAuthMe();
+            console.info("[Auth] Session renewal succeeded after token refresh.");
           }
         } else {
+          console.error("[Auth] Non-auth failure during /auth/me (e.g. server 500 or connection offline):", authMeErr);
           throw authMeErr;
         }
       }
@@ -1971,6 +1994,7 @@ async function restoreSessionOrShowAuth() {
           if (window.I18N) window.I18N.setLanguage(user.language, true);
         }
         if (user.is_verified === false) {
+          console.info("[Auth] User email pending verification:", user.email);
           pendingAuthEmail = user.email;
           showAuthPortal("verify");
           setAuthMessage("verifyMessage", "Please verify your email address to unlock SkyZen.", "info");
@@ -1980,12 +2004,14 @@ async function restoreSessionOrShowAuth() {
 
         // First launch profile onboarding check
         if (user.onboarding_completed === false) {
+          console.info("[Auth] User onboarding pending:", user.email);
           showAuthPortal("onboarding");
           hideSplashScreen();
           return;
         }
 
         // Valid active session - Returning user skips onboarding
+        console.info("[Auth] Session fully restored into dashboard for:", user.email);
         hideAuthPortal();
         updateProfileUI(user);
         hideSplashScreen();
@@ -1997,8 +2023,16 @@ async function restoreSessionOrShowAuth() {
         return;
       }
     } catch (err) {
-      console.info("[Auth] Session restore: no active session or expired. Prompting sign in.");
-      window.apiClient.removeToken();
+      console.warn("[Auth] Session restore aborted:", {
+        status: err?.status,
+        message: err?.message,
+        detail: err?.data?.detail,
+        isAuthFailure: err?.status === 401 || err?.status === 403
+      });
+      // Purge token only on explicit 401/403 auth rejection, preserving token during server cold-starts/offline
+      if (err?.status === 401 || err?.status === 403) {
+        window.apiClient.removeToken();
+      }
     }
   }
 
@@ -5535,11 +5569,19 @@ function initWeatherMap() {
       zoom: 7,
       zoomControl: true
     });
+    window.mapInstance = mapInstance;
 
-    // Clean light tiles for modern white aesthetic
-    L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    // Deep space dark canvas for clean background outside satellite coverage
+    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
       maxZoom: 18,
-      attribution: "&copy; OpenStreetMap contributors | OpenWeather Telemetry"
+      attribution: "&copy; CartoDB"
+    }).addTo(mapInstance);
+
+    // Primary Basemap: Live Himawari-9 Satellite Clean Infrared Imagery (Zoom Earth style)
+    L.tileLayer("https://realearth.ssec.wisc.edu/tiles/HIMAWARI-B13/{z}/{x}/{y}.png", {
+      maxZoom: 18,
+      maxNativeZoom: 8,
+      attribution: "Satellite Imagery &copy; JMA Himawari-9 (SSEC RealEarth)"
     }).addTo(mapInstance);
 
     // Dedicated weather tile overlay pane below markers (600) and popups (700)
@@ -5560,6 +5602,7 @@ function initWeatherMap() {
     // Setup map controls & listeners
     setupIntelligentMapControls();
     setupMapLeftLayerToggle();
+    setupMapTimelineScrubber();
 
     // Invalidate map dimensions on window resize
     window.addEventListener("resize", () => {
@@ -5568,8 +5611,8 @@ function initWeatherMap() {
       }
     });
 
-    // Initial weather tile layer (Radar / precipitation_new)
-    switchWeatherMapLayer("radar");
+    // Initial weather tile layer (Default to Satellite Himawari-9)
+    switchWeatherMapLayer("satellite");
 
     // Initial load of telemetry & saved locations
     loadSavedMapLocations();
@@ -6493,6 +6536,8 @@ function computeMarkerColorByLayer(data, layer) {
 // ============================================================================
 let currentWeatherTileLayer = null;
 let activeWeatherTileLayerName = "radar";
+window.activeWeatherTileLayerName = activeWeatherTileLayerName;
+window.currentWeatherTileLayer = currentWeatherTileLayer;
 
 const ControlledWeatherTileLayer = (typeof L !== "undefined" && L.TileLayer) ? L.TileLayer.extend({
   initialize: function(url, options) {
@@ -6500,7 +6545,7 @@ const ControlledWeatherTileLayer = (typeof L !== "undefined" && L.TileLayer) ? L
     this._tileFetchingEnabled = true;
   },
   _update: function(center) {
-    // Intercept: Prevent continuous tile requests while panning and zooming
+    // Intercept: Prevent tile requests if disabled
     if (!this._tileFetchingEnabled) {
       return;
     }
@@ -6509,16 +6554,13 @@ const ControlledWeatherTileLayer = (typeof L !== "undefined" && L.TileLayer) ? L
   enableAndFetch: function() {
     this._tileFetchingEnabled = true;
     this.redraw();
-    // After view updates, lock tile requests to prevent continuous fetching during pan/zoom
-    setTimeout(() => {
-      this._tileFetchingEnabled = false;
-    }, 1000);
   }
 }) : null;
 
 function switchWeatherMapLayer(layerName) {
   if (!mapInstance) return;
   activeWeatherTileLayerName = layerName;
+  window.activeWeatherTileLayerName = layerName;
 
   // 1. Update active states on left-side dock buttons
   const tileBtns = document.querySelectorAll(".map-tile-btn");
@@ -6539,13 +6581,70 @@ function switchWeatherMapLayer(layerName) {
 
   // 3. Resolve backend proxy URL (never exposes API key to client)
   const apiBase = (window.apiClient && window.apiClient.getBaseUrl()) || "/api/v1";
-  const tileUrl = `${apiBase}/weather/tiles/${encodeURIComponent(layerName)}/{z}/{x}/{y}.png`;
+  let tileUrl = `${apiBase}/weather/tiles/${encodeURIComponent(layerName)}/{z}/{x}/{y}.png`;
 
   const isSatellite = (layerName === "satellite" || layerName === "himawari");
-  const layerAttribution = isSatellite
-    ? "Satellite Infrared &copy; JMA Himawari-9 (SSEC RealEarth)"
-    : "Weather Tiles &copy; OpenWeather";
-  const layerOpacity = isSatellite ? 0.68 : 0.72;
+  const isRadar = (layerName === "radar");
+
+  let layerAttribution = "Weather Tiles &copy; OpenWeather";
+  let layerOpacity = 0.75;
+
+  if (isRadar) {
+    layerAttribution = "Radar Reflectivity &copy; RainViewer (IMD Doppler Radar)";
+    layerOpacity = 0.85;
+    // Check if we have past radar frames available from timeline scrubber
+    if (radarTimelineFrames.length > 0 && currentRadarFrameIndex >= 0 && currentRadarFrameIndex < radarTimelineFrames.length) {
+      tileUrl = `${radarTimelineHost}${radarTimelineFrames[currentRadarFrameIndex].path}/256/{z}/{x}/{y}/2/1_1.png`;
+    } else if (window._rainviewerHost && window._rainviewerPath) {
+      tileUrl = `${window._rainviewerHost}${window._rainviewerPath}/256/{z}/{x}/{y}/2/1_1.png`;
+    }
+    updateRadarTimelineUI(currentRadarFrameIndex >= 0 ? currentRadarFrameIndex : 0);
+  } else {
+    stopRadarPlayback();
+    if (isSatellite) {
+      layerAttribution = "Satellite Infrared &copy; JMA Himawari-9 (SSEC RealEarth)";
+      layerOpacity = 0.68;
+    } else if (layerName === "rain") {
+      layerAttribution = "Precipitation &copy; OpenWeather (precipitation_new)";
+      layerOpacity = 0.82;
+    } else if (layerName === "wind") {
+      layerAttribution = "Wind Velocity &copy; OpenWeather (wind_new)";
+      layerOpacity = 0.82;
+    } else if (layerName === "temp") {
+      layerAttribution = "Temperature Heatmap &copy; OpenWeather (temp_new)";
+      layerOpacity = 0.75;
+    } else if (layerName === "clouds") {
+      layerAttribution = "Cloud Cover &copy; OpenWeather (clouds_new)";
+      layerOpacity = 0.72;
+    } else if (layerName === "waves") {
+      layerAttribution = "Atmospheric Pressure &copy; OpenWeather (pressure_new)";
+      layerOpacity = 0.75;
+    }
+  }
+
+  // Fetch latest RainViewer radar metadata in background to upgrade to direct CDN tiles
+  if (isRadar && (!window._rainviewerPath || radarTimelineFrames.length === 0)) {
+    fetch("https://api.rainviewer.com/public/weather-maps.json")
+      .then(res => res.json())
+      .then(data => {
+        if (data && data.host && data.radar && data.radar.past && data.radar.past.length > 0) {
+          radarTimelineHost = data.host;
+          radarTimelineFrames = data.radar.past;
+          if (currentRadarFrameIndex < 0) {
+            currentRadarFrameIndex = radarTimelineFrames.length - 1;
+          }
+          window._rainviewerHost = data.host;
+          window._rainviewerPath = data.radar.past[currentRadarFrameIndex].path;
+          if (activeWeatherTileLayerName === "radar" && currentWeatherTileLayer) {
+            currentWeatherTileLayer.setUrl(`${radarTimelineHost}${window._rainviewerPath}/256/{z}/{x}/{y}/2/1_1.png`);
+          }
+          updateRadarTimelineUI(currentRadarFrameIndex);
+        }
+      })
+      .catch(err => {
+        console.warn("[Radar] RainViewer metadata direct fetch failed, relying on backend proxy:", err);
+      });
+  }
 
   if (ControlledWeatherTileLayer) {
     currentWeatherTileLayer = new ControlledWeatherTileLayer(tileUrl, {
@@ -6555,6 +6654,7 @@ function switchWeatherMapLayer(layerName) {
       maxZoom: 18,
       attribution: layerAttribution
     });
+    window.currentWeatherTileLayer = currentWeatherTileLayer;
 
     const chip = document.getElementById("mapTileStatusChip");
     const chipText = document.getElementById("mapTileStatusText");
@@ -6563,7 +6663,7 @@ function switchWeatherMapLayer(layerName) {
     currentWeatherTileLayer.on("loading", () => {
       if (chip && chipText) {
         chip.className = "map-tile-status-chip";
-        const label = layerName === "satellite" ? "SATELLITE" : layerName.toUpperCase();
+        const label = layerName === "satellite" ? "SATELLITE" : (isRadar ? "LIVE RADAR" : layerName.toUpperCase());
         chipText.textContent = `Loading ${label} Tiles...`;
         if (chipRetry) chipRetry.classList.add("hidden");
         chip.classList.remove("hidden");
@@ -6612,6 +6712,202 @@ function setupMapLeftLayerToggle() {
     });
   });
 }
+
+// ============================================================================
+// Interactive Weather Radar Timeline Scrubber (Zoom Earth Style)
+// ============================================================================
+let radarTimelineFrames = [];
+let radarTimelineHost = "https://tilecache.rainviewer.com";
+let currentRadarFrameIndex = -1;
+let radarPlaybackTimer = null;
+let isRadarPlaying = false;
+
+function formatRadarFrameTime(unixSec) {
+  if (!unixSec) return "--:--";
+  const d = new Date(unixSec * 1000);
+  const hours = d.getHours().toString().padStart(2, "0");
+  const mins = d.getMinutes().toString().padStart(2, "0");
+  const day = d.getDate();
+  const months = ["Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"];
+  const month = months[d.getMonth()];
+  return `${day} ${month}, ${hours}:${mins}`;
+}
+
+function updateRadarTimelineUI(index) {
+  if (index < 0 || index >= radarTimelineFrames.length) return;
+  const slider = document.getElementById("radarTimelineSlider");
+  const badge = document.getElementById("radarFrameTimeBadge");
+  const liveTag = document.getElementById("radarLiveStatusTag");
+  const frame = radarTimelineFrames[index];
+
+  if (slider) slider.value = index;
+
+  const isLatest = (index === radarTimelineFrames.length - 1);
+  if (badge) {
+    badge.textContent = formatRadarFrameTime(frame.time);
+  }
+  if (liveTag) {
+    if (isLatest) {
+      liveTag.style.display = "inline-block";
+      liveTag.textContent = "LIVE";
+      liveTag.className = "timeline-live-tag";
+    } else {
+      const diffMinutes = Math.round((radarTimelineFrames[radarTimelineFrames.length - 1].time - frame.time) / 60);
+      liveTag.style.display = "inline-block";
+      liveTag.textContent = `-${diffMinutes}m`;
+      liveTag.className = "timeline-live-tag past";
+    }
+  }
+}
+
+function applyRadarTimelineFrame(index) {
+  if (index < 0 || index >= radarTimelineFrames.length) return;
+  currentRadarFrameIndex = index;
+  updateRadarTimelineUI(index);
+
+  const frame = radarTimelineFrames[index];
+  window._rainviewerHost = radarTimelineHost;
+  window._rainviewerPath = frame.path;
+
+  // If radar is active overlay, update Leaflet tile URL dynamically
+  if (activeWeatherTileLayerName === "radar" && currentWeatherTileLayer) {
+    const tileUrl = `${radarTimelineHost}${frame.path}/256/{z}/{x}/{y}/2/1_1.png`;
+    currentWeatherTileLayer.setUrl(tileUrl);
+  }
+}
+
+function stepRadarTimelineFrame(step) {
+  stopRadarPlayback();
+  if (radarTimelineFrames.length === 0) return;
+  let next = currentRadarFrameIndex + step;
+  if (next < 0) next = 0;
+  if (next >= radarTimelineFrames.length) next = radarTimelineFrames.length - 1;
+  applyRadarTimelineFrame(next);
+}
+
+function startRadarPlayback() {
+  if (radarTimelineFrames.length <= 1) return;
+  isRadarPlaying = true;
+  const playBtn = document.getElementById("radarPlayPauseBtn");
+  if (playBtn) {
+    playBtn.innerHTML = '<span class="material-symbols-rounded">pause</span>';
+    playBtn.setAttribute("title", "Pause Loop");
+  }
+  if (radarPlaybackTimer) clearInterval(radarPlaybackTimer);
+  radarPlaybackTimer = setInterval(() => {
+    let next = currentRadarFrameIndex + 1;
+    if (next >= radarTimelineFrames.length) {
+      next = 0; // Loop back to oldest frame
+    }
+    applyRadarTimelineFrame(next);
+  }, 850);
+}
+
+function stopRadarPlayback() {
+  isRadarPlaying = false;
+  if (radarPlaybackTimer) {
+    clearInterval(radarPlaybackTimer);
+    radarPlaybackTimer = null;
+  }
+  const playBtn = document.getElementById("radarPlayPauseBtn");
+  if (playBtn) {
+    playBtn.innerHTML = '<span class="material-symbols-rounded">play_arrow</span>';
+    playBtn.setAttribute("title", "Play Loop");
+  }
+}
+
+function toggleRadarPlayback() {
+  if (isRadarPlaying) {
+    stopRadarPlayback();
+  } else {
+    // If not currently on radar layer, switch to it
+    if (activeWeatherTileLayerName !== "radar") {
+      switchWeatherMapLayer("radar");
+    }
+    startRadarPlayback();
+  }
+}
+
+async function setupMapTimelineScrubber() {
+  const slider = document.getElementById("radarTimelineSlider");
+  const playBtn = document.getElementById("radarPlayPauseBtn");
+  const stepBackBtn = document.getElementById("radarStepBackBtn");
+  const stepForwardBtn = document.getElementById("radarStepForwardBtn");
+
+  // Fetch RainViewer radar metadata frames (direct with backend proxy fallback)
+  try {
+    let data = null;
+    try {
+      const res = await fetch("https://api.rainviewer.com/public/weather-maps.json");
+      if (res.ok) data = await res.json();
+    } catch (directErr) {
+      console.warn("[Timeline Scrubber] Direct RainViewer fetch fallback to backend proxy:", directErr);
+    }
+
+    if (!data || !data.radar || !data.radar.past || data.radar.past.length === 0) {
+      const apiBase = (window.apiClient && window.apiClient.getBaseUrl()) || "/api/v1";
+      const proxyRes = await fetch(`${apiBase}/weather/radar/timeline`);
+      if (proxyRes.ok) data = await proxyRes.json();
+    }
+
+    if (data && data.host && data.radar && data.radar.past && data.radar.past.length > 0) {
+      radarTimelineHost = data.host;
+      radarTimelineFrames = data.radar.past;
+      window.radarTimelineHost = radarTimelineHost;
+      window.radarTimelineFrames = radarTimelineFrames;
+      currentRadarFrameIndex = radarTimelineFrames.length - 1;
+      window.currentRadarFrameIndex = currentRadarFrameIndex;
+
+      if (slider) {
+        slider.min = "0";
+        slider.max = (radarTimelineFrames.length - 1).toString();
+        slider.value = currentRadarFrameIndex.toString();
+      }
+
+      updateRadarTimelineUI(currentRadarFrameIndex);
+    }
+  } catch (err) {
+    console.warn("[Timeline Scrubber] Error fetching RainViewer frames:", err);
+  }
+
+  if (slider) {
+    slider.addEventListener("input", (e) => {
+      stopRadarPlayback();
+      const val = parseInt(e.target.value, 10);
+      if (!isNaN(val)) {
+        applyRadarTimelineFrame(val);
+      }
+    });
+  }
+
+  if (playBtn) {
+    playBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      toggleRadarPlayback();
+    });
+  }
+
+  if (stepBackBtn) {
+    stepBackBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      stepRadarTimelineFrame(-1);
+    });
+  }
+
+  if (stepForwardBtn) {
+    stepForwardBtn.addEventListener("click", (e) => {
+      e.stopPropagation();
+      stepRadarTimelineFrame(1);
+    });
+  }
+}
+
+window.setupMapTimelineScrubber = setupMapTimelineScrubber;
+window.applyRadarTimelineFrame = applyRadarTimelineFrame;
+window.stepRadarTimelineFrame = stepRadarTimelineFrame;
+window.toggleRadarPlayback = toggleRadarPlayback;
+window.radarTimelineFrames = radarTimelineFrames;
+window.updateRadarTimelineUI = updateRadarTimelineUI;
 
 let mapRadarLayer = null;
 

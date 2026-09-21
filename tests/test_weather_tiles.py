@@ -191,3 +191,46 @@ def test_11_unconfigured_api_key_returns_clear_error(monkeypatch):
     assert res.status_code == 502
     assert "OpenWeather API key is not configured" in res.json().get("detail", "")
 
+
+def test_12_zoom_earth_redesign_structure():
+    """12. Test Zoom Earth redesigned sidebar sections (LIVE MAPS & FORECAST MAPS) and timeline scrubber."""
+    index_path = os.path.join(FRONTEND_DIR, "index.html")
+    with open(index_path, "r", encoding="utf-8") as f:
+        html = f.read()
+
+    # Sidebar sections
+    assert "LIVE MAPS" in html, "Must contain LIVE MAPS section"
+    assert "FORECAST MAPS" in html, "Must contain FORECAST MAPS section"
+    assert 'class="map-sidebar-section-title"' in html
+
+    # Live Maps buttons
+    assert 'data-layer="satellite"' in html
+    assert 'data-layer="radar"' in html
+
+    # Forecast Maps buttons
+    assert 'data-layer="rain"' in html
+    assert 'data-layer="wind"' in html
+    assert 'data-layer="temp"' in html
+    assert 'data-layer="clouds"' in html
+    assert 'data-layer="waves"' in html
+
+    # Timeline scrubber components
+    assert 'id="mapTimelineScrubber"' in html
+    assert 'id="radarPlayPauseBtn"' in html
+    assert 'id="radarStepBackBtn"' in html
+    assert 'id="radarStepForwardBtn"' in html
+    assert 'id="radarTimelineSlider"' in html
+    assert 'id="radarFrameTimeBadge"' in html
+
+    # App.js wiring
+    app_js_path = os.path.join(FRONTEND_DIR, "app.js")
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        js = f.read()
+
+    assert "setupMapTimelineScrubber" in js
+    assert "applyRadarTimelineFrame" in js
+    assert "stepRadarTimelineFrame" in js
+    assert "toggleRadarPlayback" in js
+    assert "HIMAWARI-B13" in js
+
+

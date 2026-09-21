@@ -10,6 +10,7 @@ from sqlalchemy.orm import Session
 import httpx
 import io
 import math
+import time
 try:
     from PIL import Image, ImageDraw
 except ImportError:  # pragma: no cover
@@ -290,41 +291,99 @@ async def _get_satellite_tile(z: int, x: int, y_int: int) -> Response:
         )
 
 
-@router.get("/tiles/{layer}/{z}/{x}/{y}.png")
-@router.get("/tiles/{layer}/{z}/{x}/{y}")
-async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
-    """
-    Proxies OpenWeather Weather Maps 2.0 and Himawari-9 satellite tile layers without exposing API keys client-side.
-    Supported layers: radar, temp, rain, wind, clouds, waves, satellite (Himawari-9 IR).
-    Accepts URLs with or without .png suffix (e.g. /tiles/satellite/7/93/60.png or /tiles/temp/7/93/60).
-    """
-    clean_layer = layer.lower().replace(".png", "")
-    clean_y_str = str(y).replace(".png", "")
+_RAINVIEWER_CACHE = {"timestamp": 0.0, "host": "https://tilecache.rainviewer.com", "path": None, "data": None}
 
-    try:
-        y_int = int(clean_y_str)
-    except ValueError:
-        raise HTTPException(status_code=400, detail="Tile coordinate y must be an integer.")
 
-    # Coordinate validation
-    if z < 0 or z > 18:
-        raise HTTPException(status_code=400, detail="Tile zoom level z must be between 0 and 18.")
-    max_coord = 2 ** z
-    if x < 0 or x >= max_coord or y_int < 0 or y_int >= max_coord:
-        raise HTTPException(status_code=400, detail=f"Tile coordinates ({x}, {y_int}) out of bounds for zoom {z}.")
+@router.get("/radar/timeline")
+async def get_radar_timeline_metadata():
+    """Returns cached RainViewer past radar frames for interactive timeline scrubber."""
+    now = time.time()
+    if not _RAINVIEWER_CACHE.get("data") or (now - _RAINVIEWER_CACHE["timestamp"] > 300):
+        try:
+            async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
+                rv_resp = await client.get(
+                    "https://api.rainviewer.com/public/weather-maps.json",
+                    headers={"User-Agent": "WeatherGPT/1.0"}
+                )
+                if rv_resp.status_code == 200:
+                    rv_data = rv_resp.json()
+                    _RAINVIEWER_CACHE["data"] = rv_data
+                    _RAINVIEWER_CACHE["host"] = rv_data.get("host", "https://tilecache.rainviewer.com")
+                    past_frames = rv_data.get("radar", {}).get("past", [])
+                    if past_frames:
+                        _RAINVIEWER_CACHE["path"] = past_frames[-1]["path"]
+                    _RAINVIEWER_CACHE["timestamp"] = now
+        except Exception as exc:
+            logger.warning(f"RainViewer radar metadata lookup warning: {exc}")
 
-    # Special handling for satellite infrared layers (Himawari-9 AHI / SSEC RealEarth)
-    if clean_layer in SATELLITE_LAYER_NAMES:
-        return await _get_satellite_tile(z, x, y_int)
+    if _RAINVIEWER_CACHE.get("data"):
+        return _RAINVIEWER_CACHE["data"]
+    return {"host": "https://tilecache.rainviewer.com", "radar": {"past": []}}
 
-    if clean_layer not in OPENWEATHER_LAYER_MAP:
-        raise HTTPException(
-            status_code=400,
-            detail=f"Unsupported weather tile layer '{layer}'. Valid layers: {list(OPENWEATHER_LAYER_MAP.keys()) + ['satellite', 'himawari']}"
+
+async def _get_rainviewer_radar_tile(z: int, x: int, y_int: int) -> Response:
+    """Proxies live Doppler precipitation radar reflectivity imagery from RainViewer API."""
+    cache_key = f"rainviewer_radar_{z}_{x}_{y_int}"
+    cached_tile = provider_cache.get(cache_key)
+    if cached_tile:
+        return Response(
+            content=cached_tile,
+            media_type="image/png",
+            headers={
+                "Cache-Control": "public, max-age=300",
+                "X-Cache": "HIT",
+                "X-Radar-Source": "RainViewer Doppler Radar"
+            }
         )
 
-    canonical_layer = OPENWEATHER_LAYER_MAP[clean_layer]
+    now = time.time()
+    # Refresh metadata cache every 5 minutes (300s)
+    if not _RAINVIEWER_CACHE["path"] or (now - _RAINVIEWER_CACHE["timestamp"] > 300):
+        try:
+            async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
+                rv_resp = await client.get(
+                    "https://api.rainviewer.com/public/weather-maps.json",
+                    headers={"User-Agent": "WeatherGPT/1.0"}
+                )
+                if rv_resp.status_code == 200:
+                    rv_data = rv_resp.json()
+                    host = rv_data.get("host", "https://tilecache.rainviewer.com")
+                    past_frames = rv_data.get("radar", {}).get("past", [])
+                    if past_frames:
+                        _RAINVIEWER_CACHE["host"] = host
+                        _RAINVIEWER_CACHE["path"] = past_frames[-1]["path"]
+                        _RAINVIEWER_CACHE["timestamp"] = now
+        except Exception as exc:
+            logger.warning(f"RainViewer radar metadata lookup warning: {exc}")
 
+    if _RAINVIEWER_CACHE["path"]:
+        upstream_url = f"{_RAINVIEWER_CACHE['host']}{_RAINVIEWER_CACHE['path']}/256/{z}/{x}/{y_int}/2/1_1.png"
+        try:
+            async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
+                resp = await client.get(
+                    upstream_url,
+                    headers={"User-Agent": "WeatherGPT/1.0"}
+                )
+                if resp.status_code == 200 and resp.content:
+                    provider_cache.set(cache_key, resp.content, ttl=300)
+                    return Response(
+                        content=resp.content,
+                        media_type="image/png",
+                        headers={
+                            "Cache-Control": "public, max-age=300",
+                            "X-Cache": "MISS",
+                            "X-Radar-Source": "RainViewer Doppler Radar"
+                        }
+                    )
+        except Exception as exc:
+            logger.warning(f"RainViewer radar tile fetch fallback: {exc}")
+
+    # Fallback to OpenWeather precipitation tile if RainViewer is temporarily unreachable
+    return await _get_openweather_tile("precipitation_new", z, x, y_int)
+
+
+async def _get_openweather_tile(canonical_layer: str, z: int, x: int, y_int: int) -> Response:
+    """Proxies OpenWeather Weather Maps 2.0 layers without exposing API keys client-side."""
     cache_key = f"ow_tile_{canonical_layer}_{z}_{x}_{y_int}"
     cached_tile = provider_cache.get(cache_key)
     if cached_tile:
@@ -386,4 +445,45 @@ async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
             status_code=502,
             detail=f"Failed to connect to OpenWeather tile upstream: {str(exc)}"
         )
+
+
+@router.get("/tiles/{layer}/{z}/{x}/{y}.png")
+@router.get("/tiles/{layer}/{z}/{x}/{y}")
+async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
+    """
+    Proxies OpenWeather Weather Maps 2.0, RainViewer Doppler radar, and Himawari-9 satellite tile layers without exposing API keys client-side.
+    Supported layers: radar, temp, rain, wind, clouds, waves, satellite (Himawari-9 IR).
+    Accepts URLs with or without .png suffix (e.g. /tiles/satellite/7/93/60.png or /tiles/temp/7/93/60).
+    """
+    clean_layer = layer.lower().replace(".png", "")
+    clean_y_str = str(y).replace(".png", "")
+
+    try:
+        y_int = int(clean_y_str)
+    except ValueError:
+        raise HTTPException(status_code=400, detail="Tile coordinate y must be an integer.")
+
+    # Coordinate validation
+    if z < 0 or z > 18:
+        raise HTTPException(status_code=400, detail="Tile zoom level z must be between 0 and 18.")
+    max_coord = 2 ** z
+    if x < 0 or x >= max_coord or y_int < 0 or y_int >= max_coord:
+        raise HTTPException(status_code=400, detail=f"Tile coordinates ({x}, {y_int}) out of bounds for zoom {z}.")
+
+    # Special handling for satellite infrared layers (Himawari-9 AHI / SSEC RealEarth)
+    if clean_layer in SATELLITE_LAYER_NAMES:
+        return await _get_satellite_tile(z, x, y_int)
+
+    # Special handling for Doppler precipitation radar (RainViewer API with Titan/Rainbow reflectivity)
+    if clean_layer == "radar":
+        return await _get_rainviewer_radar_tile(z, x, y_int)
+
+    if clean_layer not in OPENWEATHER_LAYER_MAP:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Unsupported weather tile layer '{layer}'. Valid layers: {list(OPENWEATHER_LAYER_MAP.keys()) + ['satellite', 'himawari']}"
+        )
+
+    canonical_layer = OPENWEATHER_LAYER_MAP[clean_layer]
+    return await _get_openweather_tile(canonical_layer, z, x, y_int)
 
