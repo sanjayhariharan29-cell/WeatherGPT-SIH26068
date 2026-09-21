@@ -34,7 +34,8 @@ class SkyZenNotificationManager {
     const plugin = this.getPlugin();
     if (!plugin) {
       console.log("[SkyZen FCM] PushNotifications plugin unavailable on current platform/web browser. Running in fallback mode.");
-      return { status: "unavailable" };
+      await this.ensureMockDeviceToken();
+      return { status: "unavailable", isMock: true };
     }
 
     try {
@@ -150,6 +151,24 @@ class SkyZenNotificationManager {
   }
 
   /**
+   * Ensures a valid device token exists; provisions a persistent simulated token if running in mock/web mode.
+   */
+  async ensureMockDeviceToken() {
+    if (!this.currentToken) {
+      this.currentToken = localStorage.getItem(this.tokenStorageKey);
+    }
+    if (!this.currentToken) {
+      const rand = Math.random().toString(36).substring(2, 10);
+      const mockToken = `mock_fcm_token_${Date.now()}_${rand}`;
+      this.currentToken = mockToken;
+      localStorage.setItem(this.tokenStorageKey, mockToken);
+      console.info("[SkyZen FCM] Initialized simulated device token for mock test dispatch:", mockToken);
+    }
+    await this.syncDeviceToken();
+    return this.currentToken;
+  }
+
+  /**
    * Syncs the current client FCM token with the backend.
    */
   async syncDeviceToken() {
@@ -160,8 +179,10 @@ class SkyZenNotificationManager {
 
     if (window.apiClient && window.apiClient.isAuthenticated()) {
       try {
-        const platform = (window.Capacitor && window.Capacitor.getPlatform()) || "android";
-        await window.apiClient.registerDeviceToken(this.currentToken, platform, "SkyZen Android Device");
+        const isNative = window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform();
+        const platform = isNative ? (window.Capacitor.getPlatform() || "android") : "web";
+        const deviceName = isNative ? "SkyZen Android Device" : "SkyZen Web / Test Client";
+        await window.apiClient.registerDeviceToken(this.currentToken, platform, deviceName);
         console.log("[SkyZen FCM] Device token synced successfully with backend account.");
       } catch (err) {
         console.warn("[SkyZen FCM] Could not sync device token to backend:", err.message);
@@ -190,10 +211,30 @@ class SkyZenNotificationManager {
     if (!window.apiClient || !window.apiClient.isAuthenticated()) {
       throw new Error("Must be signed in to dispatch a test notification.");
     }
+    const isNative = Boolean(window.Capacitor && typeof window.Capacitor.isNativePlatform === "function" && window.Capacitor.isNativePlatform());
+
+    if (!this.currentToken) {
+      this.currentToken = localStorage.getItem(this.tokenStorageKey);
+    }
+
+    if (isNative && this.currentToken && this.currentToken.startsWith("mock_")) {
+      // Clear stale mock token on native platform so real FCM token or backend registered devices are used
+      this.currentToken = null;
+      localStorage.removeItem(this.tokenStorageKey);
+    }
+
+    if (!this.currentToken) {
+      if (!isNative) {
+        await this.ensureMockDeviceToken();
+      }
+    } else {
+      // Ensure current token is registered with backend
+      await this.syncDeviceToken();
+    }
     return await window.apiClient.sendTestNotification(
       "SkyZen Test Notification",
       "Controlled verification of SkyZen emergency push notification delivery pipeline.",
-      this.currentToken
+      this.currentToken || null
     );
   }
 }

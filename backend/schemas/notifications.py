@@ -34,7 +34,7 @@ class DeviceTokenRegisterRequest(BaseModel):
     @classmethod
     def validate_platform(cls, v: str) -> str:
         plat = v.lower().strip()
-        allowed = ["android", "ios", "web"]
+        allowed = ["android", "ios", "web", "simulated", "web_simulated"]
         if plat not in allowed:
             raise ValueError(f"Unsupported platform '{v}'. Permitted platforms: {', '.join(allowed)}")
         return plat
@@ -108,3 +108,12 @@ class TestNotificationResponse(BaseModel):
     mode: str
     delivery_results: List[Dict[str, Any]] = Field(default_factory=list)
     timestamp: str
+
+
+class NotificationStatusResponse(BaseModel):
+    """Structured response contract for FCM push notification service availability."""
+    is_live_fcm: bool = Field(..., description="True if live Firebase Admin SDK is initialized")
+    mode: str = Field(..., description="Delivery mode: 'live_fcm' or 'mock_delivery'")
+    fcm_available: bool = Field(default=True, description="Service availability flag")
+    registered_devices: int = Field(default=0, description="Active registered devices count for current user")
+

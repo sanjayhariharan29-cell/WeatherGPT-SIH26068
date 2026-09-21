@@ -458,3 +458,86 @@ def test_15_android_notification_permission_declared():
     with open(manifest_path, "r", encoding="utf-8") as f:
         content = f.read()
     assert "android.permission.POST_NOTIFICATIONS" in content
+
+
+# =============================================================================
+# 16. Notification Service Status (Unauthorized)
+# =============================================================================
+def test_16_notification_status_unauthorized():
+    """16. GET /api/v1/notifications/status requires authentication."""
+    res = client.get("/api/v1/notifications/status")
+    assert res.status_code == 401
+
+
+# =============================================================================
+# 17. Notification Service Status (Mock Delivery Mode)
+# =============================================================================
+def test_17_notification_status_mock_mode():
+    """17. GET /api/v1/notifications/status reflects mock delivery when Firebase is unavailable."""
+    user_id, email, auth_token = _create_user_and_token("Status Mock User")
+    with patch.object(NotificationService, "is_live_fcm_available", return_value=False):
+        res = client.get(
+            "/api/v1/notifications/status",
+            headers={"Authorization": f"Bearer {auth_token}"}
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["is_live_fcm"] is False
+        assert data["mode"] == "mock_delivery"
+        assert "registered_devices" in data
+
+
+# =============================================================================
+# 18. Notification Service Status (Live FCM Mode)
+# =============================================================================
+def test_18_notification_status_live_mode():
+    """18. GET /api/v1/notifications/status reflects live FCM when Firebase is available."""
+    user_id, email, auth_token = _create_user_and_token("Status Live User")
+    with patch.object(NotificationService, "is_live_fcm_available", return_value=True):
+        res = client.get(
+            "/api/v1/notifications/status",
+            headers={"Authorization": f"Bearer {auth_token}"}
+        )
+        assert res.status_code == 200
+        data = res.json()
+        assert data["is_live_fcm"] is True
+        assert data["mode"] == "live_fcm"
+
+
+# =============================================================================
+# 19. Frontend Push Badge & Live vs Mock Handler Audit
+# =============================================================================
+def test_19_frontend_badge_and_dispatch_handling():
+    """19. Validates frontend push badge dynamic updating and live vs mock logic."""
+    app_js_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "frontend", "app.js"
+    )
+    assert os.path.exists(app_js_path)
+    with open(app_js_path, "r", encoding="utf-8") as f:
+        js = f.read()
+
+    # Verify pushStatusBadge is dynamically updated, not permanently hardcoded
+    assert "pushStatusBadge" in js
+    assert "updatePushStatusBadgeUI" in js
+    assert "refreshPushStatusBadge" in js
+    assert "Live FCM Enabled" in js
+    assert "Mock / Test Mode (Simulated)" in js
+
+    # Verify actual backend response inspection
+    assert "res.mode === \"live_fcm\"" in js
+    assert "res.mode === \"mock_delivery\"" in js
+    assert "[LIVE DISPATCH]" in js
+    assert "[TEST MODE / MOCK DELIVERY]" in js
+
+    # Verify Android asset synchronization
+    android_app_js_path = os.path.join(
+        os.path.dirname(os.path.dirname(__file__)),
+        "android", "app", "src", "main", "assets", "public", "app.js"
+    )
+    assert os.path.exists(android_app_js_path)
+    with open(android_app_js_path, "r", encoding="utf-8") as f:
+        android_js = f.read()
+    assert "updatePushStatusBadgeUI" in android_js
+    assert "refreshPushStatusBadge" in android_js
+

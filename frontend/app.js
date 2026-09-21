@@ -231,6 +231,9 @@ function navigateToScreen(screenName) {
     if (window.ThemeStore && typeof window.ThemeStore.syncUI === "function") {
       window.ThemeStore.syncUI();
     }
+    if (typeof refreshPushStatusBadge === "function") {
+      refreshPushStatusBadge();
+    }
   } else if (screenName === "developer") {
     if (!currentUser || (currentUser.role !== "developer" && currentUser.role !== "admin")) {
       showMobileNotice("Access Denied: Developer role required.", "error");
@@ -1908,6 +1911,9 @@ function updateProfileUI(user) {
     if (editLang) editLang.value = userLang;
     if (langSelect) langSelect.value = userLang;
     if (editNotif) editNotif.checked = user.notification_enabled !== undefined ? Boolean(user.notification_enabled) : true;
+    if (typeof refreshPushStatusBadge === "function") {
+      refreshPushStatusBadge();
+    }
     if (summaryName) summaryName.textContent = user.name || (window.I18N ? window.I18N.t("profile.user_title") : "SkyZen User");
     if (summaryRole) {
       const pName = (user.persona || "student").charAt(0).toUpperCase() + (user.persona || "student").slice(1);
@@ -2906,7 +2912,90 @@ function setupAuthPortalEngine() {
     });
   }
 
-  // 9. Controlled Test Push Notification Handler
+  // 9. Push Notification Status Management & Controlled Test Dispatch Handler
+  function updatePushStatusBadgeUI(statusOrResponse) {
+    const badge = document.getElementById("pushStatusBadge");
+    if (!badge) return;
+
+    let isLive = false;
+    let isExplicitMock = false;
+
+    if (typeof statusOrResponse === "string") {
+      const s = statusOrResponse.toLowerCase().trim();
+      if (s === "live_fcm" || s === "live" || s === "live_fcm_enabled") {
+        isLive = true;
+      } else if (s === "mock_delivery" || s === "mock" || s === "simulated") {
+        isExplicitMock = true;
+      }
+    } else if (typeof statusOrResponse === "boolean") {
+      isLive = statusOrResponse;
+      isExplicitMock = !statusOrResponse;
+    } else if (statusOrResponse && typeof statusOrResponse === "object") {
+      if (statusOrResponse.is_mock === true ||
+          statusOrResponse.mode === "mock_delivery" ||
+          statusOrResponse.mode === "mock") {
+        isExplicitMock = true;
+      } else if (statusOrResponse.mode === "live_fcm" || statusOrResponse.is_live_fcm === true) {
+        isLive = true;
+      } else if (Array.isArray(statusOrResponse.delivery_results) && statusOrResponse.delivery_results.length > 0) {
+        const hasLive = statusOrResponse.delivery_results.some(r => r.mode === "live_fcm");
+        const hasMock = statusOrResponse.delivery_results.some(r => r.mode === "mock_delivery" || r.is_mock === true);
+        if (hasLive && !hasMock) isLive = true;
+        else if (hasMock) isExplicitMock = true;
+      } else if (typeof statusOrResponse.message === "string") {
+        const msgLower = statusOrResponse.message.toLowerCase();
+        if (msgLower.includes("live fcm")) isLive = true;
+        else if (msgLower.includes("mock") || msgLower.includes("simulated")) isExplicitMock = true;
+      }
+    }
+
+    if (isLive) {
+      badge.textContent = "Live FCM Enabled";
+      badge.style.cssText = "background:#dcfce7; color:#15803d; border:1px solid #bbf7d0; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:600;";
+      badge.setAttribute("data-status", "live_fcm");
+      try { localStorage.setItem("skyzen_fcm_status", "live_fcm"); } catch (_) {}
+    } else {
+      badge.textContent = "Mock / Test Mode (Simulated)";
+      badge.style.cssText = "background:#fef3c7; color:#92400e; border:1px solid #fde68a; font-size:11px; padding:2px 8px; border-radius:12px; font-weight:500;";
+      badge.setAttribute("data-status", "mock_delivery");
+      if (isExplicitMock) {
+        try { localStorage.setItem("skyzen_fcm_status", "mock_delivery"); } catch (_) {}
+      }
+    }
+  }
+  window.updatePushStatusBadgeUI = updatePushStatusBadgeUI;
+
+  async function refreshPushStatusBadge() {
+    const badge = document.getElementById("pushStatusBadge");
+    if (!badge) return;
+
+    // Apply cached status first to prevent UI flicker
+    try {
+      const cached = localStorage.getItem("skyzen_fcm_status");
+      if (cached === "live_fcm") {
+        updatePushStatusBadgeUI("live_fcm");
+      } else if (cached === "mock_delivery") {
+        updatePushStatusBadgeUI("mock_delivery");
+      }
+    } catch (_) {}
+
+    // Verify actual backend status if authenticated
+    if (window.apiClient && typeof window.apiClient.isAuthenticated === "function" && window.apiClient.isAuthenticated()) {
+      try {
+        if (typeof window.apiClient.getNotificationStatus === "function") {
+          const res = await window.apiClient.getNotificationStatus();
+          if (res) {
+            updatePushStatusBadgeUI(res);
+          }
+        }
+      } catch (_) {
+        // Retain cached or offline status gracefully
+      }
+    }
+  }
+  window.refreshPushStatusBadge = refreshPushStatusBadge;
+  refreshPushStatusBadge();
+
   const sendTestNotificationBtn = document.getElementById("sendTestNotificationBtn");
   if (sendTestNotificationBtn) {
     sendTestNotificationBtn.addEventListener("click", async () => {
@@ -2923,9 +3012,40 @@ function setupAuthPortalEngine() {
           ? window.notificationManager.sendTestNotification()
           : window.apiClient.sendTestNotification());
 
-        const isMock = res.is_mock === true || res.mode === "mock_delivery" || res.mode === "mock";
-        const badgeNotice = isMock ? "[TEST MODE / MOCK DELIVERY]" : "[LIVE DISPATCH]";
-        showMobileNotice(`${badgeNotice}: ${res.message || "Test alert recorded"}`, isMock ? "info" : "success", 4500);
+        // Actual backend dispatch state determination
+        const isLive = Boolean(res && (
+          res.mode === "live_fcm" ||
+          res.is_live_fcm === true ||
+          (Array.isArray(res.delivery_results) && res.delivery_results.some(r => r.mode === "live_fcm")) ||
+          (!res.is_mock && res.mode !== "mock_delivery" && res.mode !== "mock" && typeof res.message === "string" && res.message.toLowerCase().includes("live fcm"))
+        ));
+
+        const isExplicitMock = Boolean(res && (
+          res.is_mock === true ||
+          res.mode === "mock_delivery" ||
+          res.mode === "mock" ||
+          (typeof res.message === "string" && (res.message.includes("[MOCK") || res.message.toLowerCase().includes("simulated")))
+        ));
+
+        // Update settings badge to reflect actual backend dispatch
+        if (isLive) {
+          updatePushStatusBadgeUI("live_fcm");
+        } else if (isExplicitMock) {
+          updatePushStatusBadgeUI("mock_delivery");
+        } else if (res && res.mode === "no_active_devices") {
+          updatePushStatusBadgeUI("live_fcm");
+        }
+
+        // Controlled test notification banner using identical backend dispatch state
+        if (isLive) {
+          showMobileNotice(`[LIVE DISPATCH]: ${res.message || "Live FCM test alert dispatched"}`, "success", 4500);
+        } else if (isExplicitMock) {
+          showMobileNotice(`[TEST MODE / MOCK DELIVERY]: ${res.message || "Test alert recorded in mock mode"}`, "info", 4500);
+        } else if (res && res.mode === "no_active_devices") {
+          showMobileNotice(`[NOTICE]: ${res.message || "No active device tokens found for current user."}`, "warning", 5000);
+        } else {
+          showMobileNotice(res?.message || "Test alert recorded", "info", 4500);
+        }
       } catch (err) {
         showMobileNotice(`Test alert error: ${err.message}`, "error", 4000);
       } finally {

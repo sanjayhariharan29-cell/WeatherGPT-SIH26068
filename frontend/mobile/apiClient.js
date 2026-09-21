@@ -764,6 +764,12 @@ class WeatherGPTApiClient {
     });
   }
 
+  async getNotificationStatus() {
+    return await this.request("/notifications/status", {
+      method: "GET"
+    });
+  }
+
   async sendTestNotification(title = null, body = null, deviceToken = null) {
     return await this.request("/notifications/test", {
       method: "POST",

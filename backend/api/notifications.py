@@ -21,7 +21,8 @@ from backend.schemas.notifications import (
     DeviceTokenResponse,
     DeviceTokenListResponse,
     TestNotificationRequest,
-    TestNotificationResponse
+    TestNotificationResponse,
+    NotificationStatusResponse
 )
 from backend.services.notification_service import NotificationService
 
@@ -134,6 +135,25 @@ async def list_user_device_tokens(
     )
 
 
+@router.get("/status", response_model=NotificationStatusResponse, status_code=status.HTTP_200_OK)
+async def get_notification_status(
+    current_user: User = Depends(get_current_user),
+    db: Session = Depends(get_db)
+):
+    """Returns current FCM service availability and active registered devices count."""
+    is_live = notification_service.is_live_fcm_available()
+    active_count = db.query(DeviceToken).filter(
+        DeviceToken.user_id == current_user.id,
+        DeviceToken.is_active == True
+    ).count()
+    return NotificationStatusResponse(
+        is_live_fcm=is_live,
+        mode="live_fcm" if is_live else "mock_delivery",
+        fcm_available=is_live,
+        registered_devices=active_count
+    )
+
+
 @router.delete("/devices", status_code=status.HTTP_200_OK)
 async def delete_device_token_body(
     req: DeviceTokenDeleteRequest,
@@ -216,15 +236,40 @@ async def send_test_notification(
     if req.device_token:
         # Validate that current user owns this token
         dev = db.query(DeviceToken).filter(
-            DeviceToken.token == req.device_token.strip(),
-            DeviceToken.is_active == True
+            DeviceToken.token == req.device_token.strip()
         ).first()
 
         if not dev:
-            raise HTTPException(
-                status_code=status.HTTP_404_NOT_FOUND,
-                detail="Specified device token not found or is inactive"
-            )
+            if not notification_service.is_live_fcm_available() or req.device_token.strip().startswith(("mock_", "simulated_", "test_")):
+                dev = DeviceToken(
+                    user_id=current_user.id,
+                    token=req.device_token.strip(),
+                    platform="simulated",
+                    device_name="Simulated Test Device",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now
+                )
+                db.add(dev)
+                db.commit()
+                db.refresh(dev)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Specified device token not found or is inactive"
+                )
+        elif not dev.is_active:
+            if not notification_service.is_live_fcm_available() or req.device_token.strip().startswith(("mock_", "simulated_", "test_")):
+                dev.is_active = True
+                dev.updated_at = now
+                db.commit()
+                db.refresh(dev)
+            else:
+                raise HTTPException(
+                    status_code=status.HTTP_404_NOT_FOUND,
+                    detail="Specified device token not found or is inactive"
+                )
+
         if dev.user_id != current_user.id:
             raise HTTPException(
                 status_code=status.HTTP_403_FORBIDDEN,
@@ -240,15 +285,41 @@ async def send_test_notification(
         target_tokens = [d.token for d in devs]
 
     if not target_tokens:
-        # Safe response if no active device tokens registered
-        return TestNotificationResponse(
-            success=True,
-            message="No active device tokens found for current user. Register a device token first.",
-            dispatched_count=0,
-            mode="no_active_devices",
-            delivery_results=[],
-            timestamp=now_iso
-        )
+        if not notification_service.is_live_fcm_available():
+            # In mock/test mode without live FCM credentials, auto-provision a simulated device token for current user
+            mock_tok = f"simulated_device_{str(current_user.id)[:8]}"
+            dev = db.query(DeviceToken).filter(
+                DeviceToken.user_id == current_user.id,
+                DeviceToken.token == mock_tok
+            ).first()
+            if not dev:
+                dev = DeviceToken(
+                    user_id=current_user.id,
+                    token=mock_tok,
+                    platform="simulated",
+                    device_name="Simulated Test Device",
+                    is_active=True,
+                    created_at=now,
+                    updated_at=now
+                )
+                db.add(dev)
+                db.commit()
+                db.refresh(dev)
+            else:
+                dev.is_active = True
+                dev.updated_at = now
+                db.commit()
+            target_tokens = [dev.token]
+        else:
+            # Safe response if no active device tokens registered and live FCM is running
+            return TestNotificationResponse(
+                success=True,
+                message="No active device tokens found for current user. Register a device token first.",
+                dispatched_count=0,
+                mode="no_active_devices",
+                delivery_results=[],
+                timestamp=now_iso
+            )
 
     # Format test payload
     title = f"[TEST] {req.title or 'SkyZen Test Notification'}"
