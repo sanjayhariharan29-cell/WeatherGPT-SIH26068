@@ -10,7 +10,11 @@ class WeatherGPTApiClient {
     let savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
     const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.API_BASE || window.ENV.PRODUCTION_API_BASE)) || null;
 
-    // Auto-migrate dead/stale tunnel or outdated local URLs from previous sessions
+    const isLocalBrowser = typeof window !== "undefined" &&
+      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
+      !this.isNativeAndroid();
+
+    // Auto-migrate dead/stale tunnel or outdated local URLs from previous sessions (specifically for native mobile builds)
     const isStaleLocalUrl = savedBase && (
       savedBase.includes("shaggy-candies-serve") ||
       savedBase.includes(".loca.lt") ||
@@ -18,9 +22,7 @@ class WeatherGPTApiClient {
       savedBase.includes("192.168.") ||
       savedBase.includes("10.0.") ||
       savedBase.includes("172.16.") ||
-      savedBase.includes("localhost") ||
-      savedBase.includes("127.0.0.1") ||
-      (this.isNativeAndroid() && savedBase === "/api/v1") ||
+      (this.isNativeAndroid() && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1") || savedBase === "/api/v1")) ||
       (this.isNativeAndroid() && envBase && savedBase !== envBase.trim().replace(/\/+$/, "") && !savedBase.startsWith("https://"))
     );
 
@@ -32,7 +34,10 @@ class WeatherGPTApiClient {
       }
     }
 
-    if (savedBase) {
+    if (isLocalBrowser) {
+      // In local desktop browser, communicate directly with the local dev server
+      this.baseUrl = "/api/v1";
+    } else if (savedBase) {
       this.baseUrl = savedBase.trim().replace(/\/+$/, "");
     } else if (envBase && envBase !== "/api/v1") {
       this.baseUrl = envBase.trim().replace(/\/+$/, "");

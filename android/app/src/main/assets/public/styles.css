@@ -5240,10 +5240,10 @@ body.reduced-effects .ambient-glow-shape {
   top: 64px;
   left: 12px;
   z-index: 500;
-  background: rgba(255, 255, 255, 0.94);
+  background: rgba(255, 255, 255, 0.96);
   backdrop-filter: blur(14px);
   -webkit-backdrop-filter: blur(14px);
-  border: 1px solid rgba(226, 232, 240, 0.9);
+  border: 1px solid rgba(203, 213, 225, 0.95);
   border-radius: var(--radius-md, 12px);
   box-shadow: 0 4px 20px rgba(15, 23, 42, 0.16), 0 1px 4px rgba(15, 23, 42, 0.08);
   display: flex;
@@ -5259,18 +5259,18 @@ body.reduced-effects .ambient-glow-shape {
 .map-sidebar-group {
   display: flex;
   flex-direction: column;
-  gap: 2px;
+  gap: 3px;
 }
 
 .map-sidebar-section-title {
-  font-size: 9.5px;
+  font-size: 10px;
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.09em;
-  color: var(--text-muted, #94a3b8);
+  color: #334155; /* Slate 700: 9.6:1 contrast ratio against white (WCAG AAA) */
   padding: 4px 6px 3px 6px;
-  margin-top: 4px;
-  border-bottom: 1px solid rgba(226, 232, 240, 0.7);
+  margin-top: 5px;
+  border-bottom: 1px solid rgba(203, 213, 225, 0.85);
   user-select: none;
 }
 
@@ -5282,12 +5282,12 @@ body.reduced-effects .ambient-glow-shape {
   display: flex;
   align-items: center;
   gap: 6px;
-  background: transparent;
-  border: none;
+  background: rgba(248, 250, 252, 0.95); /* High-contrast button surface so it looks clearly tappable */
+  border: 1px solid rgba(226, 232, 240, 0.95);
   padding: 5px 8px;
   min-height: 44px;
   border-radius: var(--radius-sm, 8px);
-  color: var(--text-secondary, #475569);
+  color: #0f172a; /* Slate 900: 16:1 contrast ratio (WCAG AAA) */
   font-size: 11.5px;
   font-weight: 600;
   cursor: pointer;
@@ -5297,16 +5297,29 @@ body.reduced-effects .ambient-glow-shape {
   text-align: left;
 }
 
+.map-tile-btn .material-symbols-rounded {
+  color: #1e293b; /* Slate 800: high contrast icon */
+  font-size: 18px;
+  flex-shrink: 0;
+  transition: color 0.2s ease;
+}
+
 .map-tile-btn:hover {
-  background: var(--blue-subtle, #f0f7ff);
-  color: var(--primary-blue, #1976D2);
+  background: #e0f2fe;
+  border-color: #7dd3fc;
+  color: #0284c7;
+}
+
+.map-tile-btn:hover .material-symbols-rounded {
+  color: #0284c7;
 }
 
 .map-tile-btn.active {
-  background: var(--primary-blue, #1976D2);
+  background: #0284c7; /* Selected state: vibrant solid blue highlight */
+  border-color: #0369a1;
   color: #FFFFFF;
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(25, 118, 210, 0.3);
+  box-shadow: 0 2px 10px rgba(2, 132, 199, 0.4);
 }
 
 .map-tile-btn.active .material-symbols-rounded {
@@ -5317,6 +5330,58 @@ body.reduced-effects .ambient-glow-shape {
   overflow-wrap: break-word;
   white-space: nowrap;
   font-size: 11px;
+}
+
+/* Dark Mode Sidebar Overrides (WCAG AA & AAA Compliant) */
+[data-theme="dark"] .map-left-layer-toggle,
+:root:not([data-theme="light"]) .map-left-layer-toggle {
+  background: rgba(15, 23, 42, 0.94);
+  border: 1px solid rgba(255, 255, 255, 0.16);
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.48), 0 2px 8px rgba(0, 0, 0, 0.28);
+}
+
+[data-theme="dark"] .map-sidebar-section-title,
+:root:not([data-theme="light"]) .map-sidebar-section-title {
+  color: #cbd5e1; /* Slate 300: 9.8:1 contrast against Slate 900 background (WCAG AAA) */
+  border-bottom: 1px solid rgba(255, 255, 255, 0.14);
+}
+
+[data-theme="dark"] .map-tile-btn,
+:root:not([data-theme="light"]) .map-tile-btn {
+  background: rgba(30, 41, 59, 0.85); /* Slate 800 */
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  color: #f8fafc; /* Slate 50: 12.8:1 contrast ratio against button bg (WCAG AAA) */
+}
+
+[data-theme="dark"] .map-tile-btn .material-symbols-rounded,
+:root:not([data-theme="light"]) .map-tile-btn .material-symbols-rounded {
+  color: #cbd5e1; /* Slate 300 */
+}
+
+[data-theme="dark"] .map-tile-btn:hover,
+:root:not([data-theme="light"]) .map-tile-btn:hover {
+  background: rgba(51, 65, 85, 0.95);
+  border-color: rgba(56, 189, 248, 0.45);
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .map-tile-btn:hover .material-symbols-rounded,
+:root:not([data-theme="light"]) .map-tile-btn:hover .material-symbols-rounded {
+  color: #38bdf8;
+}
+
+[data-theme="dark"] .map-tile-btn.active,
+:root:not([data-theme="light"]) .map-tile-btn.active {
+  background: #0284c7;
+  border-color: #38bdf8;
+  color: #FFFFFF;
+  font-weight: 700;
+  box-shadow: 0 2px 14px rgba(2, 132, 199, 0.55);
+}
+
+[data-theme="dark"] .map-tile-btn.active .material-symbols-rounded,
+:root:not([data-theme="light"]) .map-tile-btn.active .material-symbols-rounded {
+  color: #FFFFFF;
 }
 
 /* Floating Timeline Scrubber (Zoom Earth Style) */
@@ -7124,5 +7189,35 @@ button[disabled],
 .btn-disabled {
   cursor: not-allowed !important;
   transform: none !important;
+}
+
+/* India State Name Permanent Labels in Radar/Weather Map */
+.leaflet-tooltip.map-state-tooltip {
+  background: rgba(15, 23, 42, 0.84) !important;
+  backdrop-filter: blur(8px) !important;
+  -webkit-backdrop-filter: blur(8px) !important;
+  border: 1px solid rgba(56, 189, 248, 0.6) !important;
+  border-radius: 6px !important;
+  color: #FFFFFF !important;
+  font-family: var(--font-family, system-ui, -apple-system, sans-serif) !important;
+  font-size: 11px !important;
+  font-weight: 700 !important;
+  letter-spacing: 0.4px !important;
+  padding: 3px 8px !important;
+  text-shadow: 0 1px 3px rgba(0, 0, 0, 0.9) !important;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.5), 0 0 10px rgba(56, 189, 248, 0.3) !important;
+  pointer-events: none !important;
+  white-space: nowrap !important;
+  transition: opacity 0.2s ease, transform 0.2s ease !important;
+}
+
+.leaflet-tooltip.map-state-tooltip::before {
+  display: none !important;
+}
+
+/* Hide India State Labels when zoomed out to continental scale (< zoom 5) */
+.hide-state-labels .leaflet-tooltip.map-state-tooltip,
+#mapContainer.hide-state-labels .leaflet-tooltip.map-state-tooltip {
+  display: none !important;
 }
 

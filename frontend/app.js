@@ -3233,7 +3233,7 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
           recenterMapToSelected(location);
         }
       } catch (mapErr) {
-        console.warn("Map recenter error (non-fatal):", mapErr);
+        console.debug("[Map] Recenter skipped:", mapErr);
       }
     }
     refreshSuccess = true;
@@ -3278,7 +3278,7 @@ async function loadCurrentWeather(showLoader = false, isManualRefresh = false) {
               recenterMapToSelected(location);
             }
           } catch (mapErr) {
-            console.warn("Map recenter error (non-fatal):", mapErr);
+            console.debug("[Map] Recenter skipped:", mapErr);
           }
         }
       } catch (e) {
@@ -5571,17 +5571,10 @@ function initWeatherMap() {
     });
     window.mapInstance = mapInstance;
 
-    // Deep space dark canvas for clean background outside satellite coverage
-    L.tileLayer("https://{s}.basemaps.cartocdn.com/dark_nolabels/{z}/{x}/{y}{r}.png", {
+    // Base layer: Esri Canvas World Dark Gray Base (Clean, unwatermarked dark meteorological canvas)
+    L.tileLayer("https://services.arcgisonline.com/arcgis/rest/services/Canvas/World_Dark_Gray_Base/MapServer/tile/{z}/{y}/{x}", {
       maxZoom: 18,
-      attribution: "&copy; CartoDB"
-    }).addTo(mapInstance);
-
-    // Primary Basemap: Live Himawari-9 Satellite Clean Infrared Imagery (Zoom Earth style)
-    L.tileLayer("https://realearth.ssec.wisc.edu/tiles/HIMAWARI-B13/{z}/{x}/{y}.png", {
-      maxZoom: 18,
-      maxNativeZoom: 8,
-      attribution: "Satellite Imagery &copy; JMA Himawari-9 (SSEC RealEarth)"
+      attribution: "Tiles &copy; Esri &mdash; Esri, DeLorme, NAVTEQ"
     }).addTo(mapInstance);
 
     // Dedicated weather tile overlay pane below markers (600) and popups (700)
@@ -5590,6 +5583,24 @@ function initWeatherMap() {
       mapInstance.getPane("weatherTilePane").style.zIndex = 250;
       mapInstance.getPane("weatherTilePane").style.pointerEvents = "none";
     }
+
+    // Dedicated reference overlay pane (zIndex 450) for country & state boundaries and city labels
+    if (!mapInstance.getPane("referencePane")) {
+      mapInstance.createPane("referencePane");
+      mapInstance.getPane("referencePane").style.zIndex = 450;
+      mapInstance.getPane("referencePane").style.pointerEvents = "none";
+    }
+
+    // Reference layer: Country boundaries, coastlines, and place names overlay
+    L.tileLayer("https://services.arcgisonline.com/arcgis/rest/services/Reference/World_Boundaries_and_Places/MapServer/tile/{z}/{y}/{x}", {
+      pane: "referencePane",
+      maxZoom: 18,
+      opacity: 0.95,
+      attribution: "Boundaries &copy; Esri, Garmin, USGS"
+    }).addTo(mapInstance);
+
+    // India State Boundaries Vector Overlay (Tamil Nadu, Kerala, Karnataka, Maharashtra, etc.)
+    loadIndiaStateBoundaries();
 
     // Marker layers
     mapMarkersGroup = L.layerGroup().addTo(mapInstance);
@@ -6428,9 +6439,67 @@ function createMonitoredMarker(data) {
   mapMarkersGroup.addLayer(marker);
 }
 
+let indiaStatesGeoJsonLayer = null;
+
+function updateStateLabelsZoomVisibility() {
+  if (!mapInstance) return;
+  try {
+    const zoom = typeof mapInstance.getZoom === "function" ? mapInstance.getZoom() : 7;
+    const mapEl = document.getElementById("mapContainer");
+    if (mapEl) {
+      if (zoom < 5) {
+        mapEl.classList.add("hide-state-labels");
+      } else {
+        mapEl.classList.remove("hide-state-labels");
+      }
+    }
+  } catch (e) {}
+}
+
+function loadIndiaStateBoundaries() {
+  if (!mapInstance || indiaStatesGeoJsonLayer) return;
+
+  fetch("./assets/india_states.geojson")
+    .then(res => {
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      return res.json();
+    })
+    .then(geoData => {
+      if (!mapInstance) return;
+      indiaStatesGeoJsonLayer = L.geoJSON(geoData, {
+        pane: "referencePane",
+        style: {
+          color: "#38BDF8", // Vibrant Sky / Cyan outline for high visibility
+          weight: 1.8,
+          opacity: 0.95,
+          dashArray: "3, 4",
+          fillColor: "transparent",
+          fillOpacity: 0
+        },
+        onEachFeature: (feature, layer) => {
+          const stateName = feature.properties?.name || feature.properties?.NAME_1 || feature.properties?.st_nm || "State";
+          layer.bindTooltip(stateName, {
+            permanent: true,
+            direction: "center",
+            className: "map-state-tooltip"
+          });
+        }
+      }).addTo(mapInstance);
+      window.indiaStatesGeoJsonLayer = indiaStatesGeoJsonLayer;
+
+      // Attach zoom threshold listener so labels never clutter continental scale (< zoom 5)
+      mapInstance.on("zoomend", updateStateLabelsZoomVisibility);
+      updateStateLabelsZoomVisibility();
+    })
+    .catch(err => {
+      console.warn("[Map] Could not load local India states GeoJSON:", err);
+    });
+}
+
 // Load Saved Locations from backend and plot with distinctive purple markers
 async function loadSavedMapLocations() {
   if (!mapSavedMarkersGroup) return;
+  if (!isAppAuthenticated() || !window.apiClient || !window.apiClient.getToken()) return;
   mapSavedMarkersGroup.clearLayers();
 
   try {
@@ -6543,24 +6612,70 @@ const ControlledWeatherTileLayer = (typeof L !== "undefined" && L.TileLayer) ? L
   initialize: function(url, options) {
     L.TileLayer.prototype.initialize.call(this, url, options);
     this._tileFetchingEnabled = true;
+    this._isDestroyed = false;
+  },
+  onRemove: function(map) {
+    this._isDestroyed = true;
+    this._tileFetchingEnabled = false;
+    if (L.TileLayer.prototype.onRemove) {
+      try {
+        L.TileLayer.prototype.onRemove.call(this, map);
+      } catch (e) {}
+    }
   },
   _update: function(center) {
-    // Intercept: Prevent tile requests if disabled
-    if (!this._tileFetchingEnabled) {
+    if (this._isDestroyed || !this._map || !this._map._loaded || !this._tileFetchingEnabled) {
       return;
     }
-    L.TileLayer.prototype._update.call(this, center);
+    try {
+      L.TileLayer.prototype._update.call(this, center);
+    } catch (e) {}
+  },
+  _resetGrid: function() {
+    if (this._isDestroyed || !this._map || !this._map._loaded) return;
+    try {
+      if (L.TileLayer.prototype._resetGrid) {
+        L.TileLayer.prototype._resetGrid.call(this);
+      }
+    } catch (e) {}
+  },
+  _updateLevels: function() {
+    if (this._isDestroyed || !this._map || !this._map._loaded) return;
+    try {
+      if (L.TileLayer.prototype._updateLevels) {
+        L.TileLayer.prototype._updateLevels.call(this);
+      }
+    } catch (e) {}
+  },
+  redraw: function() {
+    if (this._isDestroyed || !this._map || !this._map._loaded) return this;
+    try {
+      return L.TileLayer.prototype.redraw.call(this);
+    } catch (e) {
+      return this;
+    }
   },
   enableAndFetch: function() {
+    if (this._isDestroyed || !this._map || !this._map._loaded) return;
     this._tileFetchingEnabled = true;
     this.redraw();
   }
 }) : null;
 
 function switchWeatherMapLayer(layerName) {
-  if (!mapInstance) return;
+  if (!mapInstance || !mapInstance._loaded) return;
   activeWeatherTileLayerName = layerName;
   window.activeWeatherTileLayerName = layerName;
+
+  // Clear any existing tile loading / dismiss timers to prevent race conditions
+  if (window._tileLoadingSafetyTimer) {
+    clearTimeout(window._tileLoadingSafetyTimer);
+    window._tileLoadingSafetyTimer = null;
+  }
+  if (window._tileLoadHideTimer) {
+    clearTimeout(window._tileLoadHideTimer);
+    window._tileLoadHideTimer = null;
+  }
 
   // 1. Update active states on left-side dock buttons
   const tileBtns = document.querySelectorAll(".map-tile-btn");
@@ -6574,9 +6689,18 @@ function switchWeatherMapLayer(layerName) {
     }
   });
 
-  // 2. Remove existing weather overlay layer
-  if (currentWeatherTileLayer && mapInstance.hasLayer(currentWeatherTileLayer)) {
-    mapInstance.removeLayer(currentWeatherTileLayer);
+  // 2. Remove existing weather overlay layer and disconnect event listeners
+  if (currentWeatherTileLayer) {
+    try {
+      currentWeatherTileLayer.off();
+    } catch(e) {}
+    if (mapInstance.hasLayer(currentWeatherTileLayer)) {
+      try {
+        mapInstance.removeLayer(currentWeatherTileLayer);
+      } catch(e) {}
+    }
+    currentWeatherTileLayer = null;
+    window.currentWeatherTileLayer = null;
   }
 
   // 3. Resolve backend proxy URL (never exposes API key to client)
@@ -6602,7 +6726,8 @@ function switchWeatherMapLayer(layerName) {
   } else {
     stopRadarPlayback();
     if (isSatellite) {
-      layerAttribution = "Satellite Infrared &copy; JMA Himawari-9 (SSEC RealEarth)";
+      // Live Himawari-9 Satellite Clean Infrared Imagery (HIMAWARI-B13 via RealEarth proxy)
+      layerAttribution = "Satellite Infrared &copy; JMA Himawari-9 HIMAWARI-B13 (SSEC RealEarth)";
       layerOpacity = 0.68;
     } else if (layerName === "rain") {
       layerAttribution = "Precipitation &copy; OpenWeather (precipitation_new)";
@@ -6652,6 +6777,7 @@ function switchWeatherMapLayer(layerName) {
       opacity: layerOpacity,
       zIndex: 250,
       maxZoom: 18,
+      maxNativeZoom: isSatellite ? 6 : (isRadar ? 7 : 18),
       attribution: layerAttribution
     });
     window.currentWeatherTileLayer = currentWeatherTileLayer;
@@ -6660,7 +6786,25 @@ function switchWeatherMapLayer(layerName) {
     const chipText = document.getElementById("mapTileStatusText");
     const chipRetry = document.getElementById("mapTileRetryBtn");
 
+    let hasTileError = false;
+
+    const resolveTileLoading = (delayMs = 400) => {
+      if (window._tileLoadingSafetyTimer) {
+        clearTimeout(window._tileLoadingSafetyTimer);
+        window._tileLoadingSafetyTimer = null;
+      }
+      if (chip && !hasTileError) {
+        if (window._tileLoadHideTimer) clearTimeout(window._tileLoadHideTimer);
+        window._tileLoadHideTimer = setTimeout(() => {
+          if (!hasTileError && chip) {
+            chip.classList.add("hidden");
+          }
+        }, delayMs);
+      }
+    };
+
     currentWeatherTileLayer.on("loading", () => {
+      hasTileError = false;
       if (chip && chipText) {
         chip.className = "map-tile-status-chip";
         const label = layerName === "satellite" ? "SATELLITE" : (isRadar ? "LIVE RADAR" : layerName.toUpperCase());
@@ -6668,17 +6812,30 @@ function switchWeatherMapLayer(layerName) {
         if (chipRetry) chipRetry.classList.add("hidden");
         chip.classList.remove("hidden");
       }
+
+      // Safety watchdog timer: ensure badge ALWAYS resolves and never gets stuck indefinitely
+      if (window._tileLoadingSafetyTimer) clearTimeout(window._tileLoadingSafetyTimer);
+      window._tileLoadingSafetyTimer = setTimeout(() => {
+        if (!hasTileError) {
+          resolveTileLoading(0);
+        }
+      }, 3500);
     });
 
     currentWeatherTileLayer.on("load", () => {
-      if (chip) {
-        setTimeout(() => {
-          chip.classList.add("hidden");
-        }, 600);
-      }
+      resolveTileLoading(400);
     });
 
     currentWeatherTileLayer.on("tileerror", () => {
+      hasTileError = true;
+      if (window._tileLoadingSafetyTimer) {
+        clearTimeout(window._tileLoadingSafetyTimer);
+        window._tileLoadingSafetyTimer = null;
+      }
+      if (window._tileLoadHideTimer) {
+        clearTimeout(window._tileLoadHideTimer);
+        window._tileLoadHideTimer = null;
+      }
       if (chip && chipText) {
         chip.className = "map-tile-status-chip error";
         chipText.textContent = "Map tiles temporarily unreachable";
@@ -7106,12 +7263,19 @@ async function handleMapSaveLocation() {
 }
 
 function recenterMapToSelected(locationName) {
-  if (!mapInstance) return;
-  const target = locationName || document.getElementById("locationSelect")?.value || (MAP_PRESET_LOCATIONS[0] ? MAP_PRESET_LOCATIONS[0].name : "");
-  const loc = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === target.toLowerCase());
-  if (loc && isValidCoordinate(loc.lat, loc.lon)) {
-    mapInstance.setView([loc.lat, loc.lon], 9);
-    selectLocationAndFetchWeather(loc.lat, loc.lon, loc.name, false);
+  if (!mapInstance || !mapInstance._loaded) return;
+  const container = (typeof mapInstance.getContainer === "function") ? mapInstance.getContainer() : null;
+  if (!container || container.offsetWidth <= 0 || container.offsetHeight <= 0) return;
+
+  try {
+    const target = locationName || document.getElementById("locationSelect")?.value || (MAP_PRESET_LOCATIONS[0] ? MAP_PRESET_LOCATIONS[0].name : "");
+    const loc = MAP_PRESET_LOCATIONS.find(l => l.name.toLowerCase() === target.toLowerCase());
+    if (loc && isValidCoordinate(loc.lat, loc.lon)) {
+      mapInstance.setView([loc.lat, loc.lon], 9);
+      selectLocationAndFetchWeather(loc.lat, loc.lon, loc.name, false);
+    }
+  } catch (err) {
+    console.debug("[Map] recenterMapToSelected skipped safely:", err);
   }
 }
 
