@@ -1972,14 +1972,20 @@ async function restoreSessionOrShowAuth() {
 
         // If token expired or 401, attempt silent session refresh before dropping credentials
         if (authMeErr && (authMeErr.status === 401 || (authMeErr.message && authMeErr.message.toLowerCase().includes("expired")))) {
-          console.info("[Auth] Access token rejected or expired on load (status " + authMeErr.status + "). Attempting silent session renewal via /auth/refresh...");
-          const refreshRes = await window.apiClient.refreshToken();
-          if (refreshRes && refreshRes.user) {
-            user = refreshRes.user;
-            console.info("[Auth] Session renewal succeeded with refreshed user:", user?.email);
-          } else {
-            user = await window.apiClient.getAuthMe();
-            console.info("[Auth] Session renewal succeeded after token refresh.");
+          console.info("[Auth] Access token rejected or expired on load. Attempting single session renewal via /auth/refresh...");
+          try {
+            const refreshRes = await window.apiClient.refreshToken();
+            if (refreshRes && refreshRes.user) {
+              user = refreshRes.user;
+              console.info("[Auth] Session renewal succeeded with refreshed user:", user?.email);
+            } else {
+              user = await window.apiClient.getAuthMe();
+              console.info("[Auth] Session renewal succeeded after token refresh.");
+            }
+          } catch (refreshErr) {
+            console.info("[Auth] Session renewal rejected; clearing stale credentials.");
+            if (window.apiClient) window.apiClient.removeToken();
+            user = null;
           }
         } else {
           console.error("[Auth] Non-auth failure during /auth/me (e.g. server 500 or connection offline):", authMeErr);

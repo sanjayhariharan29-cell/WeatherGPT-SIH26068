@@ -7,43 +7,40 @@
 
 class WeatherGPTApiClient {
   constructor() {
+    // Canonical Production Backend (Default for all platforms: web preview, production, and Android APK)
+    const PRODUCTION_DEFAULT = "https://skyzen-backend.onrender.com/api/v1";
+    const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.PRODUCTION_API_BASE || window.ENV.API_BASE)) || PRODUCTION_DEFAULT;
+
+    // Check for explicit user/developer override stored in localStorage
     let savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;
-    const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.API_BASE || window.ENV.PRODUCTION_API_BASE)) || null;
 
-    const isLocalBrowser = typeof window !== "undefined" &&
-      (window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1") &&
-      !this.isNativeAndroid();
-
-    // Auto-migrate dead/stale tunnel or outdated local URLs from previous sessions (specifically for native mobile builds)
-    const isStaleLocalUrl = savedBase && (
+    // Clean up stale or legacy dead tunnel URLs
+    const isStaleLegacyUrl = savedBase && (
       savedBase.includes("shaggy-candies-serve") ||
       savedBase.includes(".loca.lt") ||
       savedBase.includes("major-shirts-sleep") ||
-      savedBase.includes("192.168.") ||
-      savedBase.includes("10.0.") ||
       savedBase.includes("172.16.") ||
-      (this.isNativeAndroid() && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1") || savedBase === "/api/v1")) ||
-      (this.isNativeAndroid() && envBase && savedBase !== envBase.trim().replace(/\/+$/, "") && !savedBase.startsWith("https://"))
+      (this.isNativeAndroid() && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1") || savedBase === "/api/v1"))
     );
 
-    if (isStaleLocalUrl && envBase) {
-      console.info(`[ApiClient] Auto-migrating stale API base URL "${savedBase}" -> "${envBase}"`);
-      savedBase = envBase;
+    if (isStaleLegacyUrl) {
+      console.info(`[ApiClient] Clearing stale legacy API base URL "${savedBase}"`);
+      savedBase = null;
       if (typeof localStorage !== "undefined") {
-        localStorage.setItem("weathergpt_api_base", envBase.trim().replace(/\/+$/, ""));
+        localStorage.removeItem("weathergpt_api_base");
       }
     }
 
-    if (isLocalBrowser) {
-      // In local desktop browser, communicate directly with the local dev server
-      this.baseUrl = "/api/v1";
-    } else if (savedBase) {
+    // Explicit URL Resolution:
+    // 1. If the developer explicitly saved a specific backend URL via Settings or Auth UI: use it.
+    // 2. Otherwise (default for ALL contexts, including opening on 127.0.0.1, localhost, or Render):
+    //    ALWAYS connect directly to the canonical Render production backend!
+    if (savedBase && savedBase.trim() && savedBase !== "/api/v1") {
       this.baseUrl = savedBase.trim().replace(/\/+$/, "");
-    } else if (envBase && envBase !== "/api/v1") {
-      this.baseUrl = envBase.trim().replace(/\/+$/, "");
     } else {
-      this.baseUrl = "/api/v1";
+      this.baseUrl = envBase.trim().replace(/\/+$/, "");
     }
+
     this.tokenKey = "weathergpt_auth_token";
     this.timeoutMs = 35000;
     this.inFlightRequests = new Map();
@@ -129,7 +126,12 @@ class WeatherGPTApiClient {
     if (url) {
       this.baseUrl = url.trim().replace(/\/+$/, "");
       if (typeof localStorage !== "undefined") {
-        localStorage.setItem("weathergpt_api_base", this.baseUrl);
+        const prodBase = (typeof window !== "undefined" && window.ENV && (window.ENV.PRODUCTION_API_BASE || window.ENV.API_BASE)) || "https://skyzen-backend.onrender.com/api/v1";
+        if (this.baseUrl === prodBase.trim().replace(/\/+$/, "")) {
+          localStorage.removeItem("weathergpt_api_base");
+        } else {
+          localStorage.setItem("weathergpt_api_base", this.baseUrl);
+        }
       }
     }
   }
