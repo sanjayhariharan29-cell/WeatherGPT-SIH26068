@@ -86,7 +86,8 @@ def test_02_current_weather_api_latency():
     mock_loc = {"name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "district": "Coimbatore", "state": "Tamil Nadu"}
 
     latencies = []
-    with patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", return_value=mock_obs), \
+    with patch("backend.services.openweather_adapter.OpenWeatherAdapter.get_current_weather", return_value=mock_obs), \
+         patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", return_value=mock_obs), \
          patch("backend.services.open_meteo_adapter.OpenMeteoAdapter.get_current_weather", return_value=mock_obs), \
          patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc):
         for _ in range(10):
@@ -226,7 +227,8 @@ def test_09_provider_failover_latency():
     mock_loc = {"name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "district": "Coimbatore", "state": "Tamil Nadu"}
 
     start = time.perf_counter()
-    with patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", side_effect=ProviderUnavailableError("IMD Down", "IMD")), \
+    with patch("backend.services.openweather_adapter.OpenWeatherAdapter.get_current_weather", side_effect=ProviderUnavailableError("OpenWeather Down", "OpenWeather")), \
+         patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", side_effect=ProviderUnavailableError("IMD Down", "IMD")), \
          patch("backend.services.open_meteo_adapter.OpenMeteoAdapter.get_current_weather", return_value=mock_secondary_obs), \
          patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc):
         res = client.get("/api/v1/weather/current?location=Coimbatore")

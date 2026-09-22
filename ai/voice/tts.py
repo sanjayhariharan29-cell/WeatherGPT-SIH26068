@@ -27,9 +27,11 @@ def format_concise_speech_text(text: str, language: str = "en") -> str:
     raw = text.strip()
 
     # 1. Remove parenthetical telemetry/source citations e.g. (Source: ... | Updated ...)
-    raw = re.sub(r'\([^)|\n]*?(?:Source|Updated|Forecast Consistency|स्रोत|தகவல் மூலம்)[^)|\n]*?\)', '', raw, flags=re.IGNORECASE)
+    raw = re.sub(r'\([^)|\n]*?(?:Source|Updated|Forecast Consistency|स्रोत|தகவல் மூலம்|स्त्रोत|माहिती स्त्रोत|మూలం|సమాచార మూలం)[^)|\n]*?\)', '', raw, flags=re.IGNORECASE)
     raw = re.sub(r'\(தகவல் மூலம்:[^)\n]*?\)', '', raw)
     raw = re.sub(r'\(स्रोत:[^)\n]*?\)', '', raw)
+    raw = re.sub(r'\(स्त्रोत:[^)\n]*?\)', '', raw)
+    raw = re.sub(r'\(మూలం:[^)\n]*?\)', '', raw)
 
     # 2. Remove emojis and HTML tags
     raw = re.sub(r'<[^>]+>', '', raw)
@@ -46,7 +48,10 @@ def format_concise_speech_text(text: str, language: str = "en") -> str:
     lines = [line.strip() for line in raw.split('\n') if line.strip()]
     selected_lines = []
 
-    has_warning = any("warning" in l.lower() or "எச்சரிக்கை" in l or "चेतावनी" in l for l in lines)
+    has_warning = any(
+        "warning" in l.lower() or "எச்சரிக்கை" in l or "चेतावनी" in l or "इशारा" in l or "चेतावणी" in l or "హెచ్చరిక" in l
+        for l in lines
+    )
 
     for line in lines:
         lower = line.lower()
@@ -75,7 +80,7 @@ def format_speech_friendly_text(text: str, language: str = "en") -> str:
     CRITICAL RULES:
     1. Numeric Preservation: Never alter the underlying numeric value (e.g., 31.5°C -> 31.5 degrees Celsius).
     2. Warning Authority: Never alter official alerts ("Official IMD warning" stays authoritative).
-    3. Multilingual expansions: Expand units cleanly in English, Tamil, and Hindi.
+    3. Multilingual expansions: Expand units cleanly in English, Tamil, Hindi, Marathi, and Telugu.
     """
     if not text:
         return ""
@@ -95,6 +100,18 @@ def format_speech_friendly_text(text: str, language: str = "en") -> str:
         formatted = re.sub(r'(\d+(?:\.\d+)?)\s*%', r'\1 प्रतिशत', formatted)
         formatted = re.sub(r'(\d+(?:\.\d+)?)\s*mm\b', r'\1 मिलीमीटर', formatted, flags=re.IGNORECASE)
         formatted = re.sub(r'(\d+(?:\.\d+)?)\s*km/h\b', r'\1 किलोमीटर प्रति घंटा', formatted, flags=re.IGNORECASE)
+    elif language in ("mr", "marathi"):
+        # Marathi expansions
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*°C', r'\1 अंश सेल्सिअस', formatted)
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*%', r'\1 टक्के', formatted)
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*mm\b', r'\1 मिलीमीटर', formatted, flags=re.IGNORECASE)
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*km/h\b', r'\1 किलोमीटर प्रति तास', formatted, flags=re.IGNORECASE)
+    elif language in ("te", "telugu"):
+        # Telugu expansions
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*°C', r'\1 డిగ్రీల సెల్సియస్', formatted)
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*%', r'\1 శాతం', formatted)
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*mm\b', r'\1 మిల్లీమీటర్లు', formatted, flags=re.IGNORECASE)
+        formatted = re.sub(r'(\d+(?:\.\d+)?)\s*km/h\b', r'\1 కిలోమీటర్లు ప్రతి గంటకు', formatted, flags=re.IGNORECASE)
     else:
         # English / default expansions
         formatted = re.sub(r'(\d+(?:\.\d+)?)\s*°C', r'\1 degrees Celsius', formatted)

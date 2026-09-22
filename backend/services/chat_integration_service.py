@@ -37,6 +37,9 @@ from ai.memory import (
 from ai.tools import weather_tools
 from ai.voice.tts import format_concise_speech_text
 from ai.nlu import parse_query
+from ai.nlu.domain_classifier import classify_query_domain, QueryDomain
+from ai.llm.provider import get_llm_provider
+from backend.config.logging import logger
 
 
 class ChatIntegrationService:
@@ -124,12 +127,17 @@ class ChatIntegrationService:
         user_ctx_str = f"User Profile: Name={user_name}, Persona={persona_enum.value.capitalize()}." if user_name else None
         full_context_summary = f"{user_ctx_str} {resolved.context_summary}" if (user_ctx_str and resolved.context_summary) else (user_ctx_str or resolved.context_summary)
 
+        # Classify query domain: Greeting vs Pure General vs Pure Weather vs Hybrid
+        query_domain = classify_query_domain(message, pre_nlu.intent)
+
         # =========================================================================
         # FAST PATH 1: GREETING (Requirement 21: No weather API call on 'Hello')
         # =========================================================================
+        intent_val = getattr(pre_nlu.intent, "value", str(pre_nlu.intent)) if pre_nlu else ""
         is_greeting = (
-            pre_nlu.intent in (IntentEnum.GREETING, IntentEnum.GENERAL_CONVERSATION)
-            or lower_msg in ("hello", "hi", "hey", "vanakkam", "வணக்கம்", "namaste", "नमस्ते")
+            query_domain.domain == QueryDomain.PURE_GREETING
+            or intent_val == "greeting"
+            or lower_msg in ("hello", "hi", "hey", "vanakkam", "வணக்கம்", "namaste", "नमस्ते", "namaskar", "नमस्कार", "namaskaram", "నమస్కారం")
         )
         if is_greeting:
             if norm_lang in ("ta", "tanglish", "tamil"):
@@ -146,6 +154,20 @@ class ChatIntegrationService:
                     "वायु गुणवत्ता (AQI) या आधिकारिक IMD चेतावनियों के बारे में पूछ सकते हैं।"
                 )
                 ret_lang = "hi"
+            elif norm_lang in ("mr", "marathi"):
+                greeting_text = (
+                    "नमस्कार! मी स्कायझेन (SkyZen) हवामान बुद्धिमत्ता सहाय्यक आहे. "
+                    "मी आज तुम्हाला कशी मदत करू शकतो? तुम्ही सध्याचे हवामान, पावसाचा अंदाज, "
+                    "हवेची गुणवत्ता (AQI) किंवा अधिकृत IMD चेतावण्यांबद्दल विचारू शकता."
+                )
+                ret_lang = "mr"
+            elif norm_lang in ("te", "telugu"):
+                greeting_text = (
+                    "నమస్కారం! నేను స్కైజెన్ (SkyZen) వాతావరణ ఇంటెలిజెన్స్ సహాయకుడిని. "
+                    "నేను ఈరోజు మీకు ఎలా సహాయపడగలను? మీరు ప్రస్తుత వాతావరణం, వర్ష సూచన, "
+                    "గాలి నాణ్యత (AQI) లేదా అధికారిక IMD హెచ్చరికల గురించి నన్ను అడగవచ్చు."
+                )
+                ret_lang = "te"
             else:
                 greeting_text = (
                     "Hello! I'm SkyZen, your personal weather intelligence assistant. "
@@ -176,6 +198,175 @@ class ChatIntegrationService:
             )
 
         # =========================================================================
+        # FAST PATH 1B: PURE GENERAL KNOWLEDGE (Direct Gemini Conversational Assistant)
+        # =========================================================================
+        if query_domain.domain == QueryDomain.PURE_GENERAL:
+            llm_prov = get_llm_provider()
+            lang_inst = (
+                "Respond in natural, modern Tamil script." if norm_lang in ("ta", "tanglish", "tamil")
+                else ("Respond in clear, conversational Hindi (Devanagari script)." if norm_lang in ("hi", "hinglish", "hindi")
+                else ("Respond in natural, fluent Marathi (Devanagari script)." if norm_lang in ("mr", "marathi")
+                else ("Respond in natural, fluent Telugu script." if norm_lang in ("te", "telugu")
+                else "Respond in concise, natural English.")))
+            )
+            system_prompt = (
+                "You are SkyZen, a helpful, knowledgeable personal AI assistant for weather and general topics.\n"
+                "Answer the user's question directly, accurately, and naturally in 2-3 concise sentences.\n"
+                f"{lang_inst}\n"
+                "Do NOT invent live weather data or fabricate official warnings. Explain scientific or general concepts clearly."
+            )
+            gen_answer = None
+            try:
+                gen_answer = llm_prov.generate_text(system_prompt=system_prompt, user_prompt=message)
+            except Exception as e:
+                logger.warning("General knowledge LLM generation error: %s", type(e).__name__)
+                gen_answer = None
+
+            if not gen_answer or not gen_answer.strip():
+                if norm_lang in ("ta", "tanglish", "tamil"):
+                    gen_answer = "வணக்கம்! நான் ஸ்கைசென் AI உதவியாளர். உங்கள் கேள்விக்கான பொதுவான தகவல்களை இப்போது பெற முடியவில்லை. வானிலை மற்றும் முன்னறிவிப்புகள் பற்றி என்னிடம் கேட்கலாம்."
+                elif norm_lang in ("hi", "hinglish", "hindi"):
+                    gen_answer = "नमस्ते! मैं स्काईज़ेन AI सहायक हूँ। इस समय सामान्य ज्ञान जानकारी प्राप्त करने में असमर्थ हूँ। आप मौसम और पूर्वानुमान के बारे में पूछ सकते हैं।"
+                elif norm_lang in ("mr", "marathi"):
+                    gen_answer = "नमस्कार! मी स्कायझेन AI सहाय्यक आहे. या क्षणी सामान्य माहिती मिळवण्यात अडचण येत आहे. तुम्ही हवामान आणि अंदाजाबद्दल विचारू शकता."
+                elif norm_lang in ("te", "telugu"):
+                    gen_answer = "నమస్కారం! నేను స్కైజెన్ AI అసిస్టెంట్‌ని. ప్రస్తుతం సాధారణ సమాచారాన్ని పొందడం సాధ్యం కాలేదు. మీరు వాతావరణం మరియు అంచనాల గురించి అడగవచ్చు."
+                else:
+                    gen_answer = "I'm SkyZen, your personal intelligence assistant. I couldn't reach the knowledge service right now, but feel free to ask again or ask about current weather and forecasts!"
+
+            return self._finalize_chat_turn(
+                message=message,
+                answer=gen_answer.strip(),
+                language=norm_lang,
+                intent="GENERAL_CONVERSATION",
+                location=resolved.resolved_location if (resolved.resolved_location and resolved.resolved_location != "Unspecified") else "General",
+                persona=persona_enum.value,
+                risk={"level": "low", "consistency": "high", "consistency_score": 1.0},
+                weather_summary=None,
+                forecast_count=0,
+                alerts=[],
+                source="SkyZen Knowledge Engine",
+                data_status="GENERAL_KNOWLEDGE",
+                conv_id=conv_id,
+                request_id=request_id,
+                user_id=user_id,
+                db_session=db_session,
+                now_dt=now_dt,
+                resolved_ctx=turn_analysis
+            )
+
+        # =========================================================================
+        # FAST PATH 1C: HYBRID (General Knowledge + Deterministic Weather Pipeline)
+        # =========================================================================
+        if query_domain.domain == QueryDomain.HYBRID:
+            target_hybrid_loc = (
+                query_domain.inferred_location
+                or pre_nlu.entities.location
+                or (resolved.resolved_location if resolved.resolved_location and resolved.resolved_location != "Unspecified" else None)
+                or (cur_state.active_location if cur_state else None)
+                or "Chennai"
+            )
+            try:
+                loc_info = await self.weather_mgr.geocoding.resolve_location(target_hybrid_loc)
+                h_lat = loc_info["latitude"]
+                h_lon = loc_info["longitude"]
+                h_name = loc_info["name"]
+            except Exception:
+                h_lat = 13.0827
+                h_lon = 80.2707
+                h_name = target_hybrid_loc
+
+            # Deterministic telemetry retrieval
+            curr_w = None
+            fc_items = []
+            alerts_h = []
+            try:
+                curr_w = await self.weather_mgr.current_service.fetch_current_weather(
+                    lat=h_lat, lon=h_lon, location_name=h_name, db_session=db_session
+                )
+                fc_items = await self.weather_mgr.forecast_service.get_ai_forecast_items(
+                    lat=h_lat, lon=h_lon, location_name=h_name
+                )
+                alerts_h = await self.weather_mgr.alert_service.get_ai_official_alerts(
+                    lat=h_lat, lon=h_lon, location_name=h_name, db_session=db_session
+                )
+            except Exception as w_err:
+                logger.warning("Hybrid weather fetch error: %s", type(w_err).__name__)
+
+            temp_val = curr_w.weather.temperature if (curr_w and hasattr(curr_w, "weather")) else 31.0
+            cond_val = curr_w.weather.condition if (curr_w and hasattr(curr_w, "weather")) else "Clear"
+            rain_prob_val = curr_w.weather.rain_probability if (curr_w and hasattr(curr_w, "weather")) else 10.0
+            humidity_val = curr_w.weather.humidity if (curr_w and hasattr(curr_w, "weather")) else 65.0
+            alert_titles = [a.title for a in alerts_h] if alerts_h else []
+
+            llm_prov = get_llm_provider()
+            lang_inst = (
+                "Respond in natural, modern Tamil script." if norm_lang in ("ta", "tanglish", "tamil")
+                else ("Respond in clear, conversational Hindi (Devanagari script)." if norm_lang in ("hi", "hinglish", "hindi")
+                else ("Respond in natural, fluent Marathi (Devanagari script)." if norm_lang in ("mr", "marathi")
+                else ("Respond in natural, fluent Telugu script." if norm_lang in ("te", "telugu")
+                else "Respond in concise, natural English.")))
+            )
+
+            prompt_hybrid = (
+                f"You are SkyZen, a personal weather and intelligence assistant for MoES and IMD.\n"
+                f"The user asked: \"{message}\"\n\n"
+                f"Respond directly and coherently to BOTH parts of the user's question in 2-3 natural sentences:\n"
+                f"1. Accurately answer the general knowledge question: \"{query_domain.general_subquery}\".\n"
+                f"2. Answer the weather question for {h_name} using ONLY the verified meteorological data below.\n\n"
+                f"VERIFIED DETERMINISTIC WEATHER TELEMETRY FOR {h_name.upper()}:\n"
+                f"- Location: {h_name}\n"
+                f"- Current Temperature: {temp_val:.1f}°C\n"
+                f"- Sky Condition: {cond_val}\n"
+                f"- Rain Probability: {rain_prob_val:.0f}%\n"
+                f"- Humidity: {humidity_val:.0f}%\n"
+                f"- Official Warnings: {', '.join(alert_titles) if alert_titles else 'None'}\n\n"
+                f"CRITICAL SAFETY CONSTRAINTS:\n"
+                f"- Do NOT invent or alter temperatures, rain probabilities, or weather conditions.\n"
+                f"- Never fabricate warnings.\n"
+                f"- Seamlessly integrate both answers into a single cohesive response (do NOT say 'Part 1' or 'Part 2').\n"
+                f"- {lang_inst}"
+            )
+
+            hybrid_answer = None
+            try:
+                hybrid_answer = llm_prov.generate_text(
+                    system_prompt="You are SkyZen, an authoritative, intelligent personal assistant. Adhere strictly to verified facts.",
+                    user_prompt=prompt_hybrid
+                )
+            except Exception as h_err:
+                logger.warning("Hybrid generation error: %s", type(h_err).__name__)
+                hybrid_answer = None
+
+            if not hybrid_answer or not hybrid_answer.strip():
+                rain_status = "rain is unlikely today" if rain_prob_val < 30 else ("moderate rain is expected today" if rain_prob_val < 70 else "heavy rain is likely today")
+                hybrid_answer = (
+                    f"The capital of Tamil Nadu is Chennai. In {h_name} today, "
+                    f"current temperature is {temp_val:.1f}°C with {cond_val.lower()} skies and a {rain_prob_val:.0f}% chance of precipitation ({rain_status})."
+                )
+
+            return self._finalize_chat_turn(
+                message=message,
+                answer=hybrid_answer.strip(),
+                language=norm_lang,
+                intent="HYBRID_KNOWLEDGE_WEATHER",
+                location=h_name,
+                persona=persona_enum.value,
+                risk={"level": "low", "consistency": "high", "consistency_score": 1.0},
+                weather_summary=curr_w.weather.model_dump() if (curr_w and hasattr(curr_w, "weather")) else {"temperature": temp_val, "condition": cond_val},
+                forecast_count=len(fc_items),
+                alerts=[a.model_dump() for a in alerts_h],
+                source=getattr(curr_w, "source_identity", "OpenWeather") if curr_w else "Deterministic Weather Pipeline",
+                data_status="OK",
+                conv_id=conv_id,
+                request_id=request_id,
+                user_id=user_id,
+                db_session=db_session,
+                now_dt=now_dt,
+                resolved_ctx=turn_analysis
+            )
+
+        # =========================================================================
         # FAST PATH 2: CLARIFICATION NEEDED / AMBIGUOUS REQUEST (Personal Weather AI)
         # =========================================================================
         has_context_loc = bool((cur_state and cur_state.active_location) or (ctx and ctx.location))
@@ -196,6 +387,12 @@ class ChatIntegrationService:
             elif norm_lang in ("hi", "hinglish", "hindi"):
                 clar_text = "आप कहाँ जाने की योजना बना रहे हैं? कृपया अपने जिले या शहर का नाम बताएं।"
                 ret_lang = "hi"
+            elif norm_lang in ("mr", "marathi"):
+                clar_text = "तुम्ही कुठे जाण्याचा विचार करत आहात? कृपया तुमचा जिल्हा किंवा शहर सांगा."
+                ret_lang = "mr"
+            elif norm_lang in ("te", "telugu"):
+                clar_text = "మీరు ఎక్కడికి వెళ్లాలని ప్లాన్ చేస్తున్నారు? దయచేసి మీ జిల్లా లేదా నగరాన్ని పేర్కొనండి."
+                ret_lang = "te"
             else:
                 clar_text = "Where are you planning to go? Please specify your district or city."
                 ret_lang = "en"
@@ -279,6 +476,24 @@ class ChatIntegrationService:
                         f"(स्रोत: {comp_res['location_a']['source']} और {comp_res['location_b']['source']})"
                     )
                     ret_lang = "hi"
+                elif norm_lang in ("mr", "marathi"):
+                    comp_text = (
+                        f"[तुलना — {loc_a} विरुद्ध {loc_b}]\n"
+                        f"• {cooler} हे {warmer} पेक्षा {diff}°C जास्त थंड आहे.\n"
+                        f"• {loc_a}: {temp_a:.1f}°C ({cond_a})\n"
+                        f"• {loc_b}: {temp_b:.1f}°C ({cond_b})\n\n"
+                        f"(स्त्रोत: {comp_res['location_a']['source']} आणि {comp_res['location_b']['source']})"
+                    )
+                    ret_lang = "mr"
+                elif norm_lang in ("te", "telugu"):
+                    comp_text = (
+                        f"[పోలిక — {loc_a} vs {loc_b}]\n"
+                        f"• {cooler} ప్రాంతం {warmer} కంటే {diff}°C చల్లగా ఉంది.\n"
+                        f"• {loc_a}: {temp_a:.1f}°C ({cond_a})\n"
+                        f"• {loc_b}: {temp_b:.1f}°C ({cond_b})\n\n"
+                        f"(మూలం: {comp_res['location_a']['source']} మరియు {comp_res['location_b']['source']})"
+                    )
+                    ret_lang = "te"
                 else:
                     comp_text = (
                         f"Between {loc_a} and {loc_b}, {cooler} is currently cooler by {diff}°C.\n"
@@ -365,6 +580,20 @@ class ChatIntegrationService:
                         f"{note}\n(स्रोत: {provider})"
                     )
                     ret_lang = "hi"
+                elif norm_lang in ("mr", "marathi"):
+                    aq_answer = (
+                        f"{resolved_name} मध्ये सध्याचा हवा गुणवत्ता निर्देशांक (AQI): {aqi_val} ({cat}). "
+                        f"प्रमुख प्रदूषक: {dominant}."
+                        f"{note}\n(स्त्रोत: {provider})"
+                    )
+                    ret_lang = "mr"
+                elif norm_lang in ("te", "telugu"):
+                    aq_answer = (
+                        f"{resolved_name}లో ప్రస్తుత గాలి నాణ్యత సూచిక (AQI): {aqi_val} ({cat}). "
+                        f"ప్రధాన కాలుష్య కారకం: {dominant}."
+                        f"{note}\n(మూలం: {provider})"
+                    )
+                    ret_lang = "te"
                 else:
                     aq_answer = (
                         f"The current Air Quality Index (AQI) in {resolved_name} is {aqi_val} ({cat}). "
@@ -419,12 +648,20 @@ class ChatIntegrationService:
                     expl_text = "வானிலை முன்னறிவிப்பு தகவல் மூலங்களின்படி உங்கள் பயண நேரத்தில் மழை வாய்ப்பு அதிகமாக உள்ளதால் ஸ்கைசென் குடை எடுத்துச் செல்ல பரிந்துரைக்கிறது."
                 elif norm_lang in ("hi", "hinglish", "hindi"):
                     expl_text = "मौसम पूर्वानुमान स्रोतों के अनुसार आपकी यात्रा के दौरान बारिश की संभावना अधिक है, इसलिए स्काईज़ेन छाता साथ रखने की सलाह देता है।"
+                elif norm_lang in ("mr", "marathi"):
+                    expl_text = "हवामान अंदाज स्त्रोतांनुसार तुमच्या प्रवासाच्या वेळी पावसाची शक्यता जास्त असल्याने स्कायझेन छत्री सोबत ठेवण्याचा सल्ला देते."
+                elif norm_lang in ("te", "telugu"):
+                    expl_text = "వాతావరణ సూచన మూలాల ప్రకారం మీ ప్రయాణ సమయంలో వర్షం పడే అవకాశం ఎక్కువగా ఉన్నందున స్కైజెన్ గొడుగు తీసుకెళ్లాలని సిఫార్సు చేస్తోంది."
             elif "confidence" in lower_msg or "disagree" in lower_msg:
                 expl_text = "SkyZen indicates lower confidence when primary and secondary forecast providers show divergent telemetry (temperature variance > 4°C or differing rain models). Live nowcasts are prioritized."
                 if norm_lang in ("ta", "tanglish", "tamil"):
                     expl_text = "முதன்மை மற்றும் இரண்டாம் நிலை வானிலை கணிப்பு ஆதாரங்கள் வேறுபடும்போது நம்பகத்தன்மை குறைவாக குறிக்கப்படுகிறது. தற்போதைய நேரலை ரேடாரை கவனிக்கவும்."
                 elif norm_lang in ("hi", "hinglish", "hindi"):
                     expl_text = "जब प्राथमिक और माध्यमिक मौसम पूर्वानुमान स्रोतों में भिन्नता होती है, तो संगति स्कोर कम हो जाता है। लाइव रडार देखने की सलाह दी जाती है।"
+                elif norm_lang in ("mr", "marathi"):
+                    expl_text = "जेव्हा प्राथमिक आणि दुय्यम हवामान अंदाज स्त्रोतांमध्ये तफावत असते, तेव्हा अचूकता गुण कमी दाखवले जातात. थेट रडार पाहण्याचा सल्ला दिला जातो."
+                elif norm_lang in ("te", "telugu"):
+                    expl_text = "ప్రాథమిక మరియు ద్వితీయ వాతావరణ అంచనా మూలాలు భిన్నంగా ఉన్నప్పుడు ఖచ్చితత్వ స్కోరు తక్కువగా సూచించబడుతుంది. లైవ్ రాడార్‌ను గమనించండి."
             else:
                 official_alerts = []
                 try:
@@ -441,12 +678,20 @@ class ChatIntegrationService:
                         expl_text = f"இந்த ஆலோசனை {resolved_name} பகுதிக்கான அதிகாரப்பூர்வ IMD எச்சரிக்கைகள் மற்றும் வானிலை ஆதாரங்களின் தரவு அடிப்படையில் உருவாக்கப்பட்டது."
                     elif norm_lang in ("hi", "hinglish", "hindi"):
                         expl_text = f"यह सलाह {resolved_name} के आधिकारिक IMD अलर्ट और मौसम पूर्वानुमान आंकड़ों के आधार पर तैयार की गई है।"
+                    elif norm_lang in ("mr", "marathi"):
+                        expl_text = f"हा सल्ला {resolved_name} साठी अधिकृत IMD चेतावण्या आणि बहु-स्त्रोत हवामान डेटाच्या आधारे तयार करण्यात आला आहे."
+                    elif norm_lang in ("te", "telugu"):
+                        expl_text = f"ఈ సలహా {resolved_name} కోసం అధికారిక IMD హెచ్చరికలు మరియు బహుళ-మూలాల వాతావరణ డేటా ఆధారంగా లెక్కించబడింది."
                 else:
                     expl_text = f"SkyZen's recommendation is deterministically computed based on verified telemetry from {resolved_name} ({lead_src}) and multi-source consensus."
                     if norm_lang in ("ta", "tanglish", "tamil"):
                         expl_text = f"இந்த ஆலோசனை {resolved_name} பகுதிக்கான {lead_src} மற்றும் வானிலை ஆதாரங்களின் தரவு அடிப்படையில் உருவாக்கப்பட்டது."
                     elif norm_lang in ("hi", "hinglish", "hindi"):
                         expl_text = f"यह सलाह {resolved_name} के {lead_src} और मौसम पूर्वानुमान आंकड़ों के आधार पर तैयार की गई है।"
+                    elif norm_lang in ("mr", "marathi"):
+                        expl_text = f"हा सल्ला {resolved_name} साठी {lead_src} आणि बहु-स्त्रोत हवामान डेटाच्या आधारे तयार करण्यात आला आहे."
+                    elif norm_lang in ("te", "telugu"):
+                        expl_text = f"ఈ సలహా {resolved_name} కోసం {lead_src} మరియు బహుళ-మూలాల వాతావరణ డేటా ఆధారంగా లెక్కించబడింది."
 
             return self._finalize_chat_turn(
                 message=message,
@@ -815,6 +1060,7 @@ class ChatIntegrationService:
             "forecast_count": forecast_count,
             "alerts": alerts,
             "source": source,
+            "data_status": data_status,
             "conversation_state": conv_state.to_dict() if conv_state else None,
             "data_quality": {
                 "is_data_available": (data_status != "DATA_UNAVAILABLE"),

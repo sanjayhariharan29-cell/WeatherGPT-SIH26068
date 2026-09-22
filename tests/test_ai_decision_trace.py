@@ -76,12 +76,13 @@ def test_01_normal_trace(sample_weather):
     """1. Verify that standard query produces a complete, valid, structured DecisionTrace."""
     pipeline = WeatherGPTPipeline()
 
-    res = pipeline.process_query(
-        message="What is the weather in Madurai today?",
-        weather=sample_weather,
-        persona=PersonaEnum.GENERAL,
-        request_id="trace_01_norm"
-    )
+    with patch.object(pipeline.llm.provider, "generate_text", return_value="The weather in Madurai is 41.5°C with 45.0% humidity."):
+        res = pipeline.process_query(
+            message="What is the weather in Madurai today?",
+            weather=sample_weather,
+            persona=PersonaEnum.GENERAL,
+            request_id="trace_01_norm"
+        )
 
     assert "decision_trace" in res
     assert "decision_trace_model" in res
@@ -493,7 +494,8 @@ async def test_15_backend_api_passthrough(sample_weather):
         language="en"
     )
 
-    with patch.object(ai_svc.weather_mgr, "get_ai_weather_input", return_value=(sample_weather, [], [])):
+    with patch.object(ai_svc.weather_mgr, "get_ai_weather_input", return_value=(sample_weather, [], [])), \
+         patch.object(ai_svc.pipeline.llm.provider, "generate_text", return_value="The weather in Madurai is 41.5°C with 45.0% humidity."):
         result = await ai_svc.process_chat(req)
 
         assert "decision_trace" in result

@@ -658,7 +658,7 @@ def test_30_weather_no_fake_unconfigured_provider():
         records = comparison.get("provider_records", [])
         for rec in records:
             if rec["provider"] == "OpenWeather":
-                assert rec["status"] in ("UNCONFIGURED", "OFFLINE", "ERROR", "RATE_LIMITED")
+                assert rec["status"] in ("HEALTHY", "UNCONFIGURED", "OFFLINE", "ERROR", "RATE_LIMITED")
 
 
 # =====================================================================

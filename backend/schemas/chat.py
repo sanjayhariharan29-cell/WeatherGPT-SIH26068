@@ -41,9 +41,9 @@ class ChatRequest(BaseModel):
     def validate_language_code(cls, v: Optional[str]) -> Optional[str]:
         if v is None:
             return "ta"
-        allowed = {"ta", "en", "hi", "tanglish", "hinglish", "tamil", "english", "hindi"}
+        allowed = {"ta", "en", "hi", "mr", "te", "tanglish", "hinglish", "tamil", "english", "hindi", "marathi", "telugu"}
         if v.lower() not in allowed:
-            raise ValueError(f"Unsupported language code '{v}'. Supported: ta, en, hi, tanglish, hinglish.")
+            raise ValueError(f"Unsupported language code '{v}'. Supported: ta, en, hi, mr, te, tanglish, hinglish.")
         return v.lower()
 
     @field_validator("persona")

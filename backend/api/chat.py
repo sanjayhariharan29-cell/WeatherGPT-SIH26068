@@ -20,7 +20,7 @@ from backend.core.security import get_current_user, get_optional_current_user
 router = APIRouter(tags=["AI Chat"])
 chat_service = ChatIntegrationService()
 
-ALLOWED_LANGUAGES = {"ta", "en", "hi", "tanglish", "hinglish", "tamil", "english", "hindi"}
+ALLOWED_LANGUAGES = {"ta", "en", "hi", "mr", "te", "tanglish", "hinglish", "tamil", "english", "hindi", "marathi", "telugu"}
 ALLOWED_PERSONAS = {
     "student", "farmer", "fisherman", "commuter", "general", "tourist", "event_planner",
     "disaster_response", "disaster", "safety", "disaster_safety", "traveller", "traveler"
@@ -53,7 +53,7 @@ async def chat_endpoint(
         raise HTTPException(status_code=400, detail="Message length exceeds maximum allowed limit of 1000 characters.")
 
     if req.language and req.language.lower() not in ALLOWED_LANGUAGES:
-        raise HTTPException(status_code=400, detail=f"Unsupported language '{req.language}'. Supported: ta, en, hi, tanglish, hinglish.")
+        raise HTTPException(status_code=400, detail=f"Unsupported language '{req.language}'. Supported: ta, en, hi, mr, te, tanglish, hinglish.")
 
     if req.persona and req.persona.lower() not in ALLOWED_PERSONAS:
         raise HTTPException(status_code=400, detail=f"Unsupported persona '{req.persona}'. Supported: student, farmer, fisherman, commuter, general.")

@@ -22,7 +22,7 @@ class LLMConfig:
         default_factory=lambda: os.getenv("WEATHERGPT_LLM_PROVIDER", "gemini")
     )
     model_name: str = field(
-        default_factory=lambda: os.getenv("WEATHERGPT_LLM_MODEL", "gemini-1.5-flash")
+        default_factory=lambda: os.getenv("WEATHERGPT_LLM_MODEL", "gemini-3.6-flash")
     )
     api_key: Optional[str] = field(
         default_factory=lambda: os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")

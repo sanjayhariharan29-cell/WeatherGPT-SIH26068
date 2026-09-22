@@ -62,6 +62,10 @@ class LanguageEnum(str, Enum):
     TANGLISH = "tanglish"
     HI = "hi"
     HINGLISH = "hinglish"
+    MR = "mr"
+    TE = "te"
+    MARATHI = "marathi"
+    TELUGU = "telugu"
     UNKNOWN = "unknown"
 
 
@@ -90,7 +94,8 @@ PARENT_INTENT_MAP = {
     "location_specific_weather": {"location_weather", "location_specific_weather", "weather_information", "current_weather"},
     "weather_information": {"current_weather", "general_weather_question", "weather_information", "location_specific_weather", "location_weather"},
     "current_weather": {"weather_information", "location_specific_weather", "current_weather", "temperature_query", "forecast_query", "rain_query"},
-    "general_conversation": {"greeting", "general_weather_question", "general_conversation"},
+    "general_conversation": {"general_conversation"},
+    "greeting": {"greeting"},
     "clarification_response": {"clarification_needed", "clarification_response"},
     "clothing_advice": {"outdoor_decision", "clothing_advice"},
     "unknown": {"general_weather_question", "unknown", "unknown/ambiguous"},

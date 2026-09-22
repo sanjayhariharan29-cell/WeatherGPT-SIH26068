@@ -116,3 +116,23 @@ def test_08_environment_settings_override():
         os.environ.pop("HOST", None)
         os.environ.pop("PORT", None)
         os.environ.pop("ENVIRONMENT", None)
+
+
+def test_09_production_debug_and_demo_mode_disabled():
+    """Verifies that in production or Render environment, DEBUG and DEMO_MODE are strictly disabled."""
+    os.environ["ENVIRONMENT"] = "production"
+    try:
+        prod_settings = Settings()
+        assert prod_settings.DEBUG is False, "DEBUG must be False in production"
+        assert prod_settings.DEMO_MODE is False, "DEMO_MODE must be False in production"
+    finally:
+        os.environ.pop("ENVIRONMENT", None)
+
+    os.environ["RENDER"] = "true"
+    try:
+        render_settings = Settings()
+        assert render_settings.DEBUG is False, "DEBUG must be False in Render"
+        assert render_settings.DEMO_MODE is False, "DEMO_MODE must be False in Render"
+    finally:
+        os.environ.pop("RENDER", None)
+

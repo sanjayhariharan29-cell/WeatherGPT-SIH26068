@@ -447,6 +447,8 @@ async def test_13_provider_failover_resilience():
 @pytest.mark.asyncio
 async def test_14_all_providers_failing():
     """14. When all providers fail, a clean ProviderError is propagated with diagnostics."""
+    from backend.services.cache import provider_cache
+    provider_cache.clear()
     service = CurrentWeatherService()
 
     service.primary.get_current_weather = AsyncMock(
@@ -455,11 +457,15 @@ async def test_14_all_providers_failing():
     service.secondary.get_current_weather = AsyncMock(
         side_effect=ProviderUnavailableError("Open-Meteo down", provider_name="Open-Meteo")
     )
+    if service.tertiary:
+        service.tertiary.get_current_weather = AsyncMock(
+            side_effect=ProviderUnavailableError("Tertiary down", provider_name="Tertiary")
+        )
 
     with pytest.raises(ProviderError) as exc_info:
-        await service.fetch_current_weather(location_name="Coimbatore")
+        await service.fetch_current_weather(location_name="Coimbatore", allow_stale=False)
 
-    assert "Open-Meteo" in str(exc_info.value) or "IMD" in str(exc_info.value)
+    assert "Open-Meteo" in str(exc_info.value) or "IMD" in str(exc_info.value) or "OpenWeather" in str(exc_info.value)
 
 
 # ---------------------------------------------------------------------------

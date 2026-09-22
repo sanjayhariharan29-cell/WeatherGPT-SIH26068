@@ -15,7 +15,7 @@ from backend.middleware import (
 from backend.db.init_db import init_db
 from backend.db.models import User
 from backend.core.security import require_developer_role
-from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer
+from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer, briefing
 
 # Initialize Database on Module Import
 init_db()
@@ -24,7 +24,10 @@ init_db()
 async def lifespan(app: FastAPI):
     logger.info("Starting WeatherGPT Backend Server...")
     init_db()
+    from backend.services.briefing_scheduler import scheduler_service
+    scheduler_service.start()
     yield
+    scheduler_service.stop()
     logger.info("Shutting down WeatherGPT Backend Server...")
 
 app = FastAPI(
@@ -73,6 +76,7 @@ app.include_router(chat.router, prefix=settings.API_V1_PREFIX)
 app.include_router(voice.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(developer.router, prefix=settings.API_V1_PREFIX)
+app.include_router(briefing.router, prefix=settings.API_V1_PREFIX)
 
 # Developer Portal Web Entrypoints (Guarded by require_developer_role)
 @app.get("/developer", response_class=HTMLResponse, tags=["developer"])

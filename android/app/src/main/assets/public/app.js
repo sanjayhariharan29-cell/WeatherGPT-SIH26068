@@ -65,6 +65,16 @@ function updateChatInitialGreeting() {
       const welcomeText = window.I18N.t("chat.welcome_bubble");
       if (welcomeText) welcomeP.textContent = welcomeText;
     }
+    const welcomeSpeechBtn = initialBubble.querySelector("#welcomeSpeechBtn");
+    if (welcomeSpeechBtn && !welcomeSpeechBtn.dataset.bound) {
+      welcomeSpeechBtn.dataset.bound = "true";
+      welcomeSpeechBtn.addEventListener("click", function(e) {
+        e.preventDefault();
+        e.stopPropagation();
+        const text = welcomeP ? welcomeP.textContent : "Welcome! I am SkyZen, your personal AI weather decision assistant.";
+        window.toggleSpeakMessage(this, text, currentLanguage || "en");
+      });
+    }
   }
   if (window.I18N && typeof window.I18N.applyTranslations === "function") {
     window.I18N.applyTranslations();
@@ -82,6 +92,8 @@ window.onLanguageChanged = function(lang) {
     if (lang === "en") langText.textContent = "English";
     else if (lang === "ta") langText.textContent = "தமிழ்";
     else if (lang === "hi") langText.textContent = "हिंदी";
+    else if (lang === "mr") langText.textContent = "मराठी";
+    else if (lang === "te") langText.textContent = "తెలుగు";
   }
   const langSelect = document.getElementById("langSelect");
   if (langSelect && langSelect.value !== lang) {
@@ -518,7 +530,7 @@ function setupEventListeners() {
   const langToggleBtn = document.getElementById("chatLangToggleBtn");
   if (langToggleBtn) {
     langToggleBtn.addEventListener("click", () => {
-      const langs = ["en", "ta", "hi"];
+      const langs = ["en", "ta", "hi", "mr", "te"];
       let idx = langs.indexOf(currentLanguage);
       if (idx === -1) idx = 0;
       const nextLang = langs[(idx + 1) % langs.length];
@@ -534,30 +546,67 @@ function setupEventListeners() {
         if (nextLang === "en") langText.textContent = "English";
         else if (nextLang === "ta") langText.textContent = "தமிழ்";
         else if (nextLang === "hi") langText.textContent = "हिंदी";
+        else if (nextLang === "mr") langText.textContent = "मराठी";
+        else if (nextLang === "te") langText.textContent = "తెలుగు";
       }
     });
   }
 
   window.onLanguageChanged = function(lang) {
     currentLanguage = lang;
+    if (window.I18N && typeof window.I18N.applyTranslations === 'function') {
+      window.I18N.applyTranslations();
+    }
     const langText = document.getElementById("chatLangText");
     if (langText) {
       if (lang === "en") langText.textContent = "English";
       else if (lang === "ta") langText.textContent = "தமிழ்";
       else if (lang === "hi") langText.textContent = "हिंदी";
+      else if (lang === "mr") langText.textContent = "मराठी";
+      else if (lang === "te") langText.textContent = "తెలుగు";
     }
     const langSelect = document.getElementById("langSelect");
     if (langSelect) {
       langSelect.value = lang;
     }
-    if (window.lastWeatherData && typeof renderDashboard === 'function') {
-      try { renderDashboard(window.lastWeatherData); } catch (_) {}
+    const profileEditLanguage = document.getElementById("profileEditLanguage");
+    if (profileEditLanguage) {
+      profileEditLanguage.value = lang;
+    }
+    const onboardingLanguage = document.getElementById("onboardingLanguage");
+    if (onboardingLanguage) {
+      onboardingLanguage.value = lang;
+    }
+    if (typeof updateChatInitialGreeting === 'function') {
+      updateChatInitialGreeting();
+    }
+    if (window.lastWeatherData) {
+      if (typeof renderDashboard === 'function') {
+        try { renderDashboard(window.lastWeatherData); } catch (_) {}
+      }
+      if (typeof renderWeatherCard === 'function') {
+        try { renderWeatherCard(window.lastWeatherData); } catch (_) {}
+      }
+      if (typeof renderMinuteRainTimeline === 'function') {
+        try { renderMinuteRainTimeline(window.lastWeatherData); } catch (_) {}
+      }
+      if (typeof renderLifestyleInsights === 'function') {
+        try { renderLifestyleInsights(window.lastWeatherData); } catch (_) {}
+      }
     }
     if (window.lastMapPayload && typeof renderMapSelectionCard === 'function') {
       try { renderMapSelectionCard(window.lastMapPayload, window.lastMapLat, window.lastMapLon); } catch (_) {}
     }
     if (window.lastAqiData && typeof renderAqiDetails === 'function') {
       try { renderAqiDetails(window.lastAqiData); } catch (_) {}
+    }
+    const loc = document.getElementById("locationSelect")?.value || (currentLocationState && currentLocationState.name) || null;
+    if (loc && typeof loadForecast === 'function') {
+      loadForecast(loc);
+    }
+    const aqiScreen = document.getElementById("screen-air-quality");
+    if (aqiScreen && aqiScreen.classList.contains("active")) {
+      if (loc && typeof loadAirQuality === 'function') loadAirQuality(loc);
     }
   };
 
@@ -1107,6 +1156,16 @@ function setManualLocation(cityName) {
   showMobileNotice(`Switched location: ${cityName} (Manual)`, "info", 2000);
 }
 
+function formatMinutesAgo(min) {
+  const lang = (window.I18N && window.I18N.currentLanguage) || "en";
+  if (lang === 'ta') return `${min} நிமிடம் முன்`;
+  if (lang === 'hi') return `${min} मिनट पहले`;
+  if (lang === 'mr') return `${min} मिनिटांपूर्वी`;
+  if (lang === 'te') return `${min} నిమిషాల క్రితం`;
+  return `${min}m ago`;
+}
+window.formatMinutesAgo = formatMinutesAgo;
+
 function updateLocationUI() {
   const state = currentLocationState;
   const nameElem = document.getElementById("currentLocationName");
@@ -1130,7 +1189,7 @@ function updateLocationUI() {
       if (state.isStale) {
         badgeElem.classList.add("last-known-stale");
         const minutesAgo = Math.round((Date.now() - new Date(state.timestamp).getTime()) / 60000);
-        badgeText.textContent = `${locDyn("LAST KNOWN LOCATION")} (${minutesAgo}m ago)`;
+        badgeText.textContent = `${locDyn("LAST KNOWN LOCATION")} (${formatMinutesAgo(minutesAgo)})`;
         badgeElem.title = "Stale last-known location (older than 1 hour)";
       } else {
         badgeElem.classList.add("last-known");
@@ -1911,6 +1970,27 @@ function updateProfileUI(user) {
     if (editLang) editLang.value = userLang;
     if (langSelect) langSelect.value = userLang;
     if (editNotif) editNotif.checked = user.notification_enabled !== undefined ? Boolean(user.notification_enabled) : true;
+    const editPhone = document.getElementById("profileEditPhone");
+    if (editPhone) editPhone.value = user.phone_number || user.mobile_number || "";
+
+    const settingDailySms = document.getElementById("settingDailySmsToggle");
+    if (settingDailySms) settingDailySms.checked = user.daily_sms_enabled !== undefined ? Boolean(user.daily_sms_enabled) : true;
+
+    const settingProfAdvisory = document.getElementById("settingProfAdvisoryToggle");
+    if (settingProfAdvisory) settingProfAdvisory.checked = user.professional_advisory_enabled !== undefined ? Boolean(user.professional_advisory_enabled) : true;
+
+    const settingSevereAlerts = document.getElementById("settingSevereAlertsToggle");
+    if (settingSevereAlerts) settingSevereAlerts.checked = user.severe_alerts_enabled !== undefined ? Boolean(user.severe_alerts_enabled) : (user.notification_enabled !== undefined ? Boolean(user.notification_enabled) : true);
+
+    const settingBriefingTime = document.getElementById("settingBriefingTimeInput");
+    if (settingBriefingTime) settingBriefingTime.value = user.briefing_time || "07:00";
+
+    const settingPhone = document.getElementById("settingPhoneInput");
+    if (settingPhone) settingPhone.value = user.phone_number || user.mobile_number || "";
+
+    if (typeof loadBriefingHistoryUI === "function" && user.id) {
+      loadBriefingHistoryUI(user.id);
+    }
     if (typeof refreshPushStatusBadge === "function") {
       refreshPushStatusBadge();
     }
@@ -2837,6 +2917,8 @@ function setupAuthPortalEngine() {
         return;
       }
 
+      const phone = document.getElementById("profileEditPhone")?.value.trim();
+
       try {
         if (submitBtn) setButtonLoading(submitBtn, true, "Saving...");
 
@@ -2847,6 +2929,7 @@ function setupAuthPortalEngine() {
           role: role,
           language: language,
           preferred_language: language,
+          phone_number: phone,
           notification_enabled: notifications
         });
 
@@ -2856,6 +2939,7 @@ function setupAuthPortalEngine() {
           currentUser.name = name;
           currentUser.persona = role;
           currentUser.language = language;
+          currentUser.phone_number = phone;
           currentUser.notification_enabled = notifications;
         }
 
@@ -2884,6 +2968,136 @@ function setupAuthPortalEngine() {
       }
     });
   }
+
+  // 7b. Skizen Personalized Weather SMS & Briefing Settings Handlers (Phase 2)
+  const saveBriefingBtn = document.getElementById("saveBriefingSettingsBtn");
+  if (saveBriefingBtn) {
+    saveBriefingBtn.addEventListener("click", async () => {
+      const dailySms = document.getElementById("settingDailySmsToggle")?.checked;
+      const profAdv = document.getElementById("settingProfAdvisoryToggle")?.checked;
+      const severeAlerts = document.getElementById("settingSevereAlertsToggle")?.checked;
+      const bTime = document.getElementById("settingBriefingTimeInput")?.value || "07:00";
+      const phone = document.getElementById("settingPhoneInput")?.value.trim() || "";
+
+      try {
+        setButtonLoading(saveBriefingBtn, true, "Saving...");
+        await window.apiClient.updateBriefingSettings({
+          daily_sms_enabled: dailySms,
+          professional_advisory_enabled: profAdv,
+          severe_alerts_enabled: severeAlerts,
+          briefing_time: bTime,
+          phone_number: phone
+        });
+        if (currentUser) {
+          currentUser.daily_sms_enabled = dailySms;
+          currentUser.professional_advisory_enabled = profAdv;
+          currentUser.severe_alerts_enabled = severeAlerts;
+          currentUser.briefing_time = bTime;
+          currentUser.phone_number = phone;
+        }
+        showMobileNotice("Briefing preferences saved successfully.", "success");
+      } catch (err) {
+        showMobileNotice(err.message || "Failed to save briefing preferences", "error");
+      } finally {
+        setButtonLoading(saveBriefingBtn, false);
+      }
+    });
+  }
+
+  const triggerTestBriefingBtn = document.getElementById("triggerTestBriefingBtn");
+  if (triggerTestBriefingBtn) {
+    triggerTestBriefingBtn.addEventListener("click", async () => {
+      try {
+        setButtonLoading(triggerTestBriefingBtn, true, "Dispatching...");
+        const targetId = currentUser?.id || null;
+        const res = await window.apiClient.triggerBriefingScheduler(targetId, true);
+        showMobileNotice("Daily SMS briefing generated & mock delivered!", "success");
+        if (typeof loadBriefingHistoryUI === "function") {
+          await loadBriefingHistoryUI(targetId);
+        }
+      } catch (err) {
+        showMobileNotice(err.message || "Failed to trigger briefing SMS", "error");
+      } finally {
+        setButtonLoading(triggerTestBriefingBtn, false);
+      }
+    });
+  }
+
+  const refreshHistoryBtn = document.getElementById("refreshBriefingHistoryBtn");
+  if (refreshHistoryBtn) {
+    refreshHistoryBtn.addEventListener("click", () => {
+      if (typeof loadBriefingHistoryUI === "function") {
+        loadBriefingHistoryUI(currentUser?.id);
+      }
+    });
+  }
+
+  async function loadBriefingHistoryUI(userId = null) {
+    const container = document.getElementById("briefingHistoryContainer");
+    if (!container) return;
+
+    try {
+      const res = await window.apiClient.getBriefingHistory(userId, 15);
+      const items = res?.items || [];
+      if (items.length === 0) {
+        container.innerHTML = `<p style="font-size:12px; color:var(--text-secondary); margin:0; text-align:center;">No recent briefing dispatches.</p>`;
+        return;
+      }
+
+      container.innerHTML = "";
+      items.forEach((item) => {
+        const card = document.createElement("div");
+        card.className = "briefing-history-card";
+        card.style.cssText = "padding:10px; background:var(--bg-card); border:1px solid var(--border-color); border-radius:var(--radius-sm); cursor:pointer; transition:all 0.2s ease;";
+
+        const riskColor = item.risk_level === "HIGH" ? "#EF4444" : (item.risk_level === "MODERATE" ? "#F59E0B" : "#10B981");
+        const timeFormatted = item.created_at ? new Date(item.created_at).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }) : "7:00 AM";
+        const dateFormatted = item.created_at ? new Date(item.created_at).toLocaleDateString([], { month: 'short', day: 'numeric' }) : "Today";
+
+        const bulletsHtml = (item.reasoning_bullets || []).map(b => `<li style="margin-bottom:2px;">${escapeHTML(b)}</li>`).join("");
+
+        const isProactive = item.message_type === "proactive";
+        const typeBadge = isProactive
+          ? `<span style="background:rgba(239, 68, 68, 0.15); color:#EF4444; font-size:9px; font-weight:700; padding:1px 5px; border-radius:4px; border:1px solid rgba(239, 68, 68, 0.3);">🚨 ALERT</span>`
+          : `<span style="background:rgba(59, 130, 246, 0.12); color:#3B82F6; font-size:9px; font-weight:600; padding:1px 5px; border-radius:4px;">DAILY</span>`;
+
+        card.innerHTML = `
+          <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:4px;">
+            <div style="display:flex; align-items:center; gap:6px;">
+              <span style="font-weight:700; font-size:12px; color:var(--text-primary);">${escapeHTML(dateFormatted)} • ${escapeHTML(timeFormatted)}</span>
+              ${typeBadge}
+              <span style="font-size:11px; color:var(--text-secondary);">(${escapeHTML(item.role)})</span>
+            </div>
+            <span style="background:${riskColor}20; color:${riskColor}; font-size:10px; font-weight:700; padding:2px 6px; border-radius:8px; border:1px solid ${riskColor}40;">
+              ${escapeHTML(item.risk_level)}
+            </span>
+          </div>
+          <div style="font-size:12px; color:var(--text-primary); line-height:1.3; overflow:hidden; text-overflow:ellipsis; display:-webkit-box; -webkit-line-clamp:2; -webkit-box-orient:vertical;">
+            ${escapeHTML(item.message_text)}
+          </div>
+          <div class="briefing-card-details hidden" style="margin-top:8px; padding-top:8px; border-top:1px dashed var(--border-color); font-size:11px; color:var(--text-secondary); display:flex; flex-direction:column; gap:4px;">
+            <div><strong>Location:</strong> ${escapeHTML(item.location_name)} | <strong>Chars:</strong> ${item.character_count}</div>
+            <div><strong>Delivery Status:</strong> <span style="color:#1D4ED8; font-weight:600;">${escapeHTML(item.delivery_status)}</span> | <strong>Type:</strong> ${escapeHTML(item.message_type || "daily")}</div>
+            ${item.event_fingerprint ? `<div><strong>Event Fingerprint:</strong> <code style="font-size:10px; font-family:monospace; background:rgba(0,0,0,0.06); padding:1px 4px; border-radius:3px;">${escapeHTML(item.event_fingerprint.slice(0, 16))}...</code></div>` : ""}
+            <div><strong>Freshness:</strong> ${escapeHTML(item.data_freshness)}</div>
+            ${bulletsHtml ? `<div style="margin-top:4px;"><strong>Why did I get this:</strong><ul style="margin:2px 0 0 16px; padding:0;">${bulletsHtml}</ul></div>` : ""}
+          </div>
+        `;
+
+        card.addEventListener("click", () => {
+          const details = card.querySelector(".briefing-card-details");
+          if (details) {
+            details.classList.toggle("hidden");
+          }
+        });
+
+        container.appendChild(card);
+      });
+    } catch (err) {
+      console.warn("Could not load briefing history:", err);
+    }
+  }
+  window.loadBriefingHistoryUI = loadBriefingHistoryUI;
 
   // 8. Settings Language Selection Handler
   const langSelect = document.getElementById("langSelect");
@@ -3478,14 +3692,14 @@ function renderWeatherCard(data) {
     if (data.cached && data.cached_at) {
       const cachedTimeStr = data.cached_at.split("T")[1]?.slice(0, 5) || "Recent";
       const minutesAgo = Math.max(0, Math.round((Date.now() - new Date(data.cached_at).getTime()) / 60000));
-      obsElem.textContent = `${locCached} ${minutesAgo}m ago (${cachedTimeStr} UTC) • ${locObs}: ${obsTimeStr} UTC`;
+      obsElem.textContent = `${locCached} ${formatMinutesAgo(minutesAgo)} (${cachedTimeStr} UTC) • ${locObs}: ${obsTimeStr} UTC`;
     } else if (data.retrieved_at && data.observed_at) {
       try {
         const obsMs = new Date(data.observed_at).getTime();
         const retMs = new Date(data.retrieved_at).getTime();
         const diffMin = Math.max(0, Math.round((retMs - obsMs) / 60000));
         obsElem.textContent = diffMin > 0
-          ? `${locObs} ${obsTimeStr} UTC (${diffMin}m ago)`
+          ? `${locObs} ${obsTimeStr} UTC (${formatMinutesAgo(diffMin)})`
           : `${locObs} ${obsTimeStr} UTC`;
       } catch (e) {
         obsElem.textContent = `${locObs} ${obsTimeStr} UTC`;
@@ -4100,8 +4314,14 @@ async function loadAlerts(location, lat = null, lon = null) {
         if (descElem) descElem.textContent = heroAlert.description || "No description provided.";
         const areaElem = document.getElementById("alertAffectedArea");
         if (areaElem) areaElem.textContent = heroAlert.area || heroAlert.district || location;
+        const isHeroImd = Boolean(
+          heroAlert.source &&
+          typeof heroAlert.source === "string" &&
+          heroAlert.source.includes("IMD Official (Live)")
+        );
         if (badgeText) {
-          badgeText.textContent = `OFFICIAL IMD WARNING (${severityStr})`;
+          const badgePrefix = isHeroImd ? "OFFICIAL IMD WARNING" : "OFFICIAL WEATHER WARNING";
+          badgeText.textContent = `${badgePrefix} (${severityStr})`;
         }
         if (badge) badge.className = `alert-badge ${heroAlert.severity || 'high'}`;
         if (timeElem) {
@@ -4109,7 +4329,7 @@ async function loadAlerts(location, lat = null, lon = null) {
           timeElem.textContent = expStr;
         }
         if (sourceElem) {
-          sourceElem.textContent = `Authoritative Source: ${heroAlert.source || 'IMD Official'}`;
+          sourceElem.textContent = `Authoritative Source: ${heroAlert.source || (isHeroImd ? 'IMD Official (Live)' : 'OpenWeather')}`;
         }
         banner.classList.remove("hidden");
       }
@@ -4152,14 +4372,33 @@ function renderAlertsList(alerts) {
   if (!disasterList) return;
   disasterList.innerHTML = "";
 
+  const lang = window.I18N?.currentLanguage || localStorage.getItem("skyzen_lang") || "en";
+  const isTa = lang === 'ta';
+  const isHi = lang === 'hi';
+  const isMr = lang === 'mr';
+  const isTe = lang === 'te';
+
   if (!alerts || alerts.length === 0) {
+    let clearTitle = "All Clear Across All Regions";
+    let clearDesc = "No active severe weather warnings currently declared in the official system. When official warnings are declared by developers, they will appear here globally.";
+    if (isTa) {
+      clearTitle = "அனைத்து பகுதிகளிலும் எச்சரிக்கைகள் ஏதுமில்லை";
+      clearDesc = "அதிகாரப்பூர்வ அமைப்பில் தற்போது தீவிர வானிலை எச்சரிக்கைகள் எதுவும் செயலில் இல்லை. டெவலப்பர்களால் அறிவிக்கப்படும் போது அவை இங்கே தோன்றும்.";
+    } else if (isHi) {
+      clearTitle = "सभी क्षेत्रों में कोई चेतावनी नहीं";
+      clearDesc = "आधिकारिक प्रणाली में वर्तमान में कोई गंभीर मौसम चेतावनी सक्रिय नहीं है। जब डेवलपर्स द्वारा घोषणा की जाएगी, तो वे यहां दिखाई देंगी।";
+    } else if (isMr) {
+      clearTitle = "सर्व क्षेत्रांमध्ये कोणतीही चेतावणी नाही";
+      clearDesc = "अधिकृत प्रणालीमध्ये सध्या कोणतीही गंभीर हवामान चेतावणी सक्रिय नाही. विकसकांद्वारे घोषणा केल्यावर त्या येथे दिसतील.";
+    } else if (isTe) {
+      clearTitle = "అన్ని ప్రాంతాలలో ఎలాంటి హెచ్చరికలు లేవు";
+      clearDesc = "అధికారిక వ్యవస్థలో ప్రస్తుతం ఎలాంటి తీవ్రమైన వాతావరణ హెచ్చరికలు క్రియాశీలంగా లేవు. డెవలపర్లు ప్రకటించినప్పుడు అవి ఇక్కడ కనిపిస్తాయి.";
+    }
     disasterList.innerHTML = `
-      <div style="text-align:center; padding:48px 16px; display:flex; flex-direction:column; align-items:center; gap:10px;">
-        <span class="material-symbols-rounded icon-xl" style="color:var(--success-green); font-size:48px;">verified_user</span>
-        <strong style="font-size:16px; color:var(--text-primary);">All Clear Across All Regions</strong>
-        <p style="font-size:13px; color:var(--text-secondary); max-width:440px; margin:0 auto; line-height:1.5;">
-          No active severe weather warnings currently declared in the official system. When official warnings are declared by developers, they will appear here globally.
-        </p>
+      <div class="empty-state">
+        <span class="empty-icon" aria-hidden="true">&#9989;</span>
+        <div class="empty-title">${clearTitle}</div>
+        <p class="empty-desc">${clearDesc}</p>
       </div>
     `;
     return;
@@ -4181,25 +4420,41 @@ function renderAlertsList(alerts) {
     item.className = `disaster-item severity-${normalizedSev} ${a.severity || 'high'}`;
 
     let validityStr = "";
+    const untilWord = isTa ? "வரை" : isHi ? "तक" : isMr ? "पर्यंत" : isTe ? "వరకు" : "Until";
+    const toWord = isTa ? "முதல்" : isHi ? "से" : isMr ? "ते" : isTe ? "నుండి" : "to";
     if (a.valid_from && a.expires_at) {
       try {
         const vf = new Date(a.valid_from).toLocaleString();
         const exp = new Date(a.expires_at).toLocaleString();
-        validityStr = `${vf} to ${exp}`;
+        validityStr = `${vf} ${toWord} ${exp}`;
       } catch (e) {
-        validityStr = `${a.valid_from} to ${a.expires_at}`;
+        validityStr = `${a.valid_from} ${toWord} ${a.expires_at}`;
       }
     } else if (a.expires_at) {
       try {
-        validityStr = `Until ${new Date(a.expires_at).toLocaleString()}`;
+        validityStr = `${untilWord} ${new Date(a.expires_at).toLocaleString()}`;
       } catch (e) {
-        validityStr = `Until ${a.expires_at}`;
+        validityStr = `${untilWord} ${a.expires_at}`;
       }
     }
 
-    const areaName = a.area || (a.affected_locations && a.affected_locations.length > 0 ? a.affected_locations.join(", ") : "Regional");
+    const areaName = a.area || (a.affected_locations && a.affected_locations.length > 0 ? a.affected_locations.join(", ") : (isTa ? "பிராந்தியம்" : isHi ? "क्षेत्रीय" : isMr ? "प्रादेशिक" : isTe ? "ప్రాంతీయ" : "Regional"));
     const instructions = a.instructions || "";
-    const sevLabel = (a.severity || 'WARNING').toUpperCase();
+    const rawSevLabel = (a.severity || 'WARNING').toUpperCase();
+    const sevLabel = window.I18N?.localizeDynamic ? window.I18N.localizeDynamic(rawSevLabel) : rawSevLabel;
+    const isImdLive = Boolean(
+      a.source &&
+      typeof a.source === "string" &&
+      a.source.includes("IMD Official (Live)")
+    );
+    const badgeTextKey = isImdLive ? "OFFICIAL IMD WARNING" : "OFFICIAL WEATHER WARNING";
+    const dynamicBadgeLabel = window.I18N?.localizeDynamic ? window.I18N.localizeDynamic(badgeTextKey) : badgeTextKey;
+    const defaultAuthSource = isImdLive ? 'IMD Official (Live)' : 'OpenWeather Warning';
+    const bulletinUrl = isImdLive ? 'https://mausam.imd.gov.in' : 'https://openweathermap.org';
+    const validityLabel = isTa ? "செல்லுபடியாகும் நேரம்:" : isHi ? "मान्य समय:" : isMr ? "पर्यंत वैध:" : isTe ? "వరకు చెల్లుబాటు:" : "Validity:";
+    const safetyLabel = isTa ? "அதிகாரப்பூர்வ பாதுகாப்பு வழிமுறைகள்:" : isHi ? "ஆधिकारिक सुरक्षा निर्देश:" : isMr ? "अधिकृत सुरक्षा सूचना:" : isTe ? "అధికారిక భద్రతా సూచనలు:" : "Official Safety Instructions:";
+    const authLabel = isTa ? "அதிகாரம்:" : isHi ? "प्राधिकरण:" : isMr ? "प्राधिकरण:" : isTe ? "ప్రాధికార సంస్థ:" : "Authority:";
+    const bulletinLabel = isTa ? "அதிகாரப்பூர்வ புல்லட்டின்" : isHi ? "आधिकारिक बुलेटिन" : isMr ? "अधिकृत बुलेटिन" : isTe ? "అధికారిక బులెటిన్" : "Official Bulletin";
 
     item.innerHTML = `
       <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; flex-wrap:wrap; gap:6px;">
@@ -4208,22 +4463,22 @@ function renderAlertsList(alerts) {
             <span class="material-symbols-rounded icon-xs" style="font-size:14px;">location_on</span>
             ${escapeHTML(areaName)}
           </span>
-          <span class="official-imd-badge" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:inherit; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.3); padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
+          <span class="${isImdLive ? 'official-imd-badge' : 'official-weather-badge'}" style="display:inline-flex; align-items:center; gap:4px; font-weight:700; font-size:10px; color:inherit; background:rgba(255,255,255,0.18); border:1px solid rgba(255,255,255,0.3); padding:2px 8px; border-radius:4px; letter-spacing:0.5px;">
             <span class="material-symbols-rounded icon-sm" style="font-size:14px;">verified</span>
-            OFFICIAL IMD WARNING
+            ${dynamicBadgeLabel}
           </span>
         </div>
         <span class="alert-badge severity-${normalizedSev} ${a.severity || 'high'}" style="font-size:10px; font-weight:700;">${sevLabel}</span>
       </div>
 
-      <strong style="font-size:16px; color:var(--text-primary); display:block; margin-bottom:4px;">${escapeHTML(a.title)}</strong>
-      <p style="font-size:13px; color:var(--text-secondary); margin:0 0 10px 0; line-height:1.5;">${escapeHTML(a.description)}</p>
+      <strong style="font-size:16px; color:var(--text-primary); display:block; margin-bottom:4px;">${escapeHTML(window.I18N?.localizeDynamic ? window.I18N.localizeDynamic(a.title) : a.title)}</strong>
+      <p style="font-size:13px; color:var(--text-secondary); margin:0 0 10px 0; line-height:1.5;">${escapeHTML(window.I18N?.localizeDynamic ? window.I18N.localizeDynamic(a.description) : a.description)}</p>
 
       <div style="display:flex; flex-direction:column; gap:4px; margin-top:8px; font-size:12px; color:var(--text-secondary);">
         ${validityStr ? `
         <div style="display:flex; align-items:center; gap:6px;">
           <span class="material-symbols-rounded icon-sm" style="color:var(--primary-blue, #3b82f6); font-size:16px;">schedule</span>
-          <span><strong>Validity:</strong> ${escapeHTML(validityStr)}</span>
+          <span><strong>${validityLabel}</strong> ${escapeHTML(validityStr)}</span>
         </div>` : ''}
       </div>
 
@@ -4231,15 +4486,15 @@ function renderAlertsList(alerts) {
       <div class="official-instructions" style="background:rgba(239, 68, 68, 0.08); border-left:3px solid var(--alert-red, #ef4444); padding:10px 12px; margin-top:10px; border-radius:4px;">
         <strong style="font-size:12px; color:var(--text-primary); display:flex; align-items:center; gap:4px;">
           <span class="material-symbols-rounded icon-sm" style="font-size:16px; color:var(--alert-red, #ef4444);">emergency</span>
-          Official Safety Instructions:
+          ${safetyLabel}
         </strong>
-        <p style="font-size:12px; margin:4px 0 0 0; color:var(--text-primary); line-height:1.4;">${escapeHTML(instructions)}</p>
+        <p style="font-size:12px; margin:4px 0 0 0; color:var(--text-primary); line-height:1.4;">${escapeHTML(window.I18N?.localizeDynamic ? window.I18N.localizeDynamic(instructions) : instructions)}</p>
       </div>` : ''}
 
       <div style="display:flex; justify-content:space-between; align-items:center; margin-top:10px; font-size:11px; color:var(--text-muted); border-top:1px solid var(--glass-border); padding-top:8px;">
-        <span>Authority: <strong>${escapeHTML(a.source || 'IMD Official (Developer Declared)')}</strong></span>
-        <a href="https://mausam.imd.gov.in" target="_blank" rel="noopener noreferrer" style="color:var(--primary-blue); text-decoration:none; display:inline-flex; align-items:center; gap:2px;">
-          <span class="material-symbols-rounded icon-sm" style="font-size:14px;">open_in_new</span>Official Bulletin
+        <span>${authLabel} <strong>${escapeHTML(window.I18N?.localizeDynamic ? window.I18N.localizeDynamic(a.source || defaultAuthSource) : (a.source || defaultAuthSource))}</strong></span>
+        <a href="${bulletinUrl}" target="_blank" rel="noopener noreferrer" style="color:var(--primary-blue); text-decoration:none; display:inline-flex; align-items:center; gap:2px;">
+          <span class="material-symbols-rounded icon-sm" style="font-size:14px;">open_in_new</span>${bulletinLabel}
         </a>
       </div>
     `;
@@ -4836,12 +5091,12 @@ function appendBotMessage(data) {
 
   bubble.innerHTML = `
     <div class="msg-author">
-      <span style="display:flex; align-items:center; gap:6px;">
+      <span class="msg-author-left">
         <span class="material-symbols-rounded icon-sm">verified_user</span>
         <span>SkyZen Reasoning Engine ${hazardBadgeHtml}</span>
       </span>
-      <div style="display:flex; align-items:center; gap:6px;">
-        <button class="speech-btn" onclick="toggleSpeakMessage(this, '${escapeHTML(data.answer || '')}', '${escapeHTML(data.language || currentLanguage)}')" title="Listen to weather advisory" aria-label="Listen to weather advisory">
+      <div class="msg-author-right">
+        <button type="button" class="speech-btn" title="Listen to weather advisory" aria-label="Listen to weather advisory">
           <span class="material-symbols-rounded icon-xs">volume_up</span>
           <span>Listen</span>
         </button>
@@ -4913,6 +5168,19 @@ function appendBotMessage(data) {
       </div>
     </div>
   `;
+
+  const speechBtn = bubble.querySelector(".speech-btn");
+  if (speechBtn) {
+    const speechAnswer = String(data.answer || "");
+    const speechLang = String(data.language || currentLanguage || "en");
+    speechBtn.setAttribute("data-speech-text", speechAnswer);
+    speechBtn.setAttribute("data-speech-lang", speechLang);
+    speechBtn.addEventListener("click", function(e) {
+      e.preventDefault();
+      e.stopPropagation();
+      window.toggleSpeakMessage(this, speechAnswer, speechLang);
+    });
+  }
 
   history.appendChild(bubble);
   history.scrollTop = history.scrollHeight;
@@ -5010,12 +5278,15 @@ if ('speechSynthesis' in window) {
  */
 function getVoiceLanguageDisplayName(cat) {
   const curLang = (window.I18N && window.I18N.currentLanguage) || "en";
-  if (curLang === "ta") {
-    return cat === "ta" ? "தமிழ்" : (cat === "hi" ? "இந்தி" : "ஆங்கிலம்");
-  } else if (curLang === "hi") {
-    return cat === "ta" ? "तमिल" : (cat === "hi" ? "हिंदी" : "अंग्रेज़ी");
-  }
-  return cat === "ta" ? "Tamil" : (cat === "hi" ? "Hindi" : "English");
+  const names = {
+    en: { en: "English", ta: "Tamil", hi: "Hindi", mr: "Marathi", te: "Telugu" },
+    ta: { en: "ஆங்கிலம்", ta: "தமிழ்", hi: "இந்தி", mr: "மராத்தி", te: "தெலுங்கு" },
+    hi: { en: "अंग्रेज़ी", ta: "तमिल", hi: "हिंदी", mr: "मराठी", te: "तेलुगू" },
+    mr: { en: "इंग्रजी", ta: "तमिळ", hi: "हिंदी", mr: "मराठी", te: "तेलगू" },
+    te: { en: "ఇంగ్లీష్", ta: "తమిళం", hi: "హిందీ", mr: "మరాఠీ", te: "తెలుగు" }
+  };
+  const dict = names[curLang] || names.en;
+  return dict[cat] || names.en[cat] || cat;
 }
 
 function selectBestVoice(targetLang = "en") {
@@ -5029,9 +5300,23 @@ function selectBestVoice(targetLang = "en") {
     langCategory = "ta";
   } else if (t === "hi" || t === "hinglish" || t.startsWith("hi")) {
     langCategory = "hi";
+  } else if (t === "mr" || t.startsWith("mr")) {
+    langCategory = "mr";
+  } else if (t === "te" || t.startsWith("te")) {
+    langCategory = "te";
   }
 
   if (!voices || voices.length === 0) {
+    if (langCategory === "en") {
+      return {
+        voice: null,
+        isAvailable: true,
+        isNative: false,
+        langCode: "en-IN",
+        targetLang: "en",
+        languageName: getVoiceLanguageDisplayName("en")
+      };
+    }
     return {
       voice: null,
       isAvailable: false,
@@ -5113,6 +5398,72 @@ function selectBestVoice(targetLang = "en") {
     };
   }
 
+  if (langCategory === "mr") {
+    // Marathi selection: mr-IN match, preferring localService
+    const mrCandidates = voices.filter(v => {
+      if (!v.lang) return false;
+      const l = v.lang.toLowerCase().replace('_', '-');
+      const name = (v.name || "").toLowerCase();
+      return l === 'mr-in' || l.startsWith('mr-') || l === 'mr' || name.includes('marathi') || name.includes('मराठी');
+    });
+
+    if (mrCandidates.length > 0) {
+      const nativeVoice = mrCandidates.find(v => v.localService === true);
+      const chosen = nativeVoice || mrCandidates[0];
+      return {
+        voice: chosen,
+        isAvailable: true,
+        isNative: chosen.localService === true,
+        langCode: chosen.lang || "mr-IN",
+        targetLang: "mr",
+        languageName: getVoiceLanguageDisplayName("mr")
+      };
+    }
+
+    return {
+      voice: null,
+      isAvailable: false,
+      isNative: false,
+      langCode: "mr-IN",
+      targetLang: "mr",
+      languageName: getVoiceLanguageDisplayName("mr"),
+      reason: "No Marathi (mr-IN) voice found in device speech synthesis engine."
+    };
+  }
+
+  if (langCategory === "te") {
+    // Telugu selection: te-IN match, preferring localService
+    const teCandidates = voices.filter(v => {
+      if (!v.lang) return false;
+      const l = v.lang.toLowerCase().replace('_', '-');
+      const name = (v.name || "").toLowerCase();
+      return l === 'te-in' || l.startsWith('te-') || l === 'te' || name.includes('telugu') || name.includes('తెలుగు');
+    });
+
+    if (teCandidates.length > 0) {
+      const nativeVoice = teCandidates.find(v => v.localService === true);
+      const chosen = nativeVoice || teCandidates[0];
+      return {
+        voice: chosen,
+        isAvailable: true,
+        isNative: chosen.localService === true,
+        langCode: chosen.lang || "te-IN",
+        targetLang: "te",
+        languageName: getVoiceLanguageDisplayName("te")
+      };
+    }
+
+    return {
+      voice: null,
+      isAvailable: false,
+      isNative: false,
+      langCode: "te-IN",
+      targetLang: "te",
+      languageName: getVoiceLanguageDisplayName("te"),
+      reason: "No Telugu (te-IN) voice found in device speech synthesis engine."
+    };
+  }
+
   // English selection: en-IN preferred, then en-GB, en-US, preserving native localService
   const enCandidates = voices.filter(v => v.lang && v.lang.toLowerCase().startsWith("en"));
   const enInLocal = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-') === 'en-in' && v.localService === true);
@@ -5120,12 +5471,12 @@ function selectBestVoice(targetLang = "en") {
   const enGbLocal = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-gb') && v.localService === true);
   const enGbAny = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-gb'));
   const enUsLocal = enCandidates.find(v => v.lang.toLowerCase().replace('_', '-').startsWith('en-us') && v.localService === true);
-  const enDefault = enCandidates.find(v => v.default) || enCandidates[0] || voices[0];
+  const enDefault = enCandidates.find(v => v.default) || enCandidates[0] || voices[0] || null;
 
-  const chosenEn = enInLocal || enInAny || enGbLocal || enGbAny || enUsLocal || enDefault;
+  const chosenEn = enInLocal || enInAny || enGbLocal || enGbAny || enUsLocal || enDefault || null;
   return {
     voice: chosenEn,
-    isAvailable: Boolean(chosenEn),
+    isAvailable: true,
     isNative: chosenEn ? chosenEn.localService === true : false,
     langCode: (chosenEn && chosenEn.lang) ? chosenEn.lang : "en-IN",
     targetLang: "en",
@@ -5154,9 +5505,11 @@ function extractConciseSpeech(text, targetLang) {
   clean = clean.replace(/https?:\/\/\S+|www\.\S+/gi, "");
 
   // 4. Remove parenthetical telemetry, source metadata, timestamps, and model tags
-  clean = clean.replace(/\([^)]*?(?:Source|Updated|Observed|Forecast Consistency|Confidence|Risk|தகவல் மூலம்|மூலம்|स्रोत|AQI|PM2|PM10|Open-Meteo|CAMS|IMD)[^)]*?\)/gi, "");
+  clean = clean.replace(/\([^)]*?(?:Source|Updated|Observed|Forecast Consistency|Confidence|Risk|தகவல் மூலம்|மூலம்|स्रोत|माहिती स्त्रोत|स्त्रोत|సమాచార మూలం|మూలం|AQI|PM2|PM10|Open-Meteo|CAMS|IMD)[^)]*?\)/gi, "");
   clean = clean.replace(/\(தகவல் மூலம்:[^)]*?\)/gi, "");
   clean = clean.replace(/\(स्रोत:[^)]*?\)/gi, "");
+  clean = clean.replace(/\(स्त्रोत:[^)]*?\)/gi, "");
+  clean = clean.replace(/\(మూలం:[^)]*?\)/gi, "");
 
   // 5. Remove technical status brackets e.g. [OFFICIAL IMD WARNING], [HIGH RISK]
   clean = clean.replace(/\[[^\]]*?\]/g, "");
@@ -5187,7 +5540,7 @@ function extractConciseSpeech(text, targetLang) {
   // 12. Filter out technical boilerplate lines
   const lines = clean.split("\n").map(s => s.trim()).filter(Boolean);
   const selected = [];
-  const hasWarning = lines.some(l => /warning|alert|எச்சரிக்கை|चेतावनी/i.test(l));
+  const hasWarning = lines.some(l => /warning|alert|எச்சரிக்கை|चेतावनी|इशारा|चेतावणी|హెచ్చరిక/i.test(l));
 
   for (const line of lines) {
     if (/forecast consistency|data confidence indicator|historical records reflect|does not fabricate|air quality model|cpcb ground monitoring/i.test(line)) {
@@ -5225,6 +5578,10 @@ function handleVoiceClick() {
     speechLang = "hi-IN";
   } else if (curLang === "ta" || curLang === "tanglish" || persona === "farmer" || persona === "fisherman") {
     speechLang = "ta-IN";
+  } else if (curLang === "mr" || curLang.startsWith("mr")) {
+    speechLang = "mr-IN";
+  } else if (curLang === "te" || curLang.startsWith("te")) {
+    speechLang = "te-IN";
   }
   recognition.lang = speechLang;
   recognition.interimResults = false;
@@ -5236,7 +5593,7 @@ function handleVoiceClick() {
     voiceBtn.innerHTML = '<span class="material-symbols-rounded" style="color:var(--alert-red);">graphic_eq</span>';
   }
 
-  const langLabel = speechLang.startsWith("ta") ? "Tamil" : (speechLang.startsWith("hi") ? "Hindi" : "English");
+  const langLabel = speechLang.startsWith("ta") ? "Tamil" : (speechLang.startsWith("hi") ? "Hindi" : (speechLang.startsWith("mr") ? "Marathi" : (speechLang.startsWith("te") ? "Telugu" : "English")));
   showMobileNotice(`Microphone listening (${langLabel})... Speak your weather query clearly.`, "info", 3000);
 
   try {
@@ -5354,6 +5711,24 @@ function resolveNativeTTSLanguage(lang) {
       fallbackCode: "hi",
       name: "Hindi",
       unsupportedMsg: "Hindi voice not available on this device."
+    };
+  }
+  if (target === "mr" || target.startsWith("mr")) {
+    return {
+      category: "mr",
+      code: "mr-IN",
+      fallbackCode: "mr",
+      name: "Marathi",
+      unsupportedMsg: "Marathi voice not available on this device."
+    };
+  }
+  if (target === "te" || target.startsWith("te")) {
+    return {
+      category: "te",
+      code: "te-IN",
+      fallbackCode: "te",
+      name: "Telugu",
+      unsupportedMsg: "Telugu voice not available on this device."
     };
   }
   return {
@@ -5495,21 +5870,28 @@ function speakText(text, lang) {
     return false;
   }
 
-  window.speechSynthesis.cancel();
+  try {
+    window.speechSynthesis.cancel();
+  } catch (e) {}
+
   const target = String(lang || currentLanguage || "en").toLowerCase().trim();
   const concise = extractConciseSpeech(text, target);
   if (!concise) return false;
 
   const voiceResult = selectBestVoice(target);
 
-  // Requirements 5 & 11: Never use browser default voice blindly; report unavailability clearly
-  if (!voiceResult.isAvailable || !voiceResult.voice) {
+  // Requirements 5 & 11: Never use browser default voice blindly for regional languages (Tamil/Hindi); report unavailability clearly
+  if (!voiceResult.isAvailable || (!voiceResult.voice && voiceResult.targetLang !== "en")) {
     const curLang = (window.I18N && window.I18N.currentLanguage) || "en";
     let msg = `Voice Notice: ${voiceResult.languageName} (${voiceResult.langCode}) voice is not installed on this device. Install speech data in Android Settings -> Accessibility -> Text-to-Speech.`;
     if (curLang === "ta") {
       msg = `குரல் அறிவிப்பு: ${voiceResult.languageName} (${voiceResult.langCode}) குரல் இந்த சாதனத்தில் நிறுவப்படவில்லை. ஆண்ட்ராய்டு அமைப்புகளில் பேச்சுத் தரவை நிறுவவும்.`;
     } else if (curLang === "hi") {
       msg = `आवाज़ सूचना: ${voiceResult.languageName} (${voiceResult.langCode}) आवाज़ इस डिवाइस पर इंस्टॉल नहीं है। एंड्रॉइड सेटिंग्स में स्पीच डेटा इंस्टॉल करें।`;
+    } else if (curLang === "mr") {
+      msg = `आवाज सूचना: ${voiceResult.languageName} (${voiceResult.langCode}) आवाज या डिव्हाइसवर स्थापित नाही. अँड्रॉइड सेटिंग्जमध्ये स्पीच डेटा स्थापित करा.`;
+    } else if (curLang === "te") {
+      msg = `వాయిస్ నోటీస్: ${voiceResult.languageName} (${voiceResult.langCode}) వాయిస్ ఈ పరికరంలో ఇన్‌స్టాల్ చేయబడలేదు. ఆండ్రాయిడ్ సెట్టింగ్‌లలో స్పీచ్ డేటాను ఇన్‌స్టాల్ చేయండి.`;
     }
     console.warn("[SkyZen TTS Voice Unavailable]", { target, voiceResult, text: concise });
     showMobileNotice(msg, "warning", 6500);
@@ -5517,14 +5899,23 @@ function speakText(text, lang) {
   }
 
   const utterance = new SpeechSynthesisUtterance(concise);
-  utterance.voice = voiceResult.voice;
-  utterance.lang = voiceResult.voice.lang || voiceResult.langCode;
+  if (voiceResult.voice) {
+    utterance.voice = voiceResult.voice;
+    utterance.lang = voiceResult.voice.lang || voiceResult.langCode;
+  } else {
+    utterance.lang = voiceResult.langCode || "en-US";
+  }
   utterance.rate = 0.95;
   utterance.pitch = 1.0;
 
-  console.info(`[SkyZen TTS] Playing speech via Web Speech API: "${concise}" | Voice: ${voiceResult.voice.name} (${utterance.lang}) | Native: ${voiceResult.isNative}`);
+  console.info(`[SkyZen TTS] Playing speech via Web Speech API: "${concise}" | Voice: ${voiceResult.voice ? voiceResult.voice.name : 'System Default'} (${utterance.lang})`);
+
+  if (window.speechSynthesis.paused) {
+    try { window.speechSynthesis.resume(); } catch (e) {}
+  }
 
   activeSpeechUtterance = utterance;
+  window.activeSpeechUtterance = utterance;
   window.speechSynthesis.speak(utterance);
   return true;
 }
@@ -5577,13 +5968,16 @@ window.testSkyZenNativeTTS = async function(targetLang, testPhrase) {
 };
 
 window.toggleSpeakMessage = async function(btn, text, lang) {
+  const targetText = text || (btn && (btn.getAttribute("data-speech-text") || btn.closest(".bot-msg")?.querySelector(".bot-answer-text")?.textContent)) || "";
+  const targetLang = lang || (btn && btn.getAttribute("data-speech-lang")) || currentLanguage || "en";
+
   // 1. Native Android Platform (Capacitor Native TTS)
   if (isNativeCapacitorPlatform() && getNativeTTSPlugin()) {
     if (isNativeSpeaking) {
       await stopAllSpeech();
       return;
     }
-    await speakNativeTTS(text, lang, btn);
+    await speakNativeTTS(targetText, targetLang, btn);
     return;
   }
 
@@ -5598,23 +5992,36 @@ window.toggleSpeakMessage = async function(btn, text, lang) {
     return;
   }
 
-  btn.classList.add('speaking');
-  btn.innerHTML = '<span class="material-symbols-rounded icon-xs">stop_circle</span><span>Stop</span>';
-  const started = speakText(text, lang);
+  if (btn) {
+    btn.classList.add('speaking');
+    btn.innerHTML = '<span class="material-symbols-rounded icon-xs">stop_circle</span><span>Stop</span>';
+    activeSpeakingButton = btn;
+  }
+
+  const started = speakText(targetText, targetLang);
   if (!started) {
-    btn.classList.remove('speaking');
-    btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    if (btn) {
+      btn.classList.remove('speaking');
+      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+    }
+    activeSpeakingButton = null;
     return;
   }
 
   if (activeSpeechUtterance) {
     activeSpeechUtterance.onend = () => {
-      btn.classList.remove('speaking');
-      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+      if (btn) {
+        btn.classList.remove('speaking');
+        btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+      }
+      activeSpeakingButton = null;
     };
     activeSpeechUtterance.onerror = () => {
-      btn.classList.remove('speaking');
-      btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+      if (btn) {
+        btn.classList.remove('speaking');
+        btn.innerHTML = '<span class="material-symbols-rounded icon-xs">volume_up</span><span>Listen</span>';
+      }
+      activeSpeakingButton = null;
     };
   }
 };
@@ -5638,6 +6045,10 @@ window.resetConversationContext = function() {
     ? "உரையாடல் சூழல் மீட்டமைக்கப்பட்டது. புதிய நேரலை வானிலையுடன் தொடங்குகிறது."
     : (window.I18N && window.I18N.currentLanguage === "hi")
     ? "बातचीत का संदर्भ रीसेट कर दिया गया है। ताज़ा मौसम के साथ नई शुरुआत।"
+    : (window.I18N && window.I18N.currentLanguage === "mr")
+    ? "संभाषणाचा संदर्भ रीसेट केला आहे. थेट हवामानासह नवीन सुरुवात."
+    : (window.I18N && window.I18N.currentLanguage === "te")
+    ? "సంభాషణ సందర్భం రీసెట్ చేయబడింది. లైవ్ వాతావరణంతో తాజాగా ప్రారంభించండి."
     : "Conversation context reset. Starting fresh with verified live weather.";
   showMobileNotice(resetNotice, "info", 3000);
   const chatInput = document.getElementById("chatInput");
@@ -6447,6 +6858,10 @@ function renderMapSelectionCardError(lat, lon, knownName, err) {
         ? `${locName} க்கான வானிலை தொலைஅளவியலை ஏற்ற முடியவில்லை — இணைப்பை சரிபார்க்கவும்.`
         : (window.I18N && window.I18N.currentLanguage === 'hi')
         ? `${locName} के लिए मौसम टेलीमेट्री लोड नहीं हो सकी — कनेक्शन जांचें।`
+        : (window.I18N && window.I18N.currentLanguage === 'mr')
+        ? `${locName} साठी हवामान टेलिमेट्री लोड करता आली नाही — तुमचे इंटरनेट तपासा.`
+        : (window.I18N && window.I18N.currentLanguage === 'te')
+        ? `${locName} కోసం వాతావరణ టెలిమెట్రీ లోడ్ కాలేదు — మీ ఇంటర్నెట్ కనెక్షన్‌ని తనిఖీ చేయండి.`
         : `Couldn't load location weather telemetry for ${locName} — check your connection.`;
     }
     if (retryBtn) {
@@ -7434,12 +7849,16 @@ function formatRelativeTime(dateStr) {
     if (diffMin < 60) {
       if (lang === 'ta') return `${diffMin} நிமிடங்களுக்கு முன்`;
       if (lang === 'hi') return `${diffMin} मिनट पहले`;
+      if (lang === 'mr') return `${diffMin} मिनिटांपूर्वी`;
+      if (lang === 'te') return `${diffMin} నిమిషాల క్రితం`;
       return `${diffMin} min ago`;
     }
     const diffHr = Math.floor(diffMin / 60);
     if (diffHr < 24) {
       if (lang === 'ta') return `${diffHr} மணிநேரத்திற்கு முன்`;
       if (lang === 'hi') return `${diffHr} घंटे पहले`;
+      if (lang === 'mr') return `${diffHr} तासांपूर्वी`;
+      if (lang === 'te') return `${diffHr} గంటల క్రితం`;
       return `${diffHr}h ago`;
     }
     return d.toLocaleDateString();
@@ -8591,7 +9010,7 @@ function renderMinuteRainTimeline(data) {
   }
 
   if (peakText) {
-    const peakLabel = (window.I18N && window.I18N.currentLanguage === "ta") ? "அதிகபட்ச மழை அளவு" : (window.I18N && window.I18N.currentLanguage === "hi") ? "अधिकतम दर" : "Peak rate";
+    const peakLabel = (window.I18N && window.I18N.currentLanguage === "ta") ? "அதிகபட்ச மழை அளவு" : (window.I18N && window.I18N.currentLanguage === "hi") ? "अधिकतम दर" : (window.I18N && window.I18N.currentLanguage === "mr") ? "कमाल प्रमाण" : (window.I18N && window.I18N.currentLanguage === "te") ? "గరిష్ట రేటు" : "Peak rate";
     peakText.textContent = `${peakLabel}: ${peakRate.toFixed(1)} mm/hr`;
   }
 

@@ -120,6 +120,26 @@ class NotificationService:
                 parts.append(f"निर्देश: {instructions}")
             if valid_until:
                 parts.append(f"वैधता: {valid_until}")
+        elif lang == "mr":
+            header = f"⚠️ [{source_name}] {'अधिकृत ' if is_imd else ''}हवामान चेतावणी: {sev_upper}"
+            parts = [f"{title}"]
+            if area:
+                parts.append(f"प्रभावित क्षेत्र: {area}")
+            parts.append(f"{description}")
+            if instructions:
+                parts.append(f"सूचना: {instructions}")
+            if valid_until:
+                parts.append(f"वैधता: {valid_until}")
+        elif lang == "te":
+            header = f"⚠️ [{source_name}] {'అధికారిక ' if is_imd else ''}వాతావరణ హెచ్చరిక: {sev_upper}"
+            parts = [f"{title}"]
+            if area:
+                parts.append(f"ప్రాంతం: {area}")
+            parts.append(f"{description}")
+            if instructions:
+                parts.append(f"సూచనలు: {instructions}")
+            if valid_until:
+                parts.append(f"చెల్లుబాటు సమయం: {valid_until}")
         else:  # Default to English
             warning_title = "Official Warning - IMD Official Warning" if is_imd else "Weather Warning"
             header = f"⚠️ [{source_name}] {warning_title}: {sev_upper}"

@@ -21,13 +21,35 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
 
     clean = text.lower().strip()
 
-    # 0. Pure Greetings & General Social Conversation
+    # Meteorological keywords that must not be hijacked by conversational intents
+    weather_inquiry_tokens = [
+        "weather", "temperature", "temp", "rain", "raining", "rainy", "drizzle",
+        "wind", "humidity", "aqi", "air quality", "air-quality", "forecast", "climate",
+        "condition", "hot", "cold", "current", "cyclone", "storm", "cloudy", "sunny",
+        "today", "tomorrow", "tonight", "right now", "forecast", "should i", "can i",
+        "umbrella", "bike", "college", "commute", "travel", "fishing", "marine",
+        "chennai", "coimbatore", "delhi", "bangalore", "madurai", "mumbai", "salem", "trichy", "ooty", "kolkata", "hyderabad", "pune",
+        "வானிலை", "மழை", "வெப்பநிலை", "मौसम", "तापमान", "हवा"
+    ]
+
+    # 0. Pure Greetings
     if clean in [
         "hello", "hi", "hey", "vanakkam", "வணக்கம்", "namaste", "नमस्ते",
-        "good morning", "good evening", "good afternoon", "halo", "ola",
-        "how are you", "who are you", "who are u", "eppadi irukinga", "kaise ho"
+        "halo", "ola", "eppadi irukinga", "kaise ho"
     ]:
-        return IntentEnum.GENERAL_CONVERSATION, 0.98
+        return IntentEnum.GREETING, 0.98
+
+    # 0-conversational. Conversational Greetings & Social Chit-Chat
+    if any(k in clean for k in ["hello", "good morning", "good evening", "good afternoon", "how are you", "who are you", "how do you do"]) and not any(k in clean for k in weather_inquiry_tokens):
+        return IntentEnum.GENERAL_CONVERSATION, 0.95
+
+    # 0-general. Informational & Definitional Inquiries (strictly non-meteorological)
+    if clean.startswith((
+        "what is ", "what are ", "what is a ", "what is an ", "what's ", "whats ",
+        "define ", "definition of ", "how does ", "how do ", "why is the ",
+        "who wrote ", "who is ", "who was ", "tell me about ", "history of "
+    )) and not any(k in clean for k in weather_inquiry_tokens):
+        return IntentEnum.GENERAL_CONVERSATION, 0.95
 
     # 0a. Clarification Affirmation / Response
     if any(clean.startswith(k) or clean == k for k in [
@@ -36,8 +58,8 @@ def classify_intent(text: str) -> Tuple[IntentEnum, float]:
     ]):
         return IntentEnum.CLARIFICATION_RESPONSE, 0.95
 
-    # 0b. Ambiguous / Clarification Needed ("weather there?", "how is it there?")
-    if re.search(r"\b(weather\s+there|how\s+is\s+it\s+there|kaisa\s+hai\s+wahan|anga\s+epdi\s+iruku|there\?)\b", clean) and not any(
+    # 0b. Ambiguous / Clarification Needed ("weather there?", "how is it there?", "weather like there?")
+    if re.search(r"\b(weather\s+there|weather\s+like\s+there|how\s+is\s+it\s+there|kaisa\s+hai\s+wahan|anga\s+epdi\s+iruku|there\?)\b", clean) and not any(
         c in clean for c in ["chennai", "coimbatore", "delhi", "bangalore", "madurai", "mumbai", "salem", "trichy", "ooty"]
     ):
         return IntentEnum.CLARIFICATION_NEEDED, 0.95

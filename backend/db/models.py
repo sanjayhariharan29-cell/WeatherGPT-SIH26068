@@ -37,6 +37,7 @@ class User(Base):
     verification_token_expires = Column(DateTime(timezone=True), nullable=True)
     reset_token = Column(String(255), nullable=True)
     reset_token_expires = Column(DateTime(timezone=True), nullable=True)
+    phone_number = Column(String(20), nullable=True)
     created_at = Column(DateTime(timezone=True), default=utc_now)
 
     def __init__(self, **kwargs):
@@ -66,10 +67,19 @@ class User(Base):
     def preferred_language(self, value: str) -> None:
         self.language = value
 
+    @property
+    def mobile_number(self) -> str:
+        return self.phone_number or ""
+
+    @mobile_number.setter
+    def mobile_number(self, value: str) -> None:
+        self.phone_number = value
+
     preferences = relationship("UserPreference", back_populates="user", uselist=False, cascade="all, delete-orphan")
     conversations = relationship("Conversation", back_populates="user", cascade="all, delete-orphan")
     saved_locations = relationship("SavedLocation", back_populates="user", cascade="all, delete-orphan")
     device_tokens = relationship("DeviceToken", back_populates="user", cascade="all, delete-orphan")
+    briefing_delivery_logs = relationship("BriefingDeliveryLog", back_populates="user", cascade="all, delete-orphan")
 
 
 class RevokedToken(Base):
@@ -101,6 +111,10 @@ class UserPreference(Base):
     preferred_units = Column(String(20), default="metric")
     persona = Column(String(50), default="student")
     notification_enabled = Column(Boolean, default=True)
+    daily_sms_enabled = Column(Boolean, default=True)
+    professional_advisory_enabled = Column(Boolean, default=True)
+    severe_alerts_enabled = Column(Boolean, default=True)
+    briefing_time = Column(String(10), default="07:00")
     last_known_location = Column(String(100), nullable=True)
     last_latitude = Column(Float, nullable=True)
     last_longitude = Column(Float, nullable=True)
@@ -325,6 +339,35 @@ class AirQualityRecord(Base):
     o3 = Column(Float, nullable=True)
     dominant_pollutant = Column(String(20), nullable=True)
     raw_payload = Column(Text, nullable=True)
-
     uploader = relationship("User", foreign_keys=[uploaded_by_id])
+
+
+class BriefingDeliveryLog(Base):
+    """Stores generated personal briefing SMS history and delivery audit logs."""
+    __tablename__ = "briefing_delivery_logs"
+    __table_args__ = (
+        Index("idx_briefing_deliv_user_time", "user_id", "created_at"),
+        Index("idx_briefing_event_fp", "user_id", "event_fingerprint"),
+    )
+
+    id = Column(String(36), primary_key=True, default=generate_uuid)
+    user_id = Column(String(36), ForeignKey("users.id", ondelete="CASCADE"), nullable=False, index=True)
+    message_type = Column(String(20), default="daily", nullable=False)  # 'daily', 'proactive', 'manual_test'
+    event_fingerprint = Column(String(64), nullable=True, index=True)
+    location_name = Column(String(100), nullable=False)
+    role = Column(String(50), nullable=False)
+    phone_number = Column(String(20), nullable=True)
+    risk_level = Column(String(20), nullable=False)  # 'LOW', 'MODERATE', 'HIGH'
+    risk_status_label = Column(String(100), nullable=False)
+    delivery_status = Column(String(30), default="MOCK_SMS_DELIVERY", nullable=False)  # 'MOCK_SMS_DELIVERY', 'FAILED', 'SKIPPED'
+    data_source = Column(String(100), default="OpenWeather / Open-Meteo / IMD", nullable=False)
+    data_freshness = Column(String(20), default="fresh", nullable=False)
+    message_text = Column(Text, nullable=False)
+    character_count = Column(Integer, default=0, nullable=False)
+    reasoning_bullets = Column(Text, nullable=True)  # JSON-encoded array
+    error_reason = Column(String(255), nullable=True)
+    delivered_at = Column(DateTime(timezone=True), nullable=True)
+    created_at = Column(DateTime(timezone=True), default=utc_now)
+
+    user = relationship("User", back_populates="briefing_delivery_logs")
 

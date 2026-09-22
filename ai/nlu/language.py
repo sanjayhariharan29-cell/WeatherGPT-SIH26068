@@ -1,8 +1,8 @@
 """Language Detection Module for WeatherGPT.
 
 Accurately distinguishes between English, Tamil (Tamil script),
-Hindi (Devanagari script), Tanglish (Tamil transliteration),
-and Hinglish (Hindi transliteration).
+Telugu (Telugu script), Hindi (Devanagari script), Marathi (Devanagari script with Marathi markers),
+Tanglish (Tamil transliteration), and Hinglish (Hindi transliteration).
 """
 
 import re
@@ -31,40 +31,59 @@ HINGLISH_MARKERS = {
 # Postpositions common in Hindi Romanization: e.g. "Delhi mein", "Chennai ka", "baarish ki"
 HINDI_POSTPOSITIONS = re.compile(r"\b(?:mein|me|ka|ki|ke|ko|se)\b", re.IGNORECASE)
 
+# Marathi-distinct vocabulary / marker words in Devanagari (excluding common words shared with Hindi like 'आज')
+MARATHI_DEVANAGARI_MARKERS = {
+    "आहे", "आहेत", "नाही", "नाहीत", "पाऊस", "पावसाचा", "पावसाची", "हवामान", "हवामानाचा",
+    "कसा", "कशी", "कसे", "कुठे", "करावे", "सांगा", "होईल", "होणार", "पिकांची",
+    "उद्या", "शेतकरी", "सांग", "करायचे", "पडेल", "येईल"
+}
+
 
 def detect_language(text: str) -> LanguageEnum:
-    """Detects whether text is English, Tamil script, Hindi script, Tanglish, or Hinglish."""
+    """Detects whether text is English, Tamil, Telugu, Marathi, Hindi, Tanglish, or Hinglish."""
     if not text or not text.strip():
         return LanguageEnum.EN
 
-    # 1. Check for Tamil Unicode range (0x0B80 - 0x0BFF)
+    # 1. Check for Telugu Unicode range (0x0C00 - 0x0C7F)
+    telugu_chars = len(re.findall(r"[\u0C00-\u0C7F]", text))
+    if telugu_chars > 0:
+        return LanguageEnum.TE
+
+    # 2. Check for Tamil Unicode range (0x0B80 - 0x0BFF)
     tamil_chars = len(re.findall(r"[\u0B80-\u0BFF]", text))
     if tamil_chars > 0:
         return LanguageEnum.TA
 
-    # 2. Check for Hindi/Devanagari Unicode range (0x0900 - 0x097F)
-    hindi_chars = len(re.findall(r"[\u0900-\u097F]", text))
-    if hindi_chars > 0:
+    # 3. Check for Devanagari Unicode range (0x0900 - 0x097F)
+    devanagari_chars = len(re.findall(r"[\u0900-\u097F]", text))
+    if devanagari_chars > 0:
+        # Check for Marathi specific character: ळ (\u0933)
+        if "\u0933" in text:
+            return LanguageEnum.MR
+
+        # Check for Marathi words
+        words = set(re.findall(r"[\u0900-\u097F]+", text))
+        if words.intersection(MARATHI_DEVANAGARI_MARKERS):
+            return LanguageEnum.MR
+
         return LanguageEnum.HI
 
-    # 3. Analyze Latin script words
+    # 4. Analyze Latin script words for Tanglish or Hinglish
     clean_text = text.lower()
-    words = set(re.findall(r"\b[a-z]+\b", clean_text))
+    latin_words = set(re.findall(r"\b[a-z]+\b", clean_text))
 
-    tanglish_score = len(words.intersection(TANGLISH_MARKERS))
+    tanglish_score = len(latin_words.intersection(TANGLISH_MARKERS))
     if LOCATIVE_SUFFIX_PATTERN.search(clean_text):
         tanglish_score += 2
 
-    hinglish_score = len(words.intersection(HINGLISH_MARKERS))
+    hinglish_score = len(latin_words.intersection(HINGLISH_MARKERS))
     postposition_matches = [p.lower() for p in HINDI_POSTPOSITIONS.findall(clean_text)]
-    # Filter out false positive English pronoun 'me' when no other Hindi markers are present
     if postposition_matches:
         if postposition_matches == ["me"] and hinglish_score == 0:
             pass
         else:
             hinglish_score += len(postposition_matches)
 
-    # Determine predominant transliteration
     if tanglish_score > 0 and tanglish_score >= hinglish_score:
         return LanguageEnum.TANGLISH
     elif hinglish_score > 0 and hinglish_score > tanglish_score:

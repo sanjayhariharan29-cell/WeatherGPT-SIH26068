@@ -38,7 +38,9 @@ class GeminiLLMProvider(BaseLLMProvider):
         self.config = config or LLMConfig()
         self._model = None
         self.api_key = api_key or self.config.api_key or os.getenv("GEMINI_API_KEY") or os.getenv("GOOGLE_API_KEY")
-        self.model_name = model or self.config.model_name or "gemini-1.5-flash"
+        self.model_name = model or self.config.model_name or "gemini-3.6-flash"
+        if "1.5" in self.model_name or "2.5" in self.model_name:
+            self.model_name = "gemini-3.6-flash"
 
         if self.api_key:
             try:
@@ -196,8 +198,13 @@ class MockLLMProvider(BaseLLMProvider):
 
         # Deterministic grounded mock text generation for testing / offline
         import re
+        from ai.models import LanguageEnum
+        from ai.llm.multilingual import translate_condition
+
         sys_low = system_prompt.lower()
         usr_low = user_prompt.lower()
+
+        marathi_markers = ["पाऊस", "आहे", "नाही", "कसे", "कसा", "काय", "होईल", "कधी", "हवामान", "उद्या", "तापमान", "सांगा", "पडेल", "\u0933"]
 
         is_ta = (
             "target output language (ta)" in sys_low
@@ -206,12 +213,35 @@ class MockLLMProvider(BaseLLMProvider):
             or "detected language: ta" in usr_low
             or bool(re.search(r"[\u0B80-\u0BFF]", user_prompt))
         )
+        is_mr = (
+            "target output language (mr)" in sys_low
+            or "target_language=mr" in sys_low
+            or "output_language: mr" in usr_low
+            or "detected language: mr" in usr_low
+            or "language: mr" in sys_low or "language: mr" in usr_low
+            or "marathi" in sys_low or "marathi" in usr_low
+            or "मराठी" in user_prompt
+            or any(m in user_prompt for m in marathi_markers)
+        )
+        is_te = (
+            "target output language (te)" in sys_low
+            or "target_language=te" in sys_low
+            or "output_language: te" in usr_low
+            or "detected language: te" in usr_low
+            or "language: te" in sys_low or "language: te" in usr_low
+            or "telugu" in sys_low or "telugu" in usr_low
+            or bool(re.search(r"[\u0C00-\u0C7F]", user_prompt))
+        )
         is_hi = (
-            "target output language (hi)" in sys_low
-            or "target_language=hi" in sys_low
-            or "output_language: hi" in usr_low
-            or "detected language: hi" in usr_low
-            or bool(re.search(r"[\u0900-\u097F]", user_prompt))
+            not is_mr and (
+                "target output language (hi)" in sys_low
+                or "target_language=hi" in sys_low
+                or "output_language: hi" in usr_low
+                or "detected language: hi" in usr_low
+                or "language: hi" in sys_low or "language: hi" in usr_low
+                or "hindi" in sys_low or "hindi" in usr_low
+                or bool(re.search(r"[\u0900-\u097F]", user_prompt))
+            )
         )
 
         loc_match = re.search(r"Target Location:\s*([^\n\r]+)", user_prompt)
@@ -226,6 +256,14 @@ class MockLLMProvider(BaseLLMProvider):
 
         cond_match = re.search(r"Sky Condition:\s*([^\n\r]+)", user_prompt)
         cond = cond_match.group(1).strip() if cond_match else "Heavy Rain"
+        if is_ta:
+            cond = translate_condition(cond, LanguageEnum.TA)
+        elif is_hi:
+            cond = translate_condition(cond, LanguageEnum.HI)
+        elif is_mr:
+            cond = translate_condition(cond, LanguageEnum.MR)
+        elif is_te:
+            cond = translate_condition(cond, LanguageEnum.TE)
 
         src_match = re.search(r"Data Source:\s*([^\n\r]+)", user_prompt) or re.search(r"Source:\s*([^\n\r]+)", user_prompt)
         src = src_match.group(1).strip() if src_match else "IMD"
@@ -234,7 +272,19 @@ class MockLLMProvider(BaseLLMProvider):
         score = score_match.group(1).strip() if score_match else "85"
 
         adv_match = re.search(r"Advisory Guidance:\s*([^\n\r]+)", user_prompt) or re.search(r"Headline:\s*([^\n\r]+)", user_prompt)
-        adv_text = adv_match.group(1).strip() if adv_match else "Moderate rain expected. Commute with care."
+        if adv_match:
+            adv_text = adv_match.group(1).strip()
+        else:
+            if is_ta:
+                adv_text = "மிதமான மழை பெய்ய வாய்ப்புள்ளது. கவனமாக பயணிக்கவும்."
+            elif is_hi:
+                adv_text = "मध्यम बारिश की संभावना है। सावधानी से यात्रा करें।"
+            elif is_mr:
+                adv_text = "मध्यम पावसाची शक्यता आहे. काळजीपूर्वक प्रवास करा."
+            elif is_te:
+                adv_text = "మోస్తరు వర్షం పడే అవకాశం ఉంది. జాగ్రత్తగా ప్రయాణించండి."
+            else:
+                adv_text = "Moderate rain expected. Commute with care."
 
         has_warning = "[OFFICIAL WARNINGS]" in user_prompt and "Official Warnings: NONE_ACTIVE" not in user_prompt
         if has_warning:
@@ -251,6 +301,18 @@ class MockLLMProvider(BaseLLMProvider):
                     f"⚠️ [आधिकारिक IMD चेतावनी: {warn_title}] {loc} में गंभीर मौसम चेतावनी सक्रिय है।\n"
                     f"सलाह: {adv_text}\n"
                     f"(स्रोत: {src} | पूर्वानुमान संगति स्कोर: {score}/100)"
+                )
+            elif is_mr:
+                return (
+                    f"⚠️ [अधिकृत IMD चेतावणी: {warn_title}] {loc} मध्ये गंभीर हवामान चेतावणी सक्रिय आहे.\n"
+                    f"सल्ला: {adv_text}\n"
+                    f"(स्रोत: {src} | अंदाज सुसंगतता स्कोअर: {score}/100)"
+                )
+            elif is_te:
+                return (
+                    f"⚠️ [అధికారిక IMD హెచ్చరిక: {warn_title}] {loc} లో తీవ్రమైన వాతావరణ హెచ్చరిక అమలులో ఉంది.\n"
+                    f"సలహా: {adv_text}\n"
+                    f"(మూలం: {src} | సూచన స్థిరత్వ స్కోరు: {score}/100)"
                 )
             else:
                 return (
@@ -273,7 +335,7 @@ class MockLLMProvider(BaseLLMProvider):
         direct_action = direct_action_match.group(1).strip() if direct_action_match else ""
 
         if direct_action:
-            if "unavailable" in direct_action.lower() or "not recommended" in direct_action.lower() or "தவிர்க்கவும்" in direct_action:
+            if "unavailable" in direct_action.lower() or "not recommended" in direct_action.lower() or "தவிர்க்கவும்" in direct_action or "टाळा" in direct_action or "నివారించండి" in direct_action:
                 return f"{user_prefix}{direct_action}"
             if is_ta:
                 return (
@@ -289,9 +351,31 @@ class MockLLMProvider(BaseLLMProvider):
                     f"सलाह: {adv_text}\n"
                     f"(स्रोत: {src} | डेटा गुणवत्ता स्कोर: पूर्वानुमान संगति स्कोर: {score}/100)"
                 )
+            elif is_mr:
+                return (
+                    f"{user_prefix}{direct_action}\n"
+                    f"{loc} मध्ये सध्याचे तापमान {temp_val}°C ({temp_int}°C) आहे आणि पावसाची शक्यता {rain_val}% आहे.\n"
+                    f"सल्ला: {adv_text}\n"
+                    f"(स्रोत: {src} | डेटा गुणवत्ता स्कोअर: अंदाज सुसंगतता स्कोअर: {score}/100)"
+                )
+            elif is_te:
+                return (
+                    f"{user_prefix}{direct_action}\n"
+                    f"{loc} లో ప్రస్తుత ఉష్ణోగ్రత {temp_val}°C ({temp_int}°C) మరియు వర్షం పడే అవకాశం {rain_val}% ఉంది.\n"
+                    f"సలహా: {adv_text}\n"
+                    f"(మూలం: {src} | డేటా నాణ్యత స్కోరు: సూచన స్థిరత్వ స్కోరు: {score}/100)"
+                )
             return f"{user_prefix}{direct_action}"
 
         if "Historical Archive Status: UNAVAILABLE" in user_prompt:
+            if is_ta:
+                return f"{user_prefix}{loc} பகுதிக்கான வரலாற்று வானிலை பதிவுகள் கிடைக்கவில்லை."
+            elif is_hi:
+                return f"{user_prefix}{loc} के लिए ऐतिहासिक मौसम रिकॉर्ड उपलब्ध नहीं हैं।"
+            elif is_mr:
+                return f"{user_prefix}{loc} साठी ऐतिहासिक हवामान नोंदी अधिकृत दस्तऐवजांमध्ये उपलब्ध नाहीत."
+            elif is_te:
+                return f"{user_prefix}{loc} కోసం చారిత్రక వాతావరణ రికార్డులు అధికారిక ఆర్కైవ్‌లలో అందుబాటులో లేవు."
             return f"{user_prefix}Historical weather records for {loc} are currently unavailable in official archives. SkyZen does not fabricate historical statistics."
 
         hist_scope = re.search(r"Dataset Scope: Historical meteorological observations for ([^ ]+) from ([0-9-]+) to ([0-9-]+)", user_prompt)
@@ -301,6 +385,22 @@ class MockLLMProvider(BaseLLMProvider):
             h_end = hist_scope.group(3)
             h_rain_match = re.search(r"Historical Average Annual Rainfall:\s*([0-9.]+)", user_prompt)
             h_rain = h_rain_match.group(1) if h_rain_match else "1340.5"
+            if is_ta:
+                return (
+                    f"{user_prefix}வரலாற்று ரீதியாக {h_loc}ல் ({h_start} முதல் {h_end} வரை), பெறப்பட்ட மொத்த மழைப்பொழிவு {h_rain} மிமீ ஆகும்."
+                )
+            elif is_hi:
+                return (
+                    f"{user_prefix}ऐतिहासिक रूप से {h_loc} में ({h_start} से {h_end}), दर्ज कुल वर्षा {h_rain} मिमी थी।"
+                )
+            elif is_mr:
+                return (
+                    f"{user_prefix}ऐतिहासिकदृष्ट्या {h_loc} मध्ये ({h_start} ते {h_end}), एकूण नोंदवलेला पाऊस {h_rain} मिमी होता."
+                )
+            elif is_te:
+                return (
+                    f"{user_prefix}చారిత్రకంగా {h_loc} లో ({h_start} నుండి {h_end}), నమోదైన మొత్తం వర్షపాతం {h_rain} మిమీ."
+                )
             return (
                 f"{user_prefix}Historically in {h_loc} ({h_start} to {h_end}), recorded total rainfall was {h_rain} mm "
                 f"compared to a typical normal baseline of 1200.0 mm. Current conditions should be evaluated using live forecasts."
@@ -327,6 +427,20 @@ class MockLLMProvider(BaseLLMProvider):
                     f"सलाह: {adv_text}\n"
                     f"(स्रोत: {src} | डेटा गुणवत्ता स्कोर: पूर्वानुमान संगति स्कोर: {score}/100)"
                 )
+            elif is_mr:
+                return (
+                    f"{user_prefix}{cs_text}\n"
+                    f"{loc} मध्ये सध्याचे तापमान {temp_val}°C ({temp_int}°C) आहे आणि पावसाची शक्यता {rain_val}% आहे.\n"
+                    f"सल्ला: {adv_text}\n"
+                    f"(स्रोत: {src} | डेटा गुणवत्ता स्कोअर: अंदाज सुसंगतता स्कोअर: {score}/100)"
+                )
+            elif is_te:
+                return (
+                    f"{user_prefix}{cs_text}\n"
+                    f"{loc} లో ప్రస్తుత ఉష్ణోగ్రత {temp_val}°C ({temp_int}°C) మరియు వర్షం పడే అవకాశం {rain_val}% ఉంది.\n"
+                    f"సలహా: {adv_text}\n"
+                    f"(మూలం: {src} | డేటా నాణ్యత స్కోరు: సూచన స్థిరత్వ స్కోరు: {score}/100)"
+                )
             else:
                 return (
                     f"{user_prefix}{cs_text}\n"
@@ -340,6 +454,10 @@ class MockLLMProvider(BaseLLMProvider):
                 return f"{user_prefix}{loc} பகுதிக்கான தற்போதைய வானிலை தரவு கிடைக்கவில்லை (unavailable). தயவுசெய்து அதிகாரப்பூர்வ முன்னறிவிப்பை பார்க்கவும்."
             elif is_hi:
                 return f"{user_prefix}{loc} के लिए वर्तमान मौसम डेटा उपलब्ध नहीं है (unavailable)। कृपया आधिकारिक पूर्वानुमान देखें।"
+            elif is_mr:
+                return f"{user_prefix}{loc} साठी सध्याचा हवामान डेटा उपलब्ध नाही (unavailable). कृपया अधिकृत स्थानिक अंदाज तपासा."
+            elif is_te:
+                return f"{user_prefix}{loc} కోసం ప్రస్తుత వాతావరణ డేటా అందుబాటులో లేదు (unavailable). దయచేసి అధికారిక సూచనలను తనిఖీ చేయండి."
             else:
                 return f"{user_prefix}Current weather observation is unavailable for {loc}. Please check official local forecasts."
 
@@ -354,6 +472,18 @@ class MockLLMProvider(BaseLLMProvider):
                 f"{user_prefix}{loc} में वर्तमान तापमान {temp_val}°C ({temp_int}°C) है और बारिश की संभावना {rain_val}% है (मौसम: {cond})।\n"
                 f"सलाह: {adv_text}\n"
                 f"(स्रोत: {src} | डेटा गुणवत्ता स्कोर: पूर्वानुमान संगति स्कोर: {score}/100)"
+            )
+        elif is_mr:
+            return (
+                f"{user_prefix}{loc} मध्ये सध्याचे तापमान {temp_val}°C ({temp_int}°C) आहे आणि पावसाची शक्यता {rain_val}% आहे (हवामान: {cond})।\n"
+                f"सल्ला: {adv_text}\n"
+                f"(स्रोत: {src} | डेटा गुणवत्ता स्कोअर: अंदाज सुसंगतता स्कोअर: {score}/100)"
+            )
+        elif is_te:
+            return (
+                f"{user_prefix}{loc} లో ప్రస్తుత ఉష్ణోగ్రత {temp_val}°C ({temp_int}°C) మరియు వర్షం పడే అవకాశం {rain_val}% ఉంది (వాతావరణం: {cond}).\n"
+                f"సలహా: {adv_text}\n"
+                f"(మూలం: {src} | డేటా నాణ్యత స్కోరు: సూచన స్థిరత్వ స్కోరు: {score}/100)"
             )
         else:
             return (

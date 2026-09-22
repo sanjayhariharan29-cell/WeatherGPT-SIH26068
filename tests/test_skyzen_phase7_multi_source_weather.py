@@ -419,6 +419,8 @@ async def test_14_all_providers_unavailable():
 @pytest.mark.asyncio
 async def test_15_api_key_missing_safe_handling():
     """15. OpenWeather with empty API key cleanly raises unconfigured status without crash."""
+    from backend.services.cache import provider_cache
+    provider_cache.clear()
     with patch.object(settings, "OPENWEATHER_API_KEY", ""):
         adapter = OpenWeatherAdapter()
         assert adapter.is_configured is False

@@ -106,6 +106,8 @@ class UserResponse(BaseModel):
     preferred_language: Optional[str] = None
     persona: str = "student"
     role: str = "user"
+    phone_number: Optional[str] = None
+    mobile_number: Optional[str] = None
     is_verified: bool = False
     onboarding_completed: bool = False
 
@@ -130,9 +132,15 @@ class ProfileResponse(BaseModel):
     persona: str = "student"
     language: str = "ta"
     preferred_language: str = "ta"
+    phone_number: Optional[str] = None
+    mobile_number: Optional[str] = None
     is_verified: bool = False
     onboarding_completed: bool = False
     notification_enabled: bool = True
+    daily_sms_enabled: bool = True
+    professional_advisory_enabled: bool = True
+    severe_alerts_enabled: bool = True
+    briefing_time: str = "07:00"
     last_known_location: Optional[str] = None
     last_latitude: Optional[float] = None
     last_longitude: Optional[float] = None
@@ -150,7 +158,13 @@ class ProfileUpdateRequest(BaseModel):
     role: Optional[str] = Field(None, max_length=50, description="User persona/role alias")
     language: Optional[str] = Field(None, max_length=20, description="Preferred language code")
     preferred_language: Optional[str] = Field(None, max_length=20, description="Preferred language alias")
+    phone_number: Optional[str] = Field(None, max_length=20, description="Registered mobile / phone number")
+    mobile_number: Optional[str] = Field(None, max_length=20, description="Mobile / phone number alias")
     notification_enabled: Optional[bool] = Field(None, description="Basic notification alert preference")
+    daily_sms_enabled: Optional[bool] = Field(None, description="Enable daily weather SMS briefing")
+    professional_advisory_enabled: Optional[bool] = Field(None, description="Enable professional role advisory")
+    severe_alerts_enabled: Optional[bool] = Field(None, description="Enable severe weather alerts")
+    briefing_time: Optional[str] = Field(None, description="Daily briefing dispatch time (e.g. 07:00)")
     onboarding_completed: Optional[bool] = Field(None, description="Onboarding completion flag")
     last_known_location: Optional[str] = Field(None, max_length=100, description="Last known location name")
     last_latitude: Optional[float] = Field(None, ge=-90.0, le=90.0, description="Last known latitude")
@@ -171,6 +185,9 @@ class ProfileUpdateRequest(BaseModel):
             # Map preferred_language to language
             if not data.get("language") and data.get("preferred_language"):
                 data["language"] = data["preferred_language"]
+            # Map mobile_number to phone_number
+            if not data.get("phone_number") and data.get("mobile_number"):
+                data["phone_number"] = data["mobile_number"]
         return data
 
     @field_validator("name")
@@ -217,10 +234,14 @@ class ProfileUpdateRequest(BaseModel):
             "ta": "ta",
             "tamil": "ta",
             "hi": "hi",
-            "hindi": "hi"
+            "hindi": "hi",
+            "mr": "mr",
+            "marathi": "mr",
+            "te": "te",
+            "telugu": "te"
         }
         if cleaned not in lang_map:
-            raise ValueError(f"Unsupported language '{v}'. Supported: English (en), Tamil (ta), Hindi (hi)")
+            raise ValueError(f"Unsupported language '{v}'. Supported: English (en), Tamil (ta), Hindi (hi), Marathi (mr), Telugu (te)")
         return lang_map[cleaned]
 
 

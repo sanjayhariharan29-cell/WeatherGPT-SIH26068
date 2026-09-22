@@ -43,10 +43,10 @@
     })();
   </script>
 
-  <!-- Google Fonts: Noto Sans Multi-Script Stack (English, Tamil, Hindi) & Material Symbols Rounded -->
+  <!-- Google Fonts: Noto Sans Multi-Script Stack (English, Tamil, Hindi, Marathi, Telugu) & Material Symbols Rounded -->
   <link rel="preconnect" href="https://fonts.googleapis.com">
   <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+  <link href="https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700;800&family=Noto+Sans+Tamil:wght@400;500;600;700;800&family=Noto+Sans+Devanagari:wght@400;500;600;700;800&family=Noto+Sans+Telugu:wght@400;500;600;700;800&family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
   <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" />
   <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" crossorigin="" />
   <link rel="stylesheet" href="./design-tokens.css">
@@ -389,30 +389,49 @@
 
       <!-- View 6: First-Launch Profile Onboarding -->
       <div id="authViewOnboarding" class="auth-view hidden">
-        <div class="auth-view-header">
-          <div class="auth-badge-icon" style="background:#EFF6FF; color:#1D4ED8; border-color:#BFDBFE;">
-            <span class="material-symbols-rounded">badge</span>
+        <!-- Top Navigation / Progress Indicator -->
+        <div class="auth-card-top-nav onboarding-nav">
+          <div class="onboarding-step-pill">
+            <span class="step-pulse-dot"></span>
+            <span data-i18n="onboarding.step">Step 2 of 2 • Profile Setup</span>
           </div>
-          <h2 class="auth-title">Welcome to SkyZen</h2>
-          <p class="auth-subtitle">Set up your profile to personalize meteorological intelligence and advisories.</p>
+          <span class="onboarding-brand-subtag">MoES & IMD</span>
+        </div>
+
+        <div class="auth-card-header text-left onboarding-header">
+          <div class="onboarding-avatar-badge" aria-hidden="true">
+            <span class="material-symbols-rounded">manage_accounts</span>
+          </div>
+          <h2 class="auth-title onboarding-title">
+            <span data-i18n="onboarding.welcome_title">Welcome to SkyZen</span><span class="accent-dot">.</span>
+          </h2>
+          <p class="auth-subtitle onboarding-subtitle" data-i18n="onboarding.welcome_subtitle">
+            Personalize your meteorological intelligence, sector advisories, and alert thresholds.
+          </p>
         </div>
 
         <div id="onboardingMessage" class="auth-message-box hidden" role="alert"></div>
 
-        <form id="onboardingForm" class="auth-form" novalidate>
-          <div class="auth-field">
-            <label for="onboardingFullName" class="auth-label">Full Name</label>
-            <div class="auth-input-wrapper">
+        <form id="onboardingForm" class="auth-form onboarding-form" novalidate>
+          <div class="auth-field onboarding-field">
+            <label for="onboardingFullName" class="auth-label">
+              <span data-i18n="onboarding.name_label">Full Name</span>
+              <span class="field-required-dot" title="Required">*</span>
+            </label>
+            <div class="auth-input-wrapper onboarding-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">person</span>
               <input type="text" id="onboardingFullName" class="auth-input with-icon" placeholder="Enter your full name" required autocomplete="name">
             </div>
           </div>
 
-          <div class="auth-field">
-            <label for="onboardingRole" class="auth-label">Primary Role / Persona</label>
-            <div class="auth-input-wrapper">
+          <div class="auth-field onboarding-field">
+            <label for="onboardingRole" class="auth-label">
+              <span data-i18n="onboarding.role_label">Primary Role / Persona</span>
+              <span class="field-required-dot" title="Required">*</span>
+            </label>
+            <div class="auth-input-wrapper onboarding-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">work</span>
-              <select id="onboardingRole" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
+              <select id="onboardingRole" class="auth-input with-icon styled-select" required>
                 <option value="student" data-i18n="role.student_desc">Student — Daily commute & campus weather</option>
                 <option value="commuter" data-i18n="role.commuter_desc">Commuter — Public transit, road & rain alerts</option>
                 <option value="farmer" data-i18n="role.farmer_desc">Farmer — Agricultural rainfall & harvest planning</option>
@@ -420,31 +439,48 @@
                 <option value="disaster_response" data-i18n="role.disaster_desc">Disaster / Emergency — Early warning & cyclone relief</option>
                 <option value="general" data-i18n="role.general_desc">General User — Everyday weather overview</option>
               </select>
+              <span class="material-symbols-rounded select-chevron-icon">expand_more</span>
             </div>
           </div>
 
-          <div class="auth-field">
-            <label for="onboardingLanguage" class="auth-label" data-i18n="onboarding.lang">Preferred Language</label>
-            <div class="auth-input-wrapper">
+          <div class="auth-field onboarding-field">
+            <label for="onboardingLanguage" class="auth-label">
+              <span data-i18n="onboarding.lang">Preferred Language</span>
+              <span class="field-required-dot" title="Required">*</span>
+            </label>
+            <div class="auth-input-wrapper onboarding-input-wrapper">
               <span class="material-symbols-rounded auth-input-icon">language</span>
-              <select id="onboardingLanguage" class="auth-input with-icon styled-select" style="padding-left:38px;" required>
+              <select id="onboardingLanguage" class="auth-input with-icon styled-select" required>
                 <option value="en" data-i18n="settings.language.en">English</option>
-                <option value="ta" data-i18n="settings.language.ta">Tamil</option>
-                <option value="hi" data-i18n="settings.language.hi">Hindi</option>
+                <option value="ta" data-i18n="settings.language.ta">Tamil (தமிழ்)</option>
+                <option value="hi" data-i18n="settings.language.hi">Hindi (हिन्दी)</option>
+                <option value="mr" data-i18n="settings.language.mr">Marathi (मराठी)</option>
+                <option value="te" data-i18n="settings.language.te">Telugu (తెలుగు)</option>
               </select>
+              <span class="material-symbols-rounded select-chevron-icon">expand_more</span>
             </div>
           </div>
 
-          <div class="auth-field" style="margin-top:4px;">
-            <label class="auth-label" style="display:flex; align-items:center; gap:8px; cursor:pointer;">
-              <input type="checkbox" id="onboardingNotifications" checked style="width:18px; height:18px; accent-color:#1D4ED8; cursor:pointer;">
-              <span style="font-size:13px; font-weight:500; color:var(--text-primary);">Enable severe meteorological alerts & advisories</span>
+          <!-- Glass Alert Notification Switch Card -->
+          <div class="onboarding-toggle-card">
+            <div class="toggle-card-content">
+              <div class="toggle-card-icon-wrap" aria-hidden="true">
+                <span class="material-symbols-rounded">notifications_active</span>
+              </div>
+              <div class="toggle-card-text">
+                <span class="toggle-card-title" data-i18n="onboarding.alerts_title">Severe Meteorological Alerts</span>
+                <span class="toggle-card-desc" data-i18n="onboarding.alerts_desc">Early warning advisories for rain, cyclones & heatwaves</span>
+              </div>
+            </div>
+            <label class="switch-toggle" for="onboardingNotifications" aria-label="Toggle severe meteorological alerts">
+              <input type="checkbox" id="onboardingNotifications" checked>
+              <span class="switch-slider"></span>
             </label>
           </div>
 
-          <button type="submit" id="onboardingSubmitBtn" class="auth-primary-btn" style="margin-top:8px;" aria-label="Complete Profile and Enter SkyZen">
+          <button type="submit" id="onboardingSubmitBtn" class="auth-primary-btn onboarding-submit-btn" aria-label="Complete Profile and Enter SkyZen">
             <span class="material-symbols-rounded icon-sm">check_circle</span>
-            <span id="onboardingSubmitText">Complete Setup & Enter SkyZen</span>
+            <span id="onboardingSubmitText" data-i18n="onboarding.submit">Complete Setup & Enter SkyZen</span>
           </button>
         </form>
       </div>
@@ -970,11 +1006,17 @@
           <div id="chatHistory" class="chat-window" role="log" aria-live="polite">
             <div class="msg-bubble bot-msg">
               <div class="msg-author">
-                <span style="display:flex; align-items:center; gap:6px;">
+                <span class="msg-author-left">
                   <span class="material-symbols-rounded icon-sm">verified_user</span>
                   <span data-i18n="chat.decision_engine_badge">SkyZen Decision Engine</span>
                 </span>
-                <span class="msg-tag" data-i18n="chat.telemetry_grounded">Telemetry Grounded</span>
+                <div class="msg-author-right">
+                  <button type="button" class="speech-btn" id="welcomeSpeechBtn" title="Listen to weather advisory" aria-label="Listen to weather advisory">
+                    <span class="material-symbols-rounded icon-xs">volume_up</span>
+                    <span data-i18n="btn.listen">Listen</span>
+                  </button>
+                  <span class="msg-tag" data-i18n="chat.telemetry_grounded">Telemetry Grounded</span>
+                </div>
               </div>
               <p data-i18n="chat.welcome_bubble">Welcome! I am SkyZen, your personal AI weather decision assistant. Ask me questions about your travel, commute, outdoor plans, or farming operations.</p>
               <div class="why-answer-wrapper">
@@ -1118,20 +1160,24 @@
           </div>
         </div>
 
-        <div class="glass-panel trends-section">
-          <div class="section-header">
-            <h3 class="section-title">
-              <span class="material-symbols-rounded" style="color:var(--primary-blue);">insights</span>
-              <span data-i18n="weather.climate_archive">Climate Trend Archive (NASA POWER)</span>
-            </h3>
-          </div>
+        <details class="glass-panel trends-section trends-accordion" id="climateTrendsAccordion">
+          <summary class="trends-summary">
+            <div class="trends-summary-left">
+              <span class="material-symbols-rounded trends-summary-icon">insights</span>
+              <div class="trends-summary-text-col">
+                <span class="trends-summary-title" data-i18n="weather.climate_archive">Climate Trend Archive (NASA POWER)</span>
+                <span class="trends-summary-sub"><span class="trends-sub-base">10-year decadal baseline</span> • <span class="trends-sub-hint">Tap to view</span></span>
+              </div>
+            </div>
+            <span class="material-symbols-rounded trends-expand-icon">expand_more</span>
+          </summary>
           <div id="trendBox" class="trend-box">
             <div id="trendBoxPlaceholder" style="padding:16px 0; display:flex; align-items:center; gap:8px; color:var(--text-secondary); font-size:12.5px;">
               <span class="material-symbols-rounded icon-sm" style="animation:spin 1s linear infinite; display:inline-block;">progress_activity</span>
               <span>Loading regional climate trend archive...</span>
             </div>
           </div>
-        </div>
+        </details>
       </section>
 
       <!-- Screen 4: Dedicated Weather Alerts Screen -->
@@ -1515,46 +1561,46 @@
               <span class="aqi-number" id="aqiVal">--</span>
               <span class="aqi-label">AQI</span>
             </div>
-            <div style="flex:1; display:flex; flex-direction:column; gap:6px;">
-              <span class="badge" id="aqiCategory" style="background:var(--bg-tertiary); color:var(--text-muted); font-size:14px; font-weight:700; padding:4px 12px; border-radius:var(--radius-pill); width:fit-content;" data-i18n="map.pending_telemetry">Pending Telemetry</span>
-              <p style="font-size:13px; color:var(--text-secondary);" id="aqiSummaryText" data-i18n="map.loading_ambient">Loading verified ambient air quality telemetry...</p>
-              <div id="aqiSourceContainer" style="font-size:11px; color:var(--text-muted); margin-top:4px; display:flex; flex-direction:column; gap:2px;">
-                <div><span id="aqiSourceLabel" data-i18n="aqi.source.model">Air Quality Model:</span> <strong id="aqiSourceText">--</strong></div>
-                <div id="aqiCpcbStatus" style="color:var(--text-secondary); font-size:10px;" data-i18n="map.cpcb_unconfigured">CPCB Ground Monitoring Station API: Not Configured</div>
-                <div id="aqiTimestamp" style="color:var(--text-muted); font-size:10px;">Updated: --</div>
+            <div class="aqi-gauge-info">
+              <span class="badge aqi-cat-pending" id="aqiCategory" data-i18n="map.pending_telemetry">Pending Telemetry</span>
+              <p class="aqi-summary-desc" id="aqiSummaryText" data-i18n="map.loading_ambient">Loading verified ambient air quality telemetry...</p>
+              <div id="aqiSourceContainer" class="aqi-source-info">
+                <div class="aqi-source-row"><span id="aqiSourceLabel" data-i18n="aqi.source.model">Air Quality Model:</span> <strong id="aqiSourceText">--</strong></div>
+                <div id="aqiCpcbStatus" class="aqi-cpcb-status" data-i18n="map.cpcb_unconfigured">CPCB Ground Monitoring Station API: Not Configured</div>
+                <div id="aqiTimestamp" class="aqi-timestamp">Updated: --</div>
               </div>
             </div>
           </div>
 
-          <h4 style="font-size:14px; font-weight:700; margin-top:6px;" data-i18n="aqi.pollutants_title">Key Pollutants Breakdown</h4>
+          <h4 class="aqi-section-subtitle" data-i18n="aqi.pollutants_title">Key Pollutants Breakdown</h4>
           <div class="pollutants-grid" id="pollutantsGrid">
             <div class="pollutant-card">
               <span class="pollutant-name" data-i18n="pollutant.pm25">PM2.5 (Fine Particles)</span>
-              <span class="pollutant-val" id="valPm25">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valPm25">-- <span class="pollutant-unit">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name" data-i18n="pollutant.pm10">PM10 (Respirable)</span>
-              <span class="pollutant-val" id="valPm10">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valPm10">-- <span class="pollutant-unit">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name" data-i18n="pollutant.no2">NO₂ (Nitrogen Dioxide)</span>
-              <span class="pollutant-val" id="valNo2">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valNo2">-- <span class="pollutant-unit">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name" data-i18n="pollutant.so2">SO₂ (Sulfur Dioxide)</span>
-              <span class="pollutant-val" id="valSo2">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valSo2">-- <span class="pollutant-unit">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name" data-i18n="pollutant.o3">O₃ (Ozone)</span>
-              <span class="pollutant-val" id="valO3">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valO3">-- <span class="pollutant-unit">µg/m³</span></span>
             </div>
             <div class="pollutant-card">
               <span class="pollutant-name" data-i18n="pollutant.co">CO (Carbon Monoxide)</span>
-              <span class="pollutant-val" id="valCo">-- <span style="font-size:11px; font-weight:500;">µg/m³</span></span>
+              <span class="pollutant-val" id="valCo">-- <span class="pollutant-unit">µg/m³</span></span>
             </div>
           </div>
 
-          <h4 style="font-size:14px; font-weight:700; margin-top:6px;" data-i18n="aqi.health_title">Health & Activity Recommendations</h4>
+          <h4 class="aqi-section-subtitle" data-i18n="aqi.health_title">Health & Activity Recommendations</h4>
           <div id="aqiRecommendations" style="display:flex; flex-direction:column; gap:8px;">
             <div class="impact-item">
               <span class="material-symbols-rounded icon-sm" style="color:var(--success-green);">check_circle</span>
@@ -1731,7 +1777,17 @@
                         <option value="en" data-i18n="settings.language.en">English</option>
                         <option value="ta" data-i18n="settings.language.ta">Tamil</option>
                         <option value="hi" data-i18n="settings.language.hi">Hindi</option>
+                        <option value="mr" data-i18n="settings.language.mr">Marathi</option>
+                        <option value="te" data-i18n="settings.language.te">Telugu</option>
                       </select>
+                    </div>
+                  </div>
+
+                  <div class="auth-field">
+                    <label for="profileEditPhone" class="auth-label">Mobile Number (SMS)</label>
+                    <div class="auth-input-wrapper">
+                      <span class="material-symbols-rounded auth-input-icon">phone</span>
+                      <input type="tel" id="profileEditPhone" class="auth-input with-icon" placeholder="+91..." style="padding-left:38px;">
                     </div>
                   </div>
 
@@ -1826,6 +1882,8 @@
                 <option value="en" data-i18n="settings.language.en">English</option>
                 <option value="ta" data-i18n="settings.language.ta">Tamil</option>
                 <option value="hi" data-i18n="settings.language.hi">Hindi</option>
+                <option value="mr" data-i18n="settings.language.mr">Marathi</option>
+                <option value="te" data-i18n="settings.language.te">Telugu</option>
               </select>
             </div>
 
@@ -1861,6 +1919,67 @@
                   <span class="material-symbols-rounded icon-sm">notifications</span>
                   <span data-i18n="settings.test_alert_btn">Send Controlled Test Alert</span>
                 </button>
+              </div>
+            </div>
+
+            <!-- Skizen Personalized Weather SMS & Daily Briefing Group (Phase 2) -->
+            <div class="auth-form-group">
+              <label>Skizen Personalized Weather SMS & Daily Briefing</label>
+              <div style="padding:14px; background:var(--bg-subtle); border:1px solid var(--border-color); border-radius:var(--radius-md); display:flex; flex-direction:column; gap:12px;">
+                <div style="display:flex; justify-content:space-between; align-items:center;">
+                  <div style="display:flex; align-items:center; gap:8px;">
+                    <span class="material-symbols-rounded" style="color:var(--primary-blue);">sms</span>
+                    <span style="font-size:13px; font-weight:600;">SMS Delivery Channel</span>
+                  </div>
+                  <span id="smsStatusBadge" class="status-badge" style="background:#dbeafe; color:#1e40af; border:1px solid #bfdbfe; font-size:11px; padding:2px 8px; border-radius:12px;">MOCK_SMS_DELIVERY (TRAI Safe)</span>
+                </div>
+
+                <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+                  <span style="font-size:13px; color:var(--text-primary); font-weight:500;">Daily Weather SMS Briefing</span>
+                  <input type="checkbox" id="settingDailySmsToggle" checked style="width:18px; height:18px; accent-color:var(--primary-blue); cursor:pointer;">
+                </label>
+
+                <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+                  <span style="font-size:13px; color:var(--text-primary); font-weight:500;">Professional Advisory (Persona-Tailored)</span>
+                  <input type="checkbox" id="settingProfAdvisoryToggle" checked style="width:18px; height:18px; accent-color:var(--primary-blue); cursor:pointer;">
+                </label>
+
+                <label style="display:flex; align-items:center; justify-content:space-between; cursor:pointer;">
+                  <span style="font-size:13px; color:var(--text-primary); font-weight:500;">Severe Weather Alerts</span>
+                  <input type="checkbox" id="settingSevereAlertsToggle" checked style="width:18px; height:18px; accent-color:var(--primary-blue); cursor:pointer;">
+                </label>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <label for="settingBriefingTimeInput" style="font-size:13px; color:var(--text-primary); font-weight:500; margin:0;">Daily Briefing Time (Local)</label>
+                  <input type="time" id="settingBriefingTimeInput" value="07:00" class="styled-input" style="width:110px; padding:4px 8px; font-size:13px; text-align:center;">
+                </div>
+
+                <div style="display:flex; justify-content:space-between; align-items:center; gap:8px;">
+                  <label for="settingPhoneInput" style="font-size:13px; color:var(--text-primary); font-weight:500; margin:0;">SMS Mobile Number</label>
+                  <input type="tel" id="settingPhoneInput" placeholder="+91..." class="styled-input" style="width:150px; padding:4px 8px; font-size:13px;">
+                </div>
+
+                <div style="display:flex; gap:8px; margin-top:4px;">
+                  <button type="button" id="saveBriefingSettingsBtn" class="auth-primary-btn" style="flex:1; min-height:36px; font-size:13px; padding:6px 10px;">
+                    <span class="material-symbols-rounded icon-sm">save</span>
+                    <span>Save Preferences</span>
+                  </button>
+                  <button type="button" id="triggerTestBriefingBtn" class="auth-secondary-btn" style="flex:1; min-height:36px; font-size:13px; padding:6px 10px;">
+                    <span class="material-symbols-rounded icon-sm">send</span>
+                    <span>Trigger SMS Now</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+
+            <!-- Briefing Notification History Group -->
+            <div class="auth-form-group">
+              <div style="display:flex; justify-content:space-between; align-items:center; margin-bottom:6px;">
+                <label style="margin:0;">Recent Briefings & SMS History</label>
+                <button type="button" id="refreshBriefingHistoryBtn" class="action-btn" style="padding:2px 8px; font-size:11px; height:24px;">Refresh</button>
+              </div>
+              <div id="briefingHistoryContainer" style="padding:10px; background:var(--bg-subtle); border:1px solid var(--border-color); border-radius:var(--radius-md); display:flex; flex-direction:column; gap:8px; max-height:280px; overflow-y:auto;">
+                <p style="font-size:12px; color:var(--text-secondary); margin:0; text-align:center;">No recent briefing dispatches.</p>
               </div>
             </div>
 

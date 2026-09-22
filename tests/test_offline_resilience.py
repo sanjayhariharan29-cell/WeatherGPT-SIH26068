@@ -135,7 +135,8 @@ def test_06_provider_failure_resilience():
     )
     mock_loc = {"name": "Coimbatore", "latitude": 11.0168, "longitude": 76.9558, "district": "Coimbatore", "state": "Tamil Nadu"}
 
-    with patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", side_effect=ProviderUnavailableError("IMD Service Offline", "IMD")), \
+    with patch("backend.services.openweather_adapter.OpenWeatherAdapter.get_current_weather", side_effect=ProviderUnavailableError("OpenWeather Offline", "OpenWeather")), \
+         patch("backend.services.imd_adapter.IMDAdapter.get_current_weather", side_effect=ProviderUnavailableError("IMD Service Offline", "IMD")), \
          patch("backend.services.open_meteo_adapter.OpenMeteoAdapter.get_current_weather", return_value=mock_secondary_obs), \
          patch("backend.services.geocoding_service.GeocodingService.resolve_location", return_value=mock_loc):
         

@@ -70,6 +70,8 @@ class PersonalDecisionResult(BaseModel):
     concise_answer_en: str = ""
     concise_answer_ta: str = ""
     concise_answer_hi: str = ""
+    concise_answer_mr: str = ""
+    concise_answer_te: str = ""
 
     def get_concise_answer(self, language: LanguageEnum = LanguageEnum.EN) -> str:
         """Returns concise direct answer in the requested language."""
@@ -77,6 +79,10 @@ class PersonalDecisionResult(BaseModel):
             return self.concise_answer_ta or self.concise_answer_en
         if language in (LanguageEnum.HI, LanguageEnum.HINGLISH):
             return self.concise_answer_hi or self.concise_answer_en
+        if language in (LanguageEnum.MR, LanguageEnum.MARATHI):
+            return self.concise_answer_mr or self.concise_answer_en
+        if language in (LanguageEnum.TE, LanguageEnum.TELUGU):
+            return self.concise_answer_te or self.concise_answer_en
         return self.concise_answer_en or self.recommended_action
 
     def to_dict(self) -> Dict[str, Any]:
@@ -95,6 +101,8 @@ class PersonalDecisionResult(BaseModel):
             "concise_answer": self.concise_answer_en,
             "concise_answer_ta": self.concise_answer_ta,
             "concise_answer_hi": self.concise_answer_hi,
+            "concise_answer_mr": self.concise_answer_mr,
+            "concise_answer_te": self.concise_answer_te,
         }
         if self.decision_type == DecisionTypeEnum.BIKE_TRAVEL:
             d["transport"] = "bike"

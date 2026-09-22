@@ -1,6 +1,6 @@
 // WeatherGPT Mobile Service Worker (weathergpt-mobile-v1)
-const PREVIOUS_CACHE = "weathergpt-mobile-v1";
-const CACHE_NAME = "weathergpt-mobile-v7-skyzen";
+const PREVIOUS_CACHE = "weathergpt-mobile-v7-skyzen";
+const CACHE_NAME = "weathergpt-mobile-v8-skyzen";
 const ASSETS_TO_CACHE = [
   "/",
   "/index.html",

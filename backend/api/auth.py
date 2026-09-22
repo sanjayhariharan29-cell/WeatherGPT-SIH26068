@@ -439,6 +439,7 @@ async def get_auth_profile(
             detail="Access denied: Cannot view another user's profile"
         )
     notif_enabled = current_user.preferences.notification_enabled if current_user.preferences else True
+    pref = current_user.preferences
     return {
         "id": current_user.id,
         "name": current_user.name,
@@ -448,9 +449,20 @@ async def get_auth_profile(
         "preferred_language": current_user.language,
         "persona": current_user.persona,
         "role": current_user.role,
+        "phone_number": current_user.phone_number,
+        "mobile_number": current_user.phone_number,
         "is_verified": bool(current_user.is_verified),
         "onboarding_completed": bool(current_user.onboarding_completed),
-        "notification_enabled": bool(notif_enabled)
+        "notification_enabled": bool(notif_enabled),
+        "daily_sms_enabled": bool(pref.daily_sms_enabled) if (pref and pref.daily_sms_enabled is not None) else True,
+        "professional_advisory_enabled": bool(pref.professional_advisory_enabled) if (pref and pref.professional_advisory_enabled is not None) else True,
+        "severe_alerts_enabled": bool(pref.severe_alerts_enabled) if (pref and pref.severe_alerts_enabled is not None) else bool(notif_enabled),
+        "briefing_time": pref.briefing_time if (pref and pref.briefing_time) else "07:00",
+        "last_known_location": pref.last_known_location if pref else None,
+        "last_latitude": pref.last_latitude if pref else None,
+        "last_longitude": pref.last_longitude if pref else None,
+        "last_location_source": pref.last_location_source if pref else None,
+        "last_location_updated_at": pref.last_location_updated_at.isoformat() if (pref and pref.last_location_updated_at) else None
     }
 
 
@@ -488,6 +500,9 @@ async def update_user_profile(
     if req.language is not None:
         current_user.language = req.language
 
+    if req.phone_number is not None:
+        current_user.phone_number = req.phone_number
+
     if req.onboarding_completed is not None:
         current_user.onboarding_completed = req.onboarding_completed
 
@@ -502,10 +517,62 @@ async def update_user_profile(
         else:
             current_user.preferences.notification_enabled = req.notification_enabled
 
+    if req.daily_sms_enabled is not None:
+        if not current_user.preferences:
+            pref = UserPreference(user_id=current_user.id, persona=current_user.persona, daily_sms_enabled=req.daily_sms_enabled)
+            db.add(pref)
+        else:
+            current_user.preferences.daily_sms_enabled = req.daily_sms_enabled
+
+    if req.professional_advisory_enabled is not None:
+        if not current_user.preferences:
+            pref = UserPreference(user_id=current_user.id, persona=current_user.persona, professional_advisory_enabled=req.professional_advisory_enabled)
+            db.add(pref)
+        else:
+            current_user.preferences.professional_advisory_enabled = req.professional_advisory_enabled
+
+    if req.severe_alerts_enabled is not None:
+        if not current_user.preferences:
+            pref = UserPreference(user_id=current_user.id, persona=current_user.persona, severe_alerts_enabled=req.severe_alerts_enabled)
+            db.add(pref)
+        else:
+            current_user.preferences.severe_alerts_enabled = req.severe_alerts_enabled
+
+    if req.briefing_time is not None:
+        if not current_user.preferences:
+            pref = UserPreference(user_id=current_user.id, persona=current_user.persona, briefing_time=req.briefing_time)
+            db.add(pref)
+        else:
+            current_user.preferences.briefing_time = req.briefing_time
+
+    if req.last_known_location is not None or req.last_latitude is not None or req.last_longitude is not None:
+        if not current_user.preferences:
+            pref = UserPreference(
+                user_id=current_user.id,
+                persona=current_user.persona,
+                last_known_location=req.last_known_location,
+                last_latitude=req.last_latitude,
+                last_longitude=req.last_longitude,
+                last_location_source=req.last_location_source or "manual",
+                last_location_updated_at=datetime.now(timezone.utc)
+            )
+            db.add(pref)
+        else:
+            if req.last_known_location is not None:
+                current_user.preferences.last_known_location = req.last_known_location
+            if req.last_latitude is not None:
+                current_user.preferences.last_latitude = req.last_latitude
+            if req.last_longitude is not None:
+                current_user.preferences.last_longitude = req.last_longitude
+            if req.last_location_source is not None:
+                current_user.preferences.last_location_source = req.last_location_source
+            current_user.preferences.last_location_updated_at = datetime.now(timezone.utc)
+
     db.commit()
     db.refresh(current_user)
 
     notif_enabled = current_user.preferences.notification_enabled if current_user.preferences else True
+    pref = current_user.preferences
     return {
         "id": current_user.id,
         "name": current_user.name,
@@ -515,9 +582,20 @@ async def update_user_profile(
         "preferred_language": current_user.language,
         "persona": current_user.persona,
         "role": current_user.role,
+        "phone_number": current_user.phone_number,
+        "mobile_number": current_user.phone_number,
         "is_verified": bool(current_user.is_verified),
         "onboarding_completed": bool(current_user.onboarding_completed),
-        "notification_enabled": bool(notif_enabled)
+        "notification_enabled": bool(notif_enabled),
+        "daily_sms_enabled": bool(pref.daily_sms_enabled) if (pref and pref.daily_sms_enabled is not None) else True,
+        "professional_advisory_enabled": bool(pref.professional_advisory_enabled) if (pref and pref.professional_advisory_enabled is not None) else True,
+        "severe_alerts_enabled": bool(pref.severe_alerts_enabled) if (pref and pref.severe_alerts_enabled is not None) else bool(notif_enabled),
+        "briefing_time": pref.briefing_time if (pref and pref.briefing_time) else "07:00",
+        "last_known_location": pref.last_known_location if pref else None,
+        "last_latitude": pref.last_latitude if pref else None,
+        "last_longitude": pref.last_longitude if pref else None,
+        "last_location_source": pref.last_location_source if pref else None,
+        "last_location_updated_at": pref.last_location_updated_at.isoformat() if (pref and pref.last_location_updated_at) else None
     }
 
 

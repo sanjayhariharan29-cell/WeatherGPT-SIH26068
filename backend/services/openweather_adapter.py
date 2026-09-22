@@ -323,10 +323,10 @@ class OpenWeatherAdapter(BaseWeatherProvider):
                     "co": round(co, 1)
                 },
                 "recommendations": recs,
-                "source": "OpenWeather",
+                "source": "OpenWeather Model",
                 "source_identity": "OpenWeather",
                 "source_type": "primary_live",
-                "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED (Served via OpenWeather)",
+                "cpcb_status": "CPCB OFFICIAL API ACCESS NOT CONFIGURED",
                 "is_official_cpcb": False,
                 "is_available": True,
                 "status": "HEALTHY",

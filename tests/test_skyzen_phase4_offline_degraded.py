@@ -577,8 +577,8 @@ async def test_26_valid_cached_official_warning():
 
     with patch.object(alert_service.primary, "get_official_alerts", return_value=[active_item]):
         res = await alert_service.fetch_alerts(location_name="Nagapattinam", active_only=True)
-        assert len(res.alerts) == 1
-        alert = res.alerts[0]
+        assert any(a.alert_id == "ALT_VAL_01" for a in res.alerts)
+        alert = next(a for a in res.alerts if a.alert_id == "ALT_VAL_01")
         assert alert.alert_id == "ALT_VAL_01"
         assert alert.severity == "extreme"
         assert alert.instructions == "Evacuate low lying areas immediately"

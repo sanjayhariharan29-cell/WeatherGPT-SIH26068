@@ -27,6 +27,11 @@ LOCATION_REFERENCE_PATTERNS = [
     r"वहाँ",
     r"वहां",
     r"उसी जगह",
+    r"तेथे",
+    r"तिथे",
+    r"त्या ठिकाणी",
+    r"అక్కడ",
+    r"ఆ ప్రదేశంలో",
 ]
 
 # Time of day keywords
@@ -44,17 +49,25 @@ TIME_OF_DAY_KEYWORDS = {
     "दोपहर": "afternoon",
     "शाम": "evening",
     "रात": "night",
+    "सकाळ": "morning",
+    "दुपार": "afternoon",
+    "संध्याकाळ": "evening",
+    "रात्र": "night",
+    "ఉదయం": "morning",
+    "మధ్యాహ్నం": "afternoon",
+    "సాయంత్రం": "evening",
+    "రాత్రి": "night",
 }
 
 # Meteorological topic keywords
 TOPIC_KEYWORDS = {
-    "rain": ["rain", "raining", "rainfall", "shower", "precipitation", "mazhai", "மழை", "बारिश", "बरसात"],
-    "wind": ["wind", "windy", "breeze", "gust", "kaatru", "காற்று", "हवा", "आंधी"],
-    "temperature": ["temperature", "temp", "hot", "cold", "heat", "warm", "சூடு", "குளிர்", "तापमान", "गर्मी", "सर्दी"],
-    "humidity": ["humidity", "humid", "ஈரப்பதம்", "नमी"],
-    "cyclone": ["cyclone", "storm", "புயல்", "तूफान", "चक्रवात"],
-    "flood": ["flood", "flooding", "வெள்ளம்", "बाढ़"],
-    "forecast": ["forecast", "வானிலை அறிக்கை", "पूर्वानुमान"]
+    "rain": ["rain", "raining", "rainfall", "shower", "precipitation", "mazhai", "மழை", "बारिश", "बरसात", "पाऊस", "वर्షం"],
+    "wind": ["wind", "windy", "breeze", "gust", "kaatru", "காற்று", "हवा", "आंधी", "वारा", "గాలి"],
+    "temperature": ["temperature", "temp", "hot", "cold", "heat", "warm", "சூடு", "குளிர்", "तापमान", "गर्मी", "सर्दी", "थंडी", "उष्णता", "వేడి", "చలి"],
+    "humidity": ["humidity", "humid", "ஈரப்பதம்", "नमी", "आर्द्रता", "తేమ"],
+    "cyclone": ["cyclone", "storm", "புயல்", "तूफान", "चक्रवात", "चक्रीवादळ", "తుఫాను"],
+    "flood": ["flood", "flooding", "வெள்ளம்", "बाढ़", "पूर", "వరద"],
+    "forecast": ["forecast", "வானிலை அறிக்கை", "पूर्वानुमान", "हवामान अंदाज", "వాతావరణ అంచనా"]
 }
 
 
@@ -252,7 +265,7 @@ class ContextResolver:
         # Check explicit request override first (e.g., user says "tell me in Tamil" or caller passed language)
         if explicit_language and explicit_language.strip():
             resolved_language = explicit_language.strip().lower()
-        elif nlu.detected_language and nlu.detected_language.value in ("ta", "hi"):
+        elif nlu.detected_language and nlu.detected_language.value in ("ta", "hi", "mr", "te"):
             resolved_language = nlu.detected_language.value
         elif context and context.language:
             resolved_language = context.language

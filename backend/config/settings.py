@@ -20,12 +20,26 @@ class Settings(BaseModel):
     """Centralized Backend Configuration for WeatherGPT."""
 
     APP_NAME: str = "WeatherGPT-SIH26068"
-    ENVIRONMENT: str = Field(default_factory=lambda: os.getenv("ENVIRONMENT", "development"))
-    DEBUG: bool = Field(default_factory=lambda: os.getenv("DEBUG", "true").lower() == "true")
+    ENVIRONMENT: str = Field(
+        default_factory=lambda: os.getenv("ENVIRONMENT", "production" if os.getenv("RENDER") == "true" else "development")
+    )
+    DEBUG: bool = Field(
+        default_factory=lambda: (
+            False
+            if (os.getenv("RENDER") == "true" or os.getenv("ENVIRONMENT", "").lower() == "production")
+            else (os.getenv("DEBUG", "true").lower() == "true")
+        )
+    )
     API_V1_PREFIX: str = "/api/v1"
     HOST: str = Field(default_factory=lambda: os.getenv("HOST", "0.0.0.0"))
     PORT: int = Field(default_factory=lambda: int(os.getenv("PORT", "8000")))
-    DEMO_MODE: bool = Field(default_factory=lambda: os.getenv("DEMO_MODE", "false").lower() == "true")
+    DEMO_MODE: bool = Field(
+        default_factory=lambda: (
+            os.getenv("DEMO_MODE", "false").lower() == "true"
+            if not (os.getenv("RENDER") == "true" or os.getenv("ENVIRONMENT", "").lower() == "production")
+            else False
+        )
+    )
 
     # Database Settings
     DATABASE_URL: str = Field(

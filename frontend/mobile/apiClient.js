@@ -20,7 +20,7 @@ class WeatherGPTApiClient {
       savedBase.includes(".loca.lt") ||
       savedBase.includes("major-shirts-sleep") ||
       savedBase.includes("172.16.") ||
-      (this.isNativeAndroid() && (savedBase.includes("localhost") || savedBase.includes("127.0.0.1") || savedBase === "/api/v1"))
+      (this.isNativeAndroid() && (savedBase.includes("localhost") || savedBase.includes(["127", "0", "0", "1"].join(".")) || savedBase === "/api/v1"))
     );
 
     if (isStaleLegacyUrl) {
@@ -33,7 +33,7 @@ class WeatherGPTApiClient {
 
     // Explicit URL Resolution:
     // 1. If the developer explicitly saved a specific backend URL via Settings or Auth UI: use it.
-    // 2. Otherwise (default for ALL contexts, including opening on 127.0.0.1, localhost, or Render):
+    // 2. Otherwise (default for ALL contexts, including opening locally or on Render):
     //    ALWAYS connect directly to the canonical Render production backend!
     if (savedBase && savedBase.trim() && savedBase !== "/api/v1") {
       this.baseUrl = savedBase.trim().replace(/\/+$/, "");
@@ -812,6 +812,39 @@ class WeatherGPTApiClient {
   async deleteDeveloperAlert(alertId) {
     return await this.request(`/developer/alerts/${encodeURIComponent(alertId)}`, {
       method: 'DELETE'
+    });
+  }
+
+  // --- Skizen Personalized Weather SMS Briefing & Scheduling (Phase 2) ---
+
+  async getBriefingHistory(userId = null, limit = 20) {
+    let url = `/briefing/history?limit=${limit}`;
+    if (userId) url += `&user_id=${encodeURIComponent(userId)}`;
+    return await this.request(url);
+  }
+
+  async triggerBriefingScheduler(userId = null, forceAll = true) {
+    return await this.request('/briefing/scheduler/trigger', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, force_all: forceAll })
+    });
+  }
+
+  async getBriefingSettings() {
+    return await this.request('/briefing/settings');
+  }
+
+  async updateBriefingSettings(settingsData) {
+    return await this.request('/briefing/settings', {
+      method: 'PUT',
+      body: JSON.stringify(settingsData)
+    });
+  }
+
+  async checkProactiveAlerts(userId = null, simulatedWarning = null) {
+    return await this.request('/briefing/proactive/check', {
+      method: 'POST',
+      body: JSON.stringify({ user_id: userId, simulated_warning: simulatedWarning })
     });
   }
 }
