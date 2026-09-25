@@ -1,0 +1,572 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="dark">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>SkyZen — Disaster & Government Operations Dashboard</title>
+  <meta name="description" content="Administrative disaster-weather monitoring dashboard using verified meteorological pipelines.">
+  <script>
+    (function() {
+      try {
+        var t = localStorage.getItem('skyzen_theme');
+        if (t === 'light') {
+          document.documentElement.setAttribute('data-theme', 'light');
+        } else {
+          document.documentElement.setAttribute('data-theme', 'dark');
+        }
+      } catch(e){}
+    })();
+  </script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Material+Symbols+Rounded:opsz,wght,FILL,GRAD@24,400,0,0" />
+  <link rel="stylesheet" href="design-tokens.css">
+  <link rel="stylesheet" href="styles.css">
+  <!-- Leaflet CSS for Authoritative Map Visualization -->
+  <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+  <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+
+  <style>
+    :root {
+      --ops-bg: #090e1a;
+      --ops-card-bg: rgba(15, 23, 42, 0.75);
+      --ops-border: rgba(255, 255, 255, 0.12);
+      --ops-accent: #38bdf8;
+      --ops-danger: #ef4444;
+      --ops-warning: #f59e0b;
+      --ops-success: #10b981;
+      --ops-info: #6366f1;
+    }
+    body.ops-body {
+      background: radial-gradient(circle at 50% 0%, #1e1b4b 0%, var(--ops-bg) 70%);
+      color: #f8fafc;
+      font-family: 'Inter', sans-serif;
+      margin: 0;
+      padding: 0;
+      min-height: 100vh;
+    }
+    .ops-navbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: 16px 28px;
+      background: rgba(15, 23, 42, 0.85);
+      backdrop-filter: blur(16px);
+      border-bottom: 1px solid var(--ops-border);
+      position: sticky;
+      top: 0;
+      z-index: 1000;
+    }
+    .ops-title-group {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .ops-badge {
+      background: rgba(239, 68, 68, 0.2);
+      color: #f87171;
+      border: 1px solid rgba(239, 68, 68, 0.4);
+      padding: 4px 10px;
+      border-radius: 999px;
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.05em;
+      text-transform: uppercase;
+    }
+    .ops-container {
+      max-width: 1400px;
+      margin: 0 auto;
+      padding: 24px;
+      display: flex;
+      flex-direction: column;
+      gap: 24px;
+    }
+    /* KPI Grid */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+      gap: 16px;
+    }
+    .kpi-card {
+      background: var(--ops-card-bg);
+      border: 1px solid var(--ops-border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      backdrop-filter: blur(12px);
+    }
+    .kpi-title {
+      font-size: 0.85rem;
+      color: #94a3b8;
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-weight: 600;
+    }
+    .kpi-value {
+      font-size: 2.2rem;
+      font-weight: 800;
+      line-height: 1;
+    }
+    /* Filter Bar */
+    .filter-bar {
+      background: var(--ops-card-bg);
+      border: 1px solid var(--ops-border);
+      border-radius: 14px;
+      padding: 16px 20px;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 14px;
+      align-items: center;
+    }
+    .filter-input, .filter-select {
+      background: rgba(30, 41, 59, 0.8);
+      border: 1px solid rgba(255, 255, 255, 0.15);
+      color: #f8fafc;
+      padding: 10px 14px;
+      border-radius: 8px;
+      font-size: 0.9rem;
+      outline: none;
+    }
+    .filter-input:focus, .filter-select:focus {
+      border-color: var(--ops-accent);
+    }
+    .btn-action {
+      background: #0284c7;
+      color: white;
+      border: none;
+      padding: 10px 18px;
+      border-radius: 8px;
+      font-weight: 600;
+      cursor: pointer;
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      transition: background 0.2s;
+    }
+    .btn-action:hover {
+      background: #0369a1;
+    }
+    /* Map & Grid Section */
+    .dashboard-main {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 24px;
+    }
+    @media (max-width: 1024px) {
+      .dashboard-main {
+        grid-template-columns: 1fr;
+      }
+    }
+    .panel-card {
+      background: var(--ops-card-bg);
+      border: 1px solid var(--ops-border);
+      border-radius: 14px;
+      padding: 20px;
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+      backdrop-filter: blur(12px);
+    }
+    #opsMap {
+      width: 100%;
+      height: 380px;
+      border-radius: 10px;
+      border: 1px solid var(--ops-border);
+    }
+    .geom-fallback-banner {
+      background: rgba(245, 158, 11, 0.15);
+      border: 1px dashed rgba(245, 158, 11, 0.5);
+      color: #fcd34d;
+      padding: 12px 16px;
+      border-radius: 8px;
+      font-size: 0.88rem;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    /* Table */
+    .table-container {
+      overflow-x: auto;
+      border-radius: 10px;
+      border: 1px solid var(--ops-border);
+    }
+    table.ops-table {
+      width: 100%;
+      border-collapse: collapse;
+      font-size: 0.88rem;
+      text-align: left;
+    }
+    table.ops-table th {
+      background: rgba(30, 41, 59, 0.9);
+      padding: 12px 14px;
+      color: #94a3b8;
+      font-weight: 600;
+      border-bottom: 1px solid var(--ops-border);
+    }
+    table.ops-table td {
+      padding: 12px 14px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+    }
+    table.ops-table tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+    .tag-active { background: rgba(16, 185, 129, 0.2); color: #34d399; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .tag-scheduled { background: rgba(99, 102, 241, 0.2); color: #818cf8; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .tag-expired { background: rgba(148, 163, 184, 0.2); color: #94a3b8; padding: 3px 8px; border-radius: 6px; font-weight: 600; }
+    .tag-extreme { background: rgba(239, 68, 68, 0.3); color: #f87171; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
+    .tag-high { background: rgba(249, 115, 22, 0.3); color: #fb923c; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
+    .tag-medium { background: rgba(245, 158, 11, 0.3); color: #fbbf24; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
+    .tag-low { background: rgba(16, 185, 129, 0.3); color: #6ee7b7; padding: 3px 8px; border-radius: 6px; font-weight: 700; }
+  </style>
+</head>
+<body class="ops-body">
+
+  <nav class="ops-navbar">
+    <div class="ops-title-group">
+      <span class="material-symbols-rounded" style="color:#ef4444; font-size:2rem;">crisis_alert</span>
+      <div>
+        <h1 style="font-size:1.25rem; font-weight:800; margin:0;">SkyZen Operations Command</h1>
+        <p style="font-size:0.75rem; color:#94a3b8; margin:0;">Disaster Weather & Civil Protection Telemetry Dashboard</p>
+      </div>
+    </div>
+    <div style="display:flex; align-items:center; gap:16px;">
+      <span id="systemHealthBadge" class="ops-badge" style="background:rgba(16, 185, 129, 0.2); color:#34d399; border-color:rgba(16, 185, 129, 0.4);">
+        ONLINE — OPTIMAL
+      </span>
+      <span class="ops-badge">ADMIN AUTHORIZED</span>
+    </div>
+  </nav>
+
+  <div class="ops-container">
+    <!-- Top KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <span class="kpi-title">Active Warnings</span>
+        <div id="kpiActive" class="kpi-value" style="color:#ef4444;">0</div>
+        <span style="font-size:0.78rem; color:#94a3b8;">Requiring Immediate Attention</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-title">Scheduled Warnings</span>
+        <div id="kpiScheduled" class="kpi-value" style="color:#818cf8;">0</div>
+        <span style="font-size:0.78rem; color:#94a3b8;">Future Timed Advisories</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-title">Expired Warnings</span>
+        <div id="kpiExpired" class="kpi-value" style="color:#94a3b8;">0</div>
+        <span style="font-size:0.78rem; color:#94a3b8;">Historical Archives</span>
+      </div>
+      <div class="kpi-card">
+        <span class="kpi-title">FCM Delivery Success</span>
+        <div id="kpiDeliveryRate" class="kpi-value" style="color:#10b981;">100%</div>
+        <span id="kpiActiveTokens" style="font-size:0.78rem; color:#94a3b8;">Registered Devices: 0</span>
+      </div>
+    </div>
+
+    <!-- Filters Section -->
+    <div class="filter-bar">
+      <div style="display:flex; align-items:center; gap:6px;">
+        <span class="material-symbols-rounded" style="color:#94a3b8;">filter_list</span>
+        <strong style="font-size:0.9rem;">Filters:</strong>
+      </div>
+      <input type="text" id="filterDistrict" class="filter-input" placeholder="Search District (e.g. Coimbatore)" style="min-width:180px;">
+      <select id="filterType" class="filter-select">
+        <option value="">All Warning Types</option>
+        <option value="heavy_rain">Heavy Rain</option>
+        <option value="thunderstorm">Thunderstorm</option>
+        <option value="cyclone">Cyclone</option>
+        <option value="heat_wave">Heat Wave</option>
+        <option value="squall">Squall</option>
+      </select>
+      <select id="filterSeverity" class="filter-select">
+        <option value="">All Severities</option>
+        <option value="extreme">Extreme</option>
+        <option value="high">High</option>
+        <option value="medium">Medium</option>
+        <option value="low">Low</option>
+      </select>
+      <select id="filterLifecycle" class="filter-select">
+        <option value="all">All Lifecycles</option>
+        <option value="active" selected>Active Only</option>
+        <option value="scheduled">Scheduled</option>
+        <option value="expired">Expired</option>
+      </select>
+      <button id="btnApplyFilters" class="btn-action" onclick="fetchOperationalData()">
+        <span class="material-symbols-rounded" style="font-size:1.1rem;">refresh</span>
+        Apply Filters
+      </button>
+      <button class="btn-action" style="background:#334155;" onclick="resetFilters()">
+        Reset
+      </button>
+    </div>
+
+    <!-- Main Section: Map & Selected Warning Preview -->
+    <div class="dashboard-main">
+      <!-- Authoritative Map Visualization -->
+      <div class="panel-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="font-size:1.05rem; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
+            <span class="material-symbols-rounded" style="color:#38bdf8;">map</span>
+            Authoritative Geometry Visualization
+          </h2>
+          <span style="font-size:0.75rem; color:#94a3b8;">Zero Synthetic Polygons</span>
+        </div>
+        <div id="opsMap"></div>
+        <div id="geomFallbackBanner" class="geom-fallback-banner" style="display:none;">
+          <span class="material-symbols-rounded">info</span>
+          <span id="geomFallbackText">Geographic polygon unavailable for this warning. Displaying affected area description as text.</span>
+        </div>
+      </div>
+
+      <!-- Provider & System Health Panel -->
+      <div class="panel-card">
+        <div style="display:flex; justify-content:space-between; align-items:center;">
+          <h2 style="font-size:1.05rem; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
+            <span class="material-symbols-rounded" style="color:#10b981;">health_and_safety</span>
+            Provider & System Operations Health
+          </h2>
+          <span style="font-size:0.75rem; color:#94a3b8;">Credentials Redacted</span>
+        </div>
+        <div id="healthContainer" style="display:flex; flex-direction:column; gap:12px;">
+          <!-- Dynamically populated -->
+        </div>
+        <div style="background:rgba(255,255,255,0.03); border:1px solid var(--ops-border); border-radius:8px; padding:12px; font-size:0.82rem; color:#94a3b8;">
+          <strong style="color:#f8fafc;">Authoritative Safety Hierarchy:</strong>
+          Official IMD and Civil Authority Warnings take absolute precedence. LLM reasoning engines cannot modify or cancel active official warnings.
+        </div>
+      </div>
+    </div>
+
+    <!-- Warnings Table Panel -->
+    <div class="panel-card">
+      <div style="display:flex; justify-content:space-between; align-items:center;">
+        <h2 style="font-size:1.05rem; font-weight:700; margin:0; display:flex; align-items:center; gap:8px;">
+          <span class="material-symbols-rounded" style="color:#ef4444;">warning</span>
+          Disaster Warnings Registry
+        </h2>
+        <span id="tableRecordCount" style="font-size:0.82rem; color:#94a3b8;">Showing 0 warnings</span>
+      </div>
+      <div class="table-container">
+        <table class="ops-table">
+          <thead>
+            <tr>
+              <th>Status</th>
+              <th>Severity</th>
+              <th>Warning Type / Title</th>
+              <th>Affected Area</th>
+              <th>Source</th>
+              <th>Data Freshness</th>
+              <th>FCM Targeting</th>
+              <th>Actions</th>
+            </tr>
+          </thead>
+          <tbody id="warningsTableBody">
+            <tr>
+              <td colspan="8" style="text-align:center; padding:32px; color:#94a3b8;">Loading operational telemetry...</td>
+            </tr>
+          </tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <script>
+    // Initialize Leaflet Map
+    let map = null;
+    let activeLayerGroup = null;
+
+    function initMap() {
+      if (map) return;
+      map = L.map('opsMap').setView([20.5937, 78.9629], 5);
+      L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+        attribution: '&copy; CartoDB &copy; OpenStreetMap',
+        maxZoom: 18
+      }).addTo(map);
+      activeLayerGroup = L.layerGroup().addTo(map);
+    }
+
+    function getAuthToken() {
+      return localStorage.getItem('skyzen_token') || sessionStorage.getItem('skyzen_token') || '';
+    }
+
+    function getAuthHeaders() {
+      const token = getAuthToken();
+      const headers = { 'Content-Type': 'application/json' };
+      if (token) headers['Authorization'] = 'Bearer ' + token;
+      return headers;
+    }
+
+    async function fetchOperationalData() {
+      const district = document.getElementById('filterDistrict').value.trim();
+      const type = document.getElementById('filterType').value;
+      const severity = document.getElementById('filterSeverity').value;
+      const lifecycle = document.getElementById('filterLifecycle').value;
+
+      const params = new URLSearchParams();
+      if (district) params.append('district', district);
+      if (type) params.append('warning_type', type);
+      if (severity) params.append('severity', severity);
+      if (lifecycle && lifecycle !== 'all') params.append('lifecycle', lifecycle);
+
+      try {
+        // Fetch dashboard overview
+        const dashRes = await fetch('/api/v1/operations/disaster/dashboard', { headers: getAuthHeaders() });
+        if (dashRes.ok) {
+          const dash = await dashRes.json();
+          renderKPIs(dash);
+          renderHealth(dash.system_health);
+        }
+
+        // Fetch filtered warnings
+        const warnRes = await fetch(`/api/v1/operations/disaster/warnings?${params.toString()}`, { headers: getAuthHeaders() });
+        if (warnRes.ok) {
+          const warnData = await warnRes.json();
+          renderWarningsTable(warnData.warnings || []);
+        }
+      } catch (err) {
+        console.error('Failed to load operations data:', err);
+      }
+    }
+
+    function renderKPIs(dash) {
+      const lc = dash.warning_lifecycle_summary || {};
+      const fcm = dash.fcm_delivery_summary || {};
+
+      document.getElementById('kpiActive').innerText = lc.active || 0;
+      document.getElementById('kpiScheduled').innerText = lc.scheduled || 0;
+      document.getElementById('kpiExpired').innerText = lc.expired || 0;
+      document.getElementById('kpiDeliveryRate').innerText = (fcm.delivery_rate_pct || 100) + '%';
+      document.getElementById('kpiActiveTokens').innerText = `Registered Devices: ${fcm.active_device_tokens || 0}`;
+    }
+
+    function renderHealth(health) {
+      if (!health) return;
+      const container = document.getElementById('healthContainer');
+      const prov = health.providers || {};
+      const infra = health.infrastructure || {};
+
+      container.innerHTML = `
+        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px;">
+          <div style="background:rgba(30,41,59,0.7); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:0.75rem; color:#94a3b8;">IMD Official Feed</div>
+            <div style="font-weight:700; color:${prov.imd?.status === 'ONLINE' ? '#34d399' : '#fbbf24'};">${prov.imd?.status || 'ONLINE'}</div>
+          </div>
+          <div style="background:rgba(30,41,59,0.7); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:0.75rem; color:#94a3b8;">Open-Meteo Global</div>
+            <div style="font-weight:700; color:#34d399;">${prov.open_meteo?.status || 'ONLINE'}</div>
+          </div>
+          <div style="background:rgba(30,41,59,0.7); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:0.75rem; color:#94a3b8;">PostgreSQL Database</div>
+            <div style="font-weight:700; color:${infra.database?.status === 'HEALTHY' ? '#34d399' : '#f87171'};">
+              ${infra.database?.status || 'HEALTHY'} (${infra.database?.latency_ms || 0}ms)
+            </div>
+          </div>
+          <div style="background:rgba(30,41,59,0.7); padding:10px; border-radius:8px; border:1px solid rgba(255,255,255,0.08);">
+            <div style="font-size:0.75rem; color:#94a3b8;">FCM Disaster Gateway</div>
+            <div style="font-weight:700; color:#38bdf8;">${infra.fcm_service?.status || 'CONFIGURED'}</div>
+          </div>
+        </div>
+      `;
+    }
+
+    function renderWarningsTable(warnings) {
+      const tbody = document.getElementById('warningsTableBody');
+      document.getElementById('tableRecordCount').innerText = `Showing ${warnings.length} warning(s)`;
+
+      if (warnings.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="8" style="text-align:center; padding:32px; color:#94a3b8;">No disaster warnings match current filter criteria.</td></tr>`;
+        return;
+      }
+
+      tbody.innerHTML = warnings.map(w => {
+        const lcClass = `tag-${w.lifecycle || 'active'}`;
+        const sevClass = `tag-${w.severity || 'medium'}`;
+        const geom = w.geographic_area || {};
+        const geomBadge = geom.has_geometry 
+          ? `<span style="color:#34d399; font-size:0.75rem; font-weight:700;">● Official Polygon</span>`
+          : `<span style="color:#fbbf24; font-size:0.75rem;">Text Scoped</span>`;
+        const fcmMetrics = w.notification_metrics || {};
+
+        return `
+          <tr>
+            <td><span class="${lcClass}">${w.lifecycle?.toUpperCase()}</span></td>
+            <td><span class="${sevClass}">${w.severity?.toUpperCase()}</span></td>
+            <td>
+              <strong>${w.title}</strong>
+              <div style="font-size:0.75rem; color:#94a3b8;">Type: ${w.alert_type}</div>
+            </td>
+            <td>
+              <div>${geom.affected_area_text || w.location_name}</div>
+              <div>${geomBadge}</div>
+            </td>
+            <td>${w.source || 'IMD'}</td>
+            <td>
+              <span style="font-size:0.78rem;">${w.freshness?.status || 'FRESH'}</span>
+              <div style="font-size:0.72rem; color:#94a3b8;">${w.freshness?.age_minutes || 0} min ago</div>
+            </td>
+            <td>
+              <div style="font-size:0.8rem;">
+                Sent: <strong style="color:#34d399;">${fcmMetrics.sent_count || 0}</strong> | 
+                Skipped: <strong style="color:#94a3b8;">${fcmMetrics.skipped_count || 0}</strong>
+              </div>
+            </td>
+            <td>
+              <button class="btn-action" style="padding:6px 12px; font-size:0.78rem;" onclick='visualizeWarning(${JSON.stringify(w)})'>
+                Inspect
+              </button>
+            </td>
+          </tr>
+        `;
+      }).join('');
+    }
+
+    function visualizeWarning(w) {
+      if (!map) return;
+      activeLayerGroup.clearLayers();
+      const geom = w.geographic_area || {};
+      const banner = document.getElementById('geomFallbackBanner');
+      const bannerText = document.getElementById('geomFallbackText');
+
+      if (geom.has_geometry && geom.geometry) {
+        banner.style.display = 'none';
+        try {
+          const layer = L.geoJSON(geom.geometry, {
+            style: {
+              color: w.severity === 'extreme' ? '#ef4444' : w.severity === 'high' ? '#f97316' : '#f59e0b',
+              weight: 2,
+              fillOpacity: 0.35
+            }
+          }).addTo(activeLayerGroup);
+          map.fitBounds(layer.getBounds(), { padding: [20, 20] });
+        } catch(e) {
+          console.error("Failed to render geometry layer:", e);
+        }
+      } else {
+        // STRICT SAFETY INVARIANT: If genuine geometry is unavailable, show text banner and NEVER create fake polygon
+        banner.style.display = 'flex';
+        bannerText.innerText = `Geographic polygon unavailable for this warning. Affected Area: ${geom.affected_area_text || w.location_name} (Zero synthetic geometry created).`;
+        if (geom.latitude && geom.longitude) {
+          map.setView([geom.latitude, geom.longitude], 9);
+          L.marker([geom.latitude, geom.longitude]).addTo(activeLayerGroup)
+            .bindPopup(`<strong>${w.title}</strong><br>${geom.affected_area_text}`).openPopup();
+        }
+      }
+    }
+
+    function resetFilters() {
+      document.getElementById('filterDistrict').value = '';
+      document.getElementById('filterType').value = '';
+      document.getElementById('filterSeverity').value = '';
+      document.getElementById('filterLifecycle').value = 'all';
+      fetchOperationalData();
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+      initMap();
+      fetchOperationalData();
+    });
+  </script>
+</body>
+</html>

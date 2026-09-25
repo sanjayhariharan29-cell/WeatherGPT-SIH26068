@@ -15,7 +15,7 @@ from backend.middleware import (
 from backend.db.init_db import init_db
 from backend.db.models import User
 from backend.core.security import require_developer_role
-from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer, briefing, realtime
+from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer, briefing, realtime, disaster_operations
 
 # Initialize Database on Module Import
 init_db()
@@ -78,6 +78,7 @@ app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(developer.router, prefix=settings.API_V1_PREFIX)
 app.include_router(briefing.router, prefix=settings.API_V1_PREFIX)
 app.include_router(realtime.router, prefix=settings.API_V1_PREFIX)
+app.include_router(disaster_operations.router, prefix=settings.API_V1_PREFIX)
 
 # Developer Portal Web Entrypoints (Guarded by require_developer_role)
 @app.get("/developer", response_class=HTMLResponse, tags=["developer"])
@@ -89,6 +90,17 @@ def developer_portal_entry(current_user: User = Depends(require_developer_role))
     Returns 401 for unauthenticated requests, 403 for normal users, and 200 for developers.
     """
     return developer.get_developer_dashboard(current_user=current_user)
+
+# Disaster and Government Operations Dashboard Web Entrypoints (Guarded by require_operations_access)
+@app.get("/operations/disaster", response_class=HTMLResponse, tags=["disaster-operations"])
+@app.get("/operations/disaster/", response_class=HTMLResponse, tags=["disaster-operations"])
+@app.get("/admin/disaster", response_class=HTMLResponse, tags=["disaster-operations"])
+@app.get("/operations_dashboard.html", response_class=HTMLResponse, tags=["disaster-operations"])
+def operations_dashboard_entry(current_user: User = Depends(disaster_operations.require_operations_access)):
+    """Serves the administrative disaster operations dashboard, guarded by require_operations_access.
+    Returns 401 for unauthenticated requests, 403 for normal users, and 200 for admins/developers.
+    """
+    return disaster_operations.get_operations_dashboard_ui(current_user=current_user)
 
 # Mount Static Frontend Directory if present
 frontend_dir = os.path.join(os.path.dirname(os.path.dirname(__file__)), "frontend")
