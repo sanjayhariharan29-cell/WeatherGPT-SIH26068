@@ -1,0 +1,76 @@
+{
+  "timestamp": "2026-09-25T17:02:22Z",
+  "configuration": {
+    "concurrency": 5,
+    "requests_per_target": 40,
+    "environment": "local_testing"
+  },
+  "load_tested_targets": [
+    "FastAPI Weather Current Observation Endpoint (/api/v1/weather/current)",
+    "AI Meteorological Reasoner (WeatherReasoner.evaluate)",
+    "AI Persona Decision Advisory Engine (DecisionEngine.generate_advisory)",
+    "AI Safety Response Validation Gate (ResponseValidator.validate_response)",
+    "Full End-to-End Query Pipeline (NLU -> Reasoner -> Decision -> Validator)",
+    "Disaster Notification Geographic Targeting & Bounding Engine (AlertEngine.match_affected_area)"
+  ],
+  "not_load_tested_targets": [
+    "External Live IMD GeoServer WFS Production Endpoint (prohibited to avoid DoS on government servers)",
+    "External Firebase Cloud Messaging (FCM) Production Push Delivery Gateway",
+    "External Live SMS Gateway Delivery (untested to prevent telecom carrier throttling/charges)",
+    "Distributed Kubernetes Cluster Pod Auto-scaling (not currently deployed)"
+  ],
+  "results": {
+    "weather_api_latency": {
+      "sample_size": 40,
+      "rps": 23.1,
+      "p50_ms": 13.1,
+      "p90_ms": 1367.29,
+      "p95_ms": 1624.94,
+      "p99_ms": 1726.67,
+      "mean_ms": 197.85,
+      "min_ms": 9.54,
+      "max_ms": 1726.67,
+      "success_count": 40,
+      "concurrency": 5
+    },
+    "ai_pipeline_latency": {
+      "sample_size": 40,
+      "rps": 1019.5,
+      "p50_ms": 0.62,
+      "p90_ms": 1.05,
+      "p95_ms": 1.35,
+      "p99_ms": 9.55,
+      "mean_ms": 0.83,
+      "min_ms": 0.18,
+      "max_ms": 9.55,
+      "success_count": 40,
+      "concurrency": 5
+    },
+    "end_to_end_response_latency": {
+      "sample_size": 40,
+      "rps": 1227.8,
+      "p50_ms": 0.51,
+      "p90_ms": 0.91,
+      "p95_ms": 1.12,
+      "p99_ms": 7.76,
+      "mean_ms": 0.74,
+      "min_ms": 0.39,
+      "max_ms": 7.76,
+      "success_count": 40,
+      "concurrency": 5
+    },
+    "notification_processing_latency": {
+      "sample_size": 40,
+      "rps": 29873.0,
+      "p50_ms": 0.0,
+      "p90_ms": 0.01,
+      "p95_ms": 0.01,
+      "p99_ms": 0.02,
+      "mean_ms": 0.0,
+      "min_ms": 0.0,
+      "max_ms": 0.02,
+      "success_count": 40,
+      "concurrency": 5
+    }
+  }
+}

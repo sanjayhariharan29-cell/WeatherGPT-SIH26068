@@ -25,6 +25,12 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             response = await call_next(request)
             latency_ms = round((time.time() - start_time) * 1000, 2)
             response.headers["X-Request-ID"] = request_id
+            response.headers["X-Response-Time-Ms"] = str(latency_ms)
+
+            # Record API latency and error metrics in central observability engine
+            from backend.services.observability_service import observability_service
+            observability_service.record_api_request(status_code=response.status_code, latency_ms=latency_ms)
+
             logger.info(
                 f"HTTP {request.method} {request.url.path} -> {response.status_code} "
                 f"({latency_ms}ms) [request_id={request_id}]"
@@ -32,6 +38,9 @@ class RequestIDMiddleware(BaseHTTPMiddleware):
             return response
         except Exception as exc:
             latency_ms = round((time.time() - start_time) * 1000, 2)
+            from backend.services.observability_service import observability_service
+            observability_service.record_api_request(status_code=500, latency_ms=latency_ms)
+
             logger.error(
                 f"HTTP {request.method} {request.url.path} -> EXCEPTION: {exc} "
                 f"({latency_ms}ms) [request_id={request_id}]"
