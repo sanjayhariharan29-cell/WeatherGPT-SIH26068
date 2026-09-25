@@ -1,7 +1,7 @@
 import os
 import sys
 from pathlib import Path
-from typing import List
+from typing import List, Optional
 from pydantic import BaseModel, Field
 
 try:
@@ -101,5 +101,12 @@ class Settings(BaseModel):
     WEATHER_CACHE_TTL_SECONDS: int = Field(default_factory=lambda: int(os.getenv("WEATHER_CACHE_TTL_SECONDS", "300")))
     OPENAI_API_KEY: str = Field(default_factory=lambda: os.getenv("OPENAI_API_KEY", ""))
     GEMINI_API_KEY: str = Field(default_factory=lambda: os.getenv("GEMINI_API_KEY", ""))
+
+    # NWP (Numerical Weather Prediction) GFS & WRF Integration Readiness (Phase 27)
+    NWP_ENABLED: bool = Field(default_factory=lambda: os.getenv("NWP_ENABLED", "false").lower() == "true")
+    NWP_GFS_ENDPOINT: Optional[str] = Field(default_factory=lambda: os.getenv("NWP_GFS_ENDPOINT"))
+    NWP_WRF_ENDPOINT: Optional[str] = Field(default_factory=lambda: os.getenv("NWP_WRF_ENDPOINT"))
+    NWP_HTTP_TIMEOUT_SECONDS: float = Field(default_factory=lambda: float(os.getenv("NWP_HTTP_TIMEOUT_SECONDS", "10.0")))
+    NWP_CACHE_TTL_SECONDS: int = Field(default_factory=lambda: int(os.getenv("NWP_CACHE_TTL_SECONDS", "1800")))
 
 settings = Settings()

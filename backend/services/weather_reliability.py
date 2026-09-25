@@ -33,10 +33,11 @@ class CompletenessClassification(str, Enum):
 
 class ProviderStatusEnum(str, Enum):
     """Provider operational status."""
-    HEALTHY = "HEALTHY"          # Provider operating normally, fresh telemetry
-    DEGRADED = "DEGRADED"        # Partial fields, aging telemetry, or high latency
-    FAILED = "FAILED"            # Provider returned error, timed out, or unparseable
-    UNAVAILABLE = "UNAVAILABLE"  # Provider not configured or unreachable
+    HEALTHY = "HEALTHY"                  # Provider operating normally, fresh telemetry
+    DEGRADED = "DEGRADED"                # Partial fields, aging telemetry, or high latency
+    FAILED = "FAILED"                    # Provider returned error, timed out, or unparseable
+    UNAVAILABLE = "UNAVAILABLE"          # Provider not configured or unreachable
+    NOT_CONFIGURED = "NOT_CONFIGURED"    # Provider endpoint not configured in environment
 
 
 class ValidationStatusEnum(str, Enum):
@@ -352,3 +353,48 @@ def validate_weather_completeness(
         return CompletenessClassification.PARTIAL, ValidationStatusEnum.WARNING, issues
 
     return CompletenessClassification.COMPLETE, ValidationStatusEnum.VALID, []
+
+
+def evaluate_nwp_freshness(
+    initialization_time: Union[str, datetime, None],
+    current_time: Optional[datetime] = None,
+    expected_cycle_hours: int = 6
+) -> Tuple[FreshnessClassification, int, Dict[str, Any]]:
+    """Evaluates NWP model cycle freshness based on standard 6-hour synoptic run intervals.
+
+    - FRESH: Model initialized < 360 mins (6h) ago (current operational cycle).
+    - AGING: Model initialized 360 - 720 mins (6h-12h) ago (prior cycle, usable guidance).
+    - STALE: Model initialized > 720 mins (12h) ago (deprecated by two or more newer cycles).
+    - UNAVAILABLE: Missing or unparseable initialization timestamp.
+    """
+    now_utc = current_time or datetime.now(timezone.utc)
+    init_dt = parse_iso_datetime(initialization_time)
+
+    if init_dt is None:
+        return (
+            FreshnessClassification.UNAVAILABLE,
+            -1,
+            {
+                "reason": "Missing or unparseable NWP initialization_time",
+                "age_minutes": -1,
+                "freshness_category": FreshnessClassification.UNAVAILABLE.value
+            }
+        )
+
+    delta = now_utc - init_dt
+    age_minutes = max(0, int(delta.total_seconds() / 60))
+
+    cycle_mins = expected_cycle_hours * 60
+    if age_minutes < cycle_mins:
+        freshness = FreshnessClassification.FRESH
+    elif age_minutes <= (cycle_mins * 2):
+        freshness = FreshnessClassification.AGING
+    else:
+        freshness = FreshnessClassification.STALE
+
+    return freshness, age_minutes, {
+        "initialization_time": init_dt.isoformat(),
+        "age_minutes": age_minutes,
+        "freshness_category": freshness.value,
+        "cycle_status": "current_cycle" if freshness == FreshnessClassification.FRESH else ("prior_cycle" if freshness == FreshnessClassification.AGING else "outdated_cycle")
+    }

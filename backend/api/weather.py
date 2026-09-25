@@ -252,38 +252,44 @@ async def _get_satellite_tile(z: int, x: int, y_int: int) -> Response:
     upstream_url = f"https://realearth.ssec.wisc.edu/tiles/HIMAWARI-B13/{z}/{x}/{y_int}.png"
     logger.info(f"[Satellite Tile] Fetching Himawari-9 tile: {upstream_url}")
 
-    try:
-        async with httpx.AsyncClient(timeout=settings.WEATHER_HTTP_TIMEOUT_SECONDS) as client:
-            resp = await client.get(
-                upstream_url,
-                headers={"User-Agent": "WeatherGPT/1.0 (https://github.com/sanjayhariharan29-cell/WeatherGPT-SIH26068)"}
+    timeout_val = max(float(getattr(settings, "WEATHER_HTTP_TIMEOUT_SECONDS", 5.0)), 8.0)
+    for attempt in range(2):
+        try:
+            async with httpx.AsyncClient(timeout=timeout_val) as client:
+                resp = await client.get(
+                    upstream_url,
+                    headers={"User-Agent": "WeatherGPT/1.0 (https://github.com/sanjayhariharan29-cell/WeatherGPT-SIH26068)"}
+                )
+                if resp.status_code == 200 and resp.content:
+                    provider_cache.set(cache_key, resp.content, ttl=600)
+                    return Response(
+                        content=resp.content,
+                        media_type="image/png",
+                        headers={
+                            "Cache-Control": "public, max-age=600",
+                            "X-Cache": "MISS",
+                            "X-Satellite-Source": "Himawari-9 (JMA / SSEC RealEarth)",
+                            "X-Satellite-Band": "AHI Band 13 (Clean Infrared)"
+                        }
+                    )
+                else:
+                    if attempt == 0:
+                        continue
+                    logger.warning(f"Himawari satellite tile upstream error {resp.status_code} for {upstream_url}")
+                    raise HTTPException(
+                        status_code=resp.status_code if 400 <= resp.status_code < 600 else 502,
+                        detail=f"Himawari satellite tile upstream error ({resp.status_code})"
+                    )
+        except HTTPException:
+            raise
+        except Exception as exc:
+            if attempt == 0:
+                continue
+            logger.error(f"Error connecting to Himawari satellite tile upstream {upstream_url}: {exc}")
+            raise HTTPException(
+                status_code=502,
+                detail=f"Failed to connect to Himawari satellite tile upstream: {str(exc)}"
             )
-            if resp.status_code == 200 and resp.content:
-                provider_cache.set(cache_key, resp.content, ttl=600)
-                return Response(
-                    content=resp.content,
-                    media_type="image/png",
-                    headers={
-                        "Cache-Control": "public, max-age=600",
-                        "X-Cache": "MISS",
-                        "X-Satellite-Source": "Himawari-9 (JMA / SSEC RealEarth)",
-                        "X-Satellite-Band": "AHI Band 13 (Clean Infrared)"
-                    }
-                )
-            else:
-                logger.warning(f"Himawari satellite tile upstream error {resp.status_code} for {upstream_url}")
-                raise HTTPException(
-                    status_code=resp.status_code if 400 <= resp.status_code < 600 else 502,
-                    detail=f"Himawari satellite tile upstream error ({resp.status_code})"
-                )
-    except HTTPException:
-        raise
-    except Exception as exc:
-        logger.error(f"Error connecting to Himawari satellite tile upstream {upstream_url}: {exc}")
-        raise HTTPException(
-            status_code=502,
-            detail=f"Failed to connect to Himawari satellite tile upstream: {str(exc)}"
-        )
 
 
 _RAINVIEWER_CACHE = {"timestamp": 0.0, "host": "https://tilecache.rainviewer.com", "path": None, "data": None}
@@ -481,4 +487,79 @@ async def get_weather_map_tile(layer: str, z: int, x: int, y: str) -> Response:
 
     canonical_layer = OPENWEATHER_LAYER_MAP[clean_layer]
     return await _get_openweather_tile(canonical_layer, z, x, y_int)
+
+
+# ==============================================================================
+# Phase 27: NWP / GFS / WRF Integration Readiness Endpoints
+# ==============================================================================
+
+@router.get("/nwp/status")
+async def get_nwp_status():
+    """
+    Returns the current readiness and configuration status for Numerical Weather Prediction models (GFS, WRF).
+    If an endpoint is unconfigured, it reports status NOT_CONFIGURED without fabricating fake data.
+    """
+    return manager.get_nwp_status()
+
+
+@router.get("/nwp/forecast")
+async def get_nwp_forecast(
+    model: str = Query("GFS", description="Numerical model identifier: GFS or WRF"),
+    lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
+    lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
+    location: str = Query("Coimbatore", min_length=1, max_length=100, description="Location name"),
+    hours: int = Query(72, ge=1, le=384, description="Forecast horizon in hours"),
+    run: Optional[str] = Query(None, description="Specific model run cycle, e.g. '00Z', '06Z', '12Z', '18Z'"),
+):
+    """
+    Retrieves normalized Numerical Weather Prediction forecast items for a specific model (GFS or WRF).
+    Preserves model run, initialization time, valid time, variables, freshness, and provenance.
+    If the endpoint is not configured, returns status NOT_CONFIGURED.
+    """
+    validate_coordinates(lat, lon)
+    try:
+        return await manager.get_nwp_forecast(
+            model_name=model,
+            lat=lat,
+            lon=lon,
+            location_name=location,
+            forecast_hours=hours,
+            run_cycle=run,
+        )
+    except ProviderUnavailableError as e:
+        return {
+            "model_name": model.upper(),
+            "status": "NOT_CONFIGURED",
+            "configured": False,
+            "message": str(e),
+            "items": [],
+        }
+    except Exception as e:
+        logger.error(f"Error fetching NWP forecast for {model}: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@router.get("/nwp/comparison")
+async def get_nwp_comparison(
+    lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
+    lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
+    location: str = Query("Coimbatore", min_length=1, max_length=100, description="Location name"),
+    hours: int = Query(72, ge=1, le=384, description="Forecast horizon in hours"),
+):
+    """
+    Compares multiple NWP models (GFS, WRF) without blending or averaging.
+    Computes discrete model spread metrics (temperature spread, rain spread, wind spread)
+    to quantify numerical simulation uncertainty while preserving individual model identities.
+    """
+    validate_coordinates(lat, lon)
+    try:
+        return await manager.get_nwp_comparison(
+            lat=lat,
+            lon=lon,
+            location_name=location,
+            forecast_hours=hours,
+        )
+    except Exception as e:
+        logger.error(f"Error computing NWP comparison: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
 

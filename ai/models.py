@@ -386,6 +386,8 @@ class WeatherReasoningResult(BaseModel):
     uncertainty_note: Optional[str] = None
     sources_used: List[str] = Field(default_factory=list)
     warnings_available: bool = True
+    nwp_guidance: Optional[Dict[str, Any]] = None
+    nwp_comparison: Optional[Dict[str, Any]] = None
 
 
 class DecisionAdvisory(BaseModel):

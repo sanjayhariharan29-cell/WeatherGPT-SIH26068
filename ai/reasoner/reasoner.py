@@ -6,7 +6,7 @@ and produces a structured WeatherReasoningResult.
 """
 
 from datetime import datetime, timezone
-from typing import List, Optional
+from typing import Any, Dict, List, Optional, Union
 from ai.models import (
     ConfidenceLevelEnum,
     ForecastConsistencyFactors,
@@ -19,6 +19,7 @@ from ai.models import (
     WeatherReasoningResult,
     WeatherRecord,
 )
+from backend.services.nwp_schemas import NormalizedNWPForecastItem, NWPModelComparison
 from ai.reasoner.agreement import (
     build_consistency_factors,
     calculate_consistency_score,
@@ -41,7 +42,9 @@ class WeatherReasoner:
         forecast: Optional[List[ForecastItem]] = None,
         active_alerts: Optional[List[OfficialAlert]] = None,
         current_time: Optional[datetime] = None,
-        secondary_forecast: Optional[List[ForecastItem]] = None
+        secondary_forecast: Optional[List[ForecastItem]] = None,
+        nwp_guidance: Optional[List[Any]] = None,
+        nwp_comparison: Optional[Any] = None
     ) -> WeatherReasoningResult:
         """Runs the complete meteorological reasoning pipeline with safety & completeness checks."""
         now = current_time or datetime.now(timezone.utc)
@@ -163,6 +166,76 @@ class WeatherReasoner:
             h for h in all_hazards if not h.is_official_warning and not h.hazard_type.startswith("OFFICIAL_WARNING_")
         ]
 
+        # 6b. Integrate NWP Guidance Hazards (Advisory Only - Never Overrides Official Warnings)
+        nwp_items: List[NormalizedNWPForecastItem] = []
+        if nwp_guidance is not None:
+            if isinstance(nwp_guidance, list):
+                nwp_items = [item for item in nwp_guidance if isinstance(item, NormalizedNWPForecastItem)]
+            elif isinstance(nwp_guidance, NormalizedNWPForecastItem):
+                nwp_items = [nwp_guidance]
+
+        for item in nwp_items:
+            m_name = item.model_name.value.upper() if hasattr(item.model_name, "value") else str(item.model_name)
+            vars = item.variables
+            # Heavy precipitation signal from numerical model
+            precip = vars.precipitation_mm or vars.precip_total_mm or vars.precip_1h_mm or 0.0
+            if precip >= 50.0:
+                desc = (
+                    f"Numerical model simulation from {m_name} (run {item.model_run or 'current'}) "
+                    f"indicates intense localized precipitation of {precip:.1f} mm."
+                )
+                h = HazardDetection(
+                    hazard_type=f"NWP_{m_name}_HEAVY_RAINFALL",
+                    severity=RiskLevelEnum.HIGH,
+                    details=desc,
+                    evidence=[desc],
+                    source=item.source,
+                    is_official_warning=False,
+                )
+                ai_detected_hazards.append(h)
+                all_hazards.append(h)
+            elif precip >= 25.0:
+                desc = f"Numerical model simulation from {m_name} indicates accumulation of {precip:.1f} mm."
+                h = HazardDetection(
+                    hazard_type=f"NWP_{m_name}_MODERATE_RAINFALL",
+                    severity=RiskLevelEnum.MEDIUM,
+                    details=desc,
+                    evidence=[desc],
+                    source=item.source,
+                    is_official_warning=False,
+                )
+                ai_detected_hazards.append(h)
+                all_hazards.append(h)
+
+            # Severe wind / gale signal from numerical model
+            wind = vars.wind_gust_kmh or vars.wind_speed_kmh or 0.0
+            if wind >= 75.0:
+                desc = f"Numerical model {m_name} projects strong wind gusts of {wind:.1f} km/h."
+                h = HazardDetection(
+                    hazard_type=f"NWP_{m_name}_GALE_WINDS",
+                    severity=RiskLevelEnum.HIGH,
+                    details=desc,
+                    evidence=[desc],
+                    source=item.source,
+                    is_official_warning=False,
+                )
+                ai_detected_hazards.append(h)
+                all_hazards.append(h)
+
+            # Atmospheric instability (CAPE)
+            if vars.cape_jkg and vars.cape_jkg >= 2500.0:
+                desc = f"Atmospheric instability detected by {m_name} indicating severe convection potential ({vars.cape_jkg:.0f} J/kg)."
+                h = HazardDetection(
+                    hazard_type=f"NWP_{m_name}_SEVERE_CONVECTION",
+                    severity=RiskLevelEnum.MEDIUM,
+                    details=desc,
+                    evidence=[desc],
+                    source=item.source,
+                    is_official_warning=False,
+                )
+                ai_detected_hazards.append(h)
+                all_hazards.append(h)
+
         # 7. Determine Overall Risk Level
         # Official warnings take unconditional priority in determining risk severity
         overall_risk = RiskLevelEnum.LOW
@@ -175,7 +248,7 @@ class WeatherReasoner:
             elif alert.severity == RiskLevelEnum.MEDIUM and overall_risk == RiskLevelEnum.LOW:
                 overall_risk = RiskLevelEnum.MEDIUM
 
-        # If no official warning, derive from AI-detected hazards
+        # If no official warning, derive from AI-detected hazards (including NWP advisories)
         if not valid_active_alerts:
             for h in ai_detected_hazards:
                 if h.severity == RiskLevelEnum.EXTREME:
@@ -230,12 +303,38 @@ class WeatherReasoner:
             uncertainty_elements.extend(contradictions)
         if warnings_unavail:
             uncertainty_elements.append("Official warning information is currently unavailable.")
+        if nwp_comparison and getattr(nwp_comparison, "high_spread", False):
+            spread_sum = getattr(nwp_comparison, "spread_summary", "High spread among numerical models")
+            uncertainty_elements.append(f"NWP divergence: {spread_sum}")
 
         uncertainty_note = " | ".join(uncertainty_elements) if uncertainty_elements else None
 
         sources_used = [primary_weather.source]
         if secondary_weather and secondary_weather.source not in sources_used:
             sources_used.append(secondary_weather.source)
+        for item in nwp_items:
+            m_val = item.model_name.value if hasattr(item.model_name, "value") else str(item.model_name)
+            nwp_src = f"{item.source}:{m_val}"
+            if nwp_src not in sources_used:
+                sources_used.append(nwp_src)
+        if nwp_comparison and hasattr(nwp_comparison, "source"):
+            if nwp_comparison.source not in sources_used:
+                sources_used.append(nwp_comparison.source)
+
+        nwp_guidance_dict = None
+        if nwp_items:
+            nwp_guidance_dict = {
+                "count": len(nwp_items),
+                "models": [it.model_dump() if hasattr(it, "model_dump") else dict(it) for it in nwp_items],
+            }
+            if len(nwp_items) == 1:
+                nwp_guidance_dict.update(nwp_items[0].model_dump() if hasattr(nwp_items[0], "model_dump") else dict(nwp_items[0]))
+        elif nwp_guidance and isinstance(nwp_guidance, dict):
+            nwp_guidance_dict = nwp_guidance
+
+        nwp_comp_dict = None
+        if nwp_comparison:
+            nwp_comp_dict = nwp_comparison.model_dump() if hasattr(nwp_comparison, "model_dump") else (dict(nwp_comparison) if isinstance(nwp_comparison, dict) else None)
 
         return WeatherReasoningResult(
             evaluated_at=now,
@@ -256,5 +355,7 @@ class WeatherReasoner:
             overall_risk=overall_risk,
             uncertainty_note=uncertainty_note,
             sources_used=sources_used,
-            warnings_available=not warnings_unavail
+            warnings_available=not warnings_unavail,
+            nwp_guidance=nwp_guidance_dict,
+            nwp_comparison=nwp_comp_dict,
         )

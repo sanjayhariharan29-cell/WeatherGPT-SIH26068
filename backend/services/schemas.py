@@ -337,3 +337,14 @@ class NormalizedClimateTrend(BaseModel):
             return self[item]
         except KeyError:
             return default
+
+
+# Phase 27: NWP (Numerical Weather Prediction) Schemas Re-Export
+from backend.services.nwp_schemas import (
+    NWPModelName,
+    NWPVariables,
+    NormalizedNWPForecastItem,
+    NWPModelComparisonItem,
+    NWPModelComparison,
+    NWPStatusResponse,
+)

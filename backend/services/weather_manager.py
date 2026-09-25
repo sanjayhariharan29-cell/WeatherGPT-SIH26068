@@ -18,6 +18,18 @@ from backend.services.forecast_service import ForecastService
 from backend.services.alert_service import AlertService
 from backend.services.historical_weather_service import HistoricalWeatherService
 from backend.services.base_provider import BaseWeatherProvider
+from backend.services.nwp_provider import (
+    BaseNWPProvider,
+    GFSProvider,
+    WRFProvider,
+    NWPComparisonEngine,
+)
+from backend.services.nwp_schemas import (
+    NWPModelName,
+    NormalizedNWPForecastItem,
+    NWPModelComparison,
+    NWPStatusResponse,
+)
 from ai.models import (
     WeatherRecord as AIWeatherRecord,
     ForecastItem as AIForecastItem,
@@ -35,7 +47,10 @@ class WeatherManager:
         secondary_provider: Optional[BaseWeatherProvider] = None,
         tertiary_provider: Optional[BaseWeatherProvider] = None,
         historical_provider: Optional[BaseWeatherProvider] = None,
-        geocoding_service: Optional[GeocodingService] = None
+        geocoding_service: Optional[GeocodingService] = None,
+        gfs_provider: Optional[BaseNWPProvider] = None,
+        wrf_provider: Optional[BaseNWPProvider] = None,
+        nwp_comparison_engine: Optional[NWPComparisonEngine] = None,
     ):
         # OpenWeather is the active primary live data source.
         # Open-Meteo is secondary provider.
@@ -48,6 +63,18 @@ class WeatherManager:
         self.imd = primary_provider if isinstance(primary_provider, IMDAdapter) else IMDAdapter()
         self.nasa_power = historical_provider or NasaPowerAdapter()
         self.geocoding = geocoding_service or GeocodingService()
+
+        # NWP Numerical Prediction Providers
+        self.gfs = gfs_provider or GFSProvider()
+        self.wrf = wrf_provider or WRFProvider()
+        self.nwp_comparison_engine = nwp_comparison_engine or NWPComparisonEngine()
+
+        gfs_key = self.gfs.model_name.value if hasattr(self.gfs.model_name, "value") else str(self.gfs.model_name)
+        wrf_key = self.wrf.model_name.value if hasattr(self.wrf.model_name, "value") else str(self.wrf.model_name)
+        self.nwp_providers: Dict[str, BaseNWPProvider] = {
+            gfs_key.upper(): self.gfs,
+            wrf_key.upper(): self.wrf,
+        }
 
         # If an explicit non-default primary_provider was injected (e.g. In unit tests), honor it
         if primary_provider is not None and not isinstance(primary_provider, IMDAdapter):
@@ -468,4 +495,102 @@ class WeatherManager:
 
     # Backward compatibility alias
     fetch_air_quality = get_air_quality
+
+    def get_nwp_status(self) -> Dict[str, Any]:
+        """Returns readiness and configuration status for all supported NWP models."""
+        providers_status = {}
+        for name, provider in self.nwp_providers.items():
+            m_name = provider.model_name.value if hasattr(provider.model_name, "value") else str(provider.model_name)
+            providers_status[name] = {
+                "model_name": m_name,
+                "configured": provider.is_configured,
+                "endpoint": provider.endpoint if provider.is_configured else None,
+                "authority_level": provider.authority_level,
+                "status": "CONFIGURED" if provider.is_configured else "NOT_CONFIGURED",
+            }
+        return {
+            "nwp_enabled": bool(settings.NWP_ENABLED),
+            "providers": providers_status,
+            "disclaimer": "NWP forecasts are numerical simulations. Official IMD alerts retain unconditional priority.",
+        }
+
+    async def get_nwp_forecast(
+        self,
+        model_name: str,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        location_name: str = "Coimbatore",
+        forecast_hours: int = 72,
+        run_cycle: Optional[str] = None,
+    ) -> Dict[str, Any]:
+        """Fetches normalized NWP forecast for a specific numerical model (GFS or WRF)."""
+        loc = await self.geocoding.resolve_location(location_name)
+        latitude = lat if lat is not None else loc["latitude"]
+        longitude = lon if lon is not None else loc["longitude"]
+        resolved_name = loc.get("name", location_name)
+
+        key = model_name.strip().upper()
+        provider = self.nwp_providers.get(key)
+        if not provider:
+            from fastapi import HTTPException
+            raise HTTPException(
+                status_code=404,
+                detail=f"NWP model '{model_name}' is not recognized. Supported models: {list(self.nwp_providers.keys())}",
+            )
+
+        m_name = provider.model_name.value if hasattr(provider.model_name, "value") else str(provider.model_name)
+        if not provider.is_configured:
+            return {
+                "model_name": m_name,
+                "status": "NOT_CONFIGURED",
+                "configured": False,
+                "message": (
+                    f"{m_name} endpoint is not configured. "
+                    f"SkyZen exposes this provider as NOT_CONFIGURED rather than fabricating simulated data."
+                ),
+                "location": resolved_name,
+                "latitude": latitude,
+                "longitude": longitude,
+                "items": [],
+            }
+
+        items = await provider.fetch_nwp_forecast(
+            lat=latitude,
+            lon=longitude,
+            location_name=resolved_name,
+            forecast_hours=forecast_hours,
+            run_cycle=run_cycle,
+        )
+        return {
+            "model_name": provider.model_name.value,
+            "status": "OK",
+            "configured": True,
+            "location": resolved_name,
+            "latitude": latitude,
+            "longitude": longitude,
+            "count": len(items),
+            "items": [it.model_dump() for it in items],
+        }
+
+    async def get_nwp_comparison(
+        self,
+        lat: Optional[float] = None,
+        lon: Optional[float] = None,
+        location_name: str = "Coimbatore",
+        forecast_hours: int = 72,
+    ) -> Dict[str, Any]:
+        """Compares available NWP models without blending or averaging, exposing discrete model spreads."""
+        loc = await self.geocoding.resolve_location(location_name)
+        latitude = lat if lat is not None else loc["latitude"]
+        longitude = lon if lon is not None else loc["longitude"]
+        resolved_name = loc.get("name", location_name)
+
+        comparison = await self.nwp_comparison_engine.compare(
+            providers=list(self.nwp_providers.values()),
+            lat=latitude,
+            lon=longitude,
+            location_name=resolved_name,
+            forecast_hours=forecast_hours,
+        )
+        return comparison.model_dump()
 

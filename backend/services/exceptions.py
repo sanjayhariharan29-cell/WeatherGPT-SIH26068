@@ -18,6 +18,13 @@ class ProviderError(Exception):
         self.timestamp = datetime.now(timezone.utc).isoformat()
         super().__init__(f"[{provider_name}] {message}")
 
+    @property
+    def status(self) -> Optional[Any]:
+        """Diagnostic provider status (e.g. 'NOT_CONFIGURED', 'DOWN', 'DEGRADED')."""
+        if self.diagnostics and "status" in self.diagnostics:
+            return self.diagnostics["status"]
+        return self.status_code
+
 
 class ProviderUnavailableError(ProviderError):
     """Raised when an external weather provider is unreachable or down."""
