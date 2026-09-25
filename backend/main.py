@@ -15,7 +15,7 @@ from backend.middleware import (
 from backend.db.init_db import init_db
 from backend.db.models import User
 from backend.core.security import require_developer_role
-from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer, briefing
+from backend.api import health, auth, weather, locations, users, chat, voice, notifications, developer, briefing, realtime
 
 # Initialize Database on Module Import
 init_db()
@@ -77,6 +77,7 @@ app.include_router(voice.router, prefix=settings.API_V1_PREFIX)
 app.include_router(notifications.router, prefix=settings.API_V1_PREFIX)
 app.include_router(developer.router, prefix=settings.API_V1_PREFIX)
 app.include_router(briefing.router, prefix=settings.API_V1_PREFIX)
+app.include_router(realtime.router, prefix=settings.API_V1_PREFIX)
 
 # Developer Portal Web Entrypoints (Guarded by require_developer_role)
 @app.get("/developer", response_class=HTMLResponse, tags=["developer"])

@@ -109,4 +109,17 @@ class Settings(BaseModel):
     NWP_HTTP_TIMEOUT_SECONDS: float = Field(default_factory=lambda: float(os.getenv("NWP_HTTP_TIMEOUT_SECONDS", "10.0")))
     NWP_CACHE_TTL_SECONDS: int = Field(default_factory=lambda: int(os.getenv("NWP_CACHE_TTL_SECONDS", "1800")))
 
+    # Real-Time Meteorological Ingestion & Streaming Transports (Phase 28)
+    REALTIME_INGESTION_ENABLED: bool = Field(default_factory=lambda: os.getenv("REALTIME_INGESTION_ENABLED", "true").lower() == "true")
+    MQTT_ENABLED: bool = Field(default_factory=lambda: os.getenv("MQTT_ENABLED", "false").lower() == "true")
+    MQTT_BROKER_HOST: Optional[str] = Field(default_factory=lambda: os.getenv("MQTT_BROKER_HOST"))
+    MQTT_BROKER_PORT: int = Field(default_factory=lambda: int(os.getenv("MQTT_BROKER_PORT", "1883")))
+    MQTT_TOPIC_PREFIX: str = Field(default_factory=lambda: os.getenv("MQTT_TOPIC_PREFIX", "skyzen/met"))
+    WIS2_ENABLED: bool = Field(default_factory=lambda: os.getenv("WIS2_ENABLED", "false").lower() == "true")
+    WIS2_BROKER_ENDPOINT: Optional[str] = Field(default_factory=lambda: os.getenv("WIS2_BROKER_ENDPOINT"))
+    WIS2_CENTRE_ID: Optional[str] = Field(default_factory=lambda: os.getenv("WIS2_CENTRE_ID", "in-imd"))
+    REALTIME_STALE_THRESHOLD_SECONDS: int = Field(default_factory=lambda: int(os.getenv("REALTIME_STALE_THRESHOLD_SECONDS", "3600")))
+    REALTIME_DUPLICATE_CACHE_SIZE: int = Field(default_factory=lambda: int(os.getenv("REALTIME_DUPLICATE_CACHE_SIZE", "10000")))
+    REALTIME_WS_ENABLED: bool = Field(default_factory=lambda: os.getenv("REALTIME_WS_ENABLED", "true").lower() == "true")
+
 settings = Settings()
