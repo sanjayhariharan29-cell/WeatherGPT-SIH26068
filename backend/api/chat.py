@@ -23,7 +23,8 @@ chat_service = ChatIntegrationService()
 ALLOWED_LANGUAGES = {"ta", "en", "hi", "mr", "te", "tanglish", "hinglish", "tamil", "english", "hindi", "marathi", "telugu"}
 ALLOWED_PERSONAS = {
     "student", "farmer", "fisherman", "commuter", "general", "tourist", "event_planner",
-    "disaster_response", "disaster", "safety", "disaster_safety", "traveller", "traveler"
+    "disaster_response", "disaster", "safety", "disaster_safety", "traveller", "traveler",
+    "aviation", "smart_city", "marine"
 }
 
 
@@ -56,7 +57,7 @@ async def chat_endpoint(
         raise HTTPException(status_code=400, detail=f"Unsupported language '{req.language}'. Supported: ta, en, hi, mr, te, tanglish, hinglish.")
 
     if req.persona and req.persona.lower() not in ALLOWED_PERSONAS:
-        raise HTTPException(status_code=400, detail=f"Unsupported persona '{req.persona}'. Supported: student, farmer, fisherman, commuter, general.")
+        raise HTTPException(status_code=400, detail=f"Unsupported persona '{req.persona}'. Supported: {', '.join(sorted(ALLOWED_PERSONAS))}.")
 
     loc_name = req.location.name if req.location and req.location.name else None
     lat = req.location.latitude if req.location else None

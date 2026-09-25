@@ -21,6 +21,21 @@ class PersonaEnum(str, Enum):
     TRAVELER = "traveller"
     COMMUTER = "commuter"
     DISASTER_RESPONSE = "disaster_response"
+    AVIATION = "aviation"
+    SMART_CITY = "smart_city"
+
+
+class AdvisoryModeEnum(str, Enum):
+    FARMER = "farmer"
+    FISHERMAN = "fisherman"
+    MARINE = "marine"
+    AVIATION = "aviation"
+    COMMUTER = "commuter"
+    STUDENT = "student"
+    DISASTER = "disaster"
+    DISASTER_RESPONSE = "disaster_response"
+    SMART_CITY = "smart_city"
+    GENERAL = "general"
 
 
 class AdvisoryTypeEnum(str, Enum):
@@ -255,6 +270,14 @@ class WeatherRecord(BaseModel):
     weather_condition: str = Field(description="e.g. Rain, Thunderstorm, Sunny, Cloudy")
     source: str = Field(default="IMD", description="Data source name e.g. IMD, Open-Meteo")
     rainfall_amount_mm: Optional[float] = Field(default=0.0, description="Observed/expected rainfall in mm")
+    wave_height_m: Optional[float] = Field(default=None, description="Observed wave height in meters")
+    wave_period_s: Optional[float] = Field(default=None, description="Observed wave period in seconds")
+    visibility: Optional[float] = Field(default=None, description="Surface visibility in km")
+    wind_direction: Optional[float] = Field(default=None, description="Wind direction in degrees")
+    aqi: Optional[int] = Field(default=None, description="Air quality index value")
+    primary_pollutant: Optional[str] = Field(default=None, description="Primary pollutant e.g. PM2.5")
+
+    model_config = {"extra": "allow"}
 
 
 class ForecastItem(BaseModel):
@@ -413,6 +436,7 @@ class DecisionAdvisory(BaseModel):
     evidence: List[str] = Field(default_factory=list)
     schedule_decision: Optional[Dict[str, Any]] = None
     personal_decision: Optional[Dict[str, Any]] = None
+    specialized_advisory: Optional[Dict[str, Any]] = None
     language: LanguageEnum = LanguageEnum.EN
 
 

@@ -48,6 +48,10 @@ class DecisionEngine:
                 return PersonaEnum.TRAVELLER
             if p_str in ("disaster_response", "disaster", "emergency", "safety", "disaster_safety"):
                 return PersonaEnum.DISASTER_RESPONSE
+            if p_str in ("aviation", "airport", "pilot", "flight"):
+                return PersonaEnum.AVIATION
+            if p_str in ("smart_city", "smartcity", "civic", "urban"):
+                return PersonaEnum.SMART_CITY
             return PersonaEnum.GENERAL
         elif isinstance(persona, PersonaEnum):
             if persona in (PersonaEnum.TRAVELER, PersonaEnum.TRAVELLER):
@@ -1077,6 +1081,26 @@ class DecisionEngine:
                     "No emergency response mobilization required"
                 ]
 
+        # ---------------- AVIATION PERSONA ----------------
+        elif resolved_persona == PersonaEnum.AVIATION:
+            from ai.decision.specialized_modes import SpecializedAdvisoryEngine
+            av_res = SpecializedAdvisoryEngine.evaluate_aviation_mode(reasoning, weather, forecast, target_language=target_language)
+            reason_codes.append(f"AVIATION_{av_res.flight_category_indicator}")
+            risk_summary = av_res.advisory_summary
+            headline = f"Aviation Advisory — {av_res.flight_category_indicator}"
+            advisory_text = av_res.advisory_summary + f" {av_res.disclaimer}"
+            precautions = av_res.weather_hazards or ["Standard aerodrome visual flight watch in effect"]
+
+        # ---------------- SMART CITY PERSONA ----------------
+        elif resolved_persona == PersonaEnum.SMART_CITY:
+            from ai.decision.specialized_modes import SpecializedAdvisoryEngine
+            sc_res = SpecializedAdvisoryEngine.evaluate_smart_city_mode(reasoning, weather, forecast, target_language=target_language)
+            reason_codes.append(f"SMART_CITY_DRAINAGE_{sc_res.drainage_watch_status}")
+            risk_summary = f"Civic Drainage: {sc_res.drainage_watch_status}. Heat: {sc_res.heat_summary['urban_heat_island_risk']}."
+            headline = f"Smart City Advisory — Drainage: {sc_res.drainage_watch_status}"
+            advisory_text = f"Smart City Resilience: {sc_res.rainfall_summary['description']} {sc_res.heat_summary['description']}"
+            precautions = sc_res.civic_action_items
+
         # ---------------- GENERAL / GENERAL_USER PERSONA (DEFAULT) ----------------
         else:
             if warning_present:
@@ -1156,6 +1180,16 @@ class DecisionEngine:
         timestamp_str = f"Data updated {reasoning.data_age_minutes}m ago ({reasoning.freshness.value})"
         source_str = f"Source: {', '.join(reasoning.sources_used) if reasoning.sources_used else 'IMD'}"
 
+        from ai.decision.specialized_modes import SpecializedAdvisoryEngine
+        specialized_obj = SpecializedAdvisoryEngine.evaluate_mode(
+            mode=resolved_persona,
+            reasoning=reasoning,
+            weather=weather,
+            forecast=forecast,
+            target_language=target_language
+        )
+        specialized_advisory_dict = specialized_obj.model_dump()
+
         return DecisionAdvisory(
             persona=resolved_persona,
             risk_level=risk,
@@ -1176,5 +1210,31 @@ class DecisionEngine:
             evidence=evidence,
             schedule_decision=schedule_decision,
             personal_decision=personal_decision_dict,
+            specialized_advisory=specialized_advisory_dict,
             language=target_language,
+        )
+
+    @classmethod
+    def generate_specialized_advisory(
+        cls,
+        mode: Any,
+        reasoning: WeatherReasoningResult,
+        weather: Optional[WeatherRecord] = None,
+        forecast: Optional[List[ForecastItem]] = None,
+        target_language: LanguageEnum = LanguageEnum.EN,
+        departure_time: Optional[str] = None,
+        return_time: Optional[str] = None,
+        airport_code: Optional[str] = None
+    ) -> Any:
+        """Direct access point to specialized domain advisory interfaces."""
+        from ai.decision.specialized_modes import SpecializedAdvisoryEngine
+        return SpecializedAdvisoryEngine.evaluate_mode(
+            mode=mode,
+            reasoning=reasoning,
+            weather=weather,
+            forecast=forecast,
+            target_language=target_language,
+            departure_time=departure_time,
+            return_time=return_time,
+            airport_code=airport_code
         )

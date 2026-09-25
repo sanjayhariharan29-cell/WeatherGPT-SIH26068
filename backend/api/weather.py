@@ -563,3 +563,129 @@ async def get_nwp_comparison(
         logger.error(f"Error computing NWP comparison: {e}")
         raise HTTPException(status_code=500, detail=str(e))
 
+
+@router.get("/advisory")
+async def get_specialized_advisory(
+    mode: str = Query("general", description="Specialized advisory mode: farmer, fisherman/marine, aviation, commuter/student, disaster, smart_city, general"),
+    location: str = Query("Coimbatore", min_length=1, max_length=100, description="Location name"),
+    lat: Optional[float] = Query(None, description="Latitude (-90 to +90)"),
+    lon: Optional[float] = Query(None, description="Longitude (-180 to +180)"),
+    language: str = Query("en", description="Target language (en, ta, hi, mr, te)"),
+    departure_time: Optional[str] = Query(None, description="Commute departure time (e.g. 08:00 AM)"),
+    return_time: Optional[str] = Query(None, description="Commute return time (e.g. 05:00 PM)"),
+    airport_code: Optional[str] = Query(None, description="Airport ICAO/IATA code for aviation mode"),
+    db: Session = Depends(get_db),
+):
+    """
+    Returns specialized, domain-tailored meteorological advisories.
+    Supported modes: farmer, fisherman/marine, aviation, commuter/student, disaster, smart_city.
+    Preserves authoritative safety hierarchy: official IMD warnings take absolute precedence.
+    """
+    validate_coordinates(lat, lon)
+    from datetime import datetime, timezone
+    from ai.models import (
+        LanguageEnum,
+        WeatherRecord as AIWeatherRecord,
+        LocationInfo as AILocationInfo,
+        ForecastItem as AIForecastItem,
+        OfficialAlert as AIOfficialAlert,
+        RiskLevelEnum,
+    )
+    from ai.reasoner.reasoner import WeatherReasoner
+    from ai.decision.specialized_modes import SpecializedAdvisoryEngine
+
+    now_utc = datetime.now(timezone.utc)
+    target_lang = LanguageEnum.EN
+    try:
+        target_lang = LanguageEnum(language.lower())
+    except Exception:
+        target_lang = LanguageEnum.EN
+
+    # 1. Retrieve observation telemetry and alerts
+    ai_weather = None
+    ai_forecast = []
+    ai_alerts = []
+
+    try:
+        curr_resp = await manager.get_current_weather(lat=lat, lon=lon, location_name=location, db_session=db)
+        ai_weather = AIWeatherRecord(
+            location=AILocationInfo(
+                name=curr_resp.location.name,
+                latitude=float(curr_resp.location.latitude),
+                longitude=float(curr_resp.location.longitude),
+                district=curr_resp.location.district,
+                state=curr_resp.location.state,
+            ),
+            observed_at=datetime.fromisoformat(curr_resp.observed_at) if isinstance(curr_resp.observed_at, str) else curr_resp.observed_at,
+            retrieved_at=datetime.fromisoformat(curr_resp.retrieved_at) if isinstance(curr_resp.retrieved_at, str) else curr_resp.retrieved_at,
+            temperature=float(curr_resp.weather.temperature),
+            humidity=float(curr_resp.weather.humidity),
+            rain_probability=float(curr_resp.weather.rain_probability),
+            wind_speed=float(curr_resp.weather.wind_speed),
+            weather_condition=str(curr_resp.weather.condition),
+            source=curr_resp.source,
+            rainfall_amount_mm=float(getattr(curr_resp.weather, "rainfall_mm", 0.0) or 0.0),
+        )
+    except Exception as e:
+        logger.warning(f"Advisory: Current weather fetch error: {e}")
+
+    try:
+        fc_resp = await manager.get_forecast(lat=lat, lon=lon, location_name=location, days=3, db_session=db)
+        for item in getattr(fc_resp, "hourly", [])[:12]:
+            ai_forecast.append(AIForecastItem(
+                time=item.forecast_time,
+                temperature=float(item.temperature),
+                rain_probability=float(item.rain_probability),
+                wind_speed=float(getattr(item, "wind_speed", 10.0) or 10.0),
+                condition=str(item.condition),
+                rainfall_amount_mm=float(getattr(item, "rainfall_mm", 0.0) or 0.0),
+            ))
+    except Exception as e:
+        logger.warning(f"Advisory: Forecast fetch error: {e}")
+
+    try:
+        alerts_resp = await manager.get_alerts(lat=lat, lon=lon, location_name=location, active_only=True, db_session=db)
+        for a in getattr(alerts_resp, "alerts", []):
+            headline_val = getattr(a, "headline", None) or (a.get("headline") if isinstance(a, dict) else "Weather Alert")
+            sev_val = getattr(a, "severity", None) or (a.get("severity") if isinstance(a, dict) else "medium")
+            wtype_val = getattr(a, "warning_type", None) or (a.get("warning_type") if isinstance(a, dict) else "GENERAL")
+            src_val = getattr(a, "source", None) or (a.get("source") if isinstance(a, dict) else "IMD")
+            desc_val = getattr(a, "description", None) or (a.get("description") if isinstance(a, dict) else "")
+            iss_val = getattr(a, "issued_at", None) or (a.get("issued_at") if isinstance(a, dict) else None)
+            exp_val = getattr(a, "expires_at", None) or (a.get("expires_at") if isinstance(a, dict) else None)
+
+            ai_alerts.append(AIOfficialAlert(
+                title=headline_val,
+                severity=RiskLevelEnum(sev_val.lower() if isinstance(sev_val, str) else "medium"),
+                type=wtype_val,
+                source=src_val,
+                description=desc_val,
+                issued_at=datetime.fromisoformat(iss_val) if isinstance(iss_val, str) else now_utc,
+                expires_at=datetime.fromisoformat(exp_val) if isinstance(exp_val, str) else now_utc,
+                affected_locations=[location],
+            ))
+    except Exception as e:
+        logger.warning(f"Advisory: Alerts fetch error: {e}")
+
+    # 2. Run Meteorological Reasoning
+    reasoning = WeatherReasoner.evaluate(
+        primary_weather=ai_weather,
+        forecast=ai_forecast,
+        active_alerts=ai_alerts,
+        current_time=now_utc,
+    )
+
+    # 3. Evaluate Specialized Mode
+    advisory_res = SpecializedAdvisoryEngine.evaluate_mode(
+        mode=mode,
+        reasoning=reasoning,
+        weather=ai_weather,
+        forecast=ai_forecast,
+        target_language=target_lang,
+        departure_time=departure_time,
+        return_time=return_time,
+        airport_code=airport_code,
+    )
+
+    return advisory_res.model_dump()
+

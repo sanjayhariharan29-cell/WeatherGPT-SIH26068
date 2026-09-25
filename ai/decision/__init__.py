@@ -9,6 +9,17 @@ from ai.decision.models import (
     StructuredEvidence,
 )
 
+from ai.decision.specialized_modes import (
+    SpecializedAdvisoryEngine,
+    FarmerAdvisoryResult,
+    MarineAdvisoryResult,
+    AviationAdvisoryResult,
+    CommuterStudentAdvisoryResult,
+    DisasterAdvisoryResult,
+    SmartCityAdvisoryResult,
+    SpecializedModeResponse,
+)
+
 __all__ = [
     "DecisionEngine",
     "PersonalDecisionEngine",
@@ -17,5 +28,13 @@ __all__ = [
     "DecisionVerdictEnum",
     "PersonalDecisionResult",
     "StructuredEvidence",
+    "SpecializedAdvisoryEngine",
+    "FarmerAdvisoryResult",
+    "MarineAdvisoryResult",
+    "AviationAdvisoryResult",
+    "CommuterStudentAdvisoryResult",
+    "DisasterAdvisoryResult",
+    "SmartCityAdvisoryResult",
+    "SpecializedModeResponse",
 ]
 
