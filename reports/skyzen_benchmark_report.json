@@ -1,0 +1,242 @@
+{
+  "report_title": "SkyZen AI & Meteorological System Evaluation Benchmark Report",
+  "generated_at": "2026-09-25T16:58:53.679230+00:00",
+  "framework_version": "1.0.0-phase32",
+  "general_disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy.",
+  "test_environment": {
+    "platform": "Windows-11-10.0.26200-SP0",
+    "python_version": "3.14.3",
+    "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+    "environment": "test",
+    "runner_mode": "deterministic_offline",
+    "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+  },
+  "total_metrics_evaluated": 12,
+  "metrics": {
+    "intent_recognition_accuracy": {
+      "metric_name": "intent_recognition_accuracy",
+      "metric_definition": "Percentage of test queries where NLU parsed intent correctly matched the expected intent or domain synonym.",
+      "value": 62.5,
+      "unit": "percent",
+      "sample_size": 16,
+      "correct_count": 10,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:52.782159+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "entity_extraction_accuracy": {
+      "metric_name": "entity_extraction_accuracy",
+      "metric_definition": "Accuracy of extracting named geographic locations, temporal targets, and user personas from natural language queries.",
+      "value": 100.0,
+      "unit": "percent",
+      "sample_size": 22,
+      "correct_count": 22,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:52.790391+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "language_detection_accuracy": {
+      "metric_name": "language_detection_accuracy",
+      "metric_definition": "Accuracy of identifying user input language (en, ta, hi, te) using script detection and linguistic n-grams.",
+      "value": 100.0,
+      "unit": "percent",
+      "sample_size": 16,
+      "correct_count": 16,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:52.802323+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "grounding_correctness": {
+      "metric_name": "grounding_correctness",
+      "metric_definition": "Rate of generated meteorological advisory statements that faithfully conform to verified ground-truth observations without numerical hallucination.",
+      "value": 93.75,
+      "unit": "percent",
+      "sample_size": 16,
+      "grounded_count": 15,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:52.817224+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "response_validation_failures": {
+      "metric_name": "response_validation_failures",
+      "metric_definition": "Proportion of hallucinated or contradicting synthetic adversarial probes correctly intercepted and rejected by ResponseValidator.",
+      "value": 66.67,
+      "unit": "percent",
+      "sample_size": 3,
+      "intercepted_count": 2,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:52.818428+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "official_warning_contradiction_rate": {
+      "metric_name": "official_warning_contradiction_rate",
+      "metric_definition": "Percentage of generated responses or risk classifications that downplay, contradict, or cancel active official IMD/disaster warnings.",
+      "value": 0.0,
+      "unit": "percent",
+      "target": "0.00%",
+      "sample_size": 6,
+      "contradiction_count": 0,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:52.819730+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "api_response_latency": {
+      "metric_name": "api_response_latency",
+      "metric_definition": "Response latency across core adapter normalization and service logic measured at p50, p95, mean, and max in milliseconds.",
+      "value": {
+        "p50_ms": 0.0,
+        "p95_ms": 0.01,
+        "mean_ms": 0.0,
+        "max_ms": 0.03
+      },
+      "unit": "milliseconds",
+      "sample_size": 40,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:53.389380+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "end_to_end_response_latency": {
+      "metric_name": "end_to_end_response_latency",
+      "metric_definition": "Deterministic full-pipeline latency (NLU -> Meteorological Reasoning -> Persona Decision -> Safety Validation) in milliseconds.",
+      "value": {
+        "p50_ms": 1.14,
+        "p95_ms": 1.58,
+        "mean_ms": 1.14,
+        "max_ms": 1.61
+      },
+      "unit": "milliseconds",
+      "sample_size": 25,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:53.418099+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "provider_fallback_success": {
+      "metric_name": "provider_fallback_success",
+      "metric_definition": "Percentage of simulated primary provider timeouts where the fallback provider served valid weather data without system failure.",
+      "value": 100.0,
+      "unit": "percent",
+      "sample_size": 15,
+      "success_count": 15,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:53.418211+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "alert_targeting_correctness": {
+      "metric_name": "alert_targeting_correctness",
+      "metric_definition": "Accuracy of spatial and district bounding logic ensuring warnings are targeted to citizens in affected zones and omitted outside.",
+      "value": 100.0,
+      "unit": "percent",
+      "sample_size": 5,
+      "correct_count": 5,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:53.679178+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "notification_delivery_success": {
+      "metric_name": "notification_delivery_success",
+      "metric_definition": "Delivery dispatch success rate verifying active tokens receive alerts while expired or missing tokens are safely skipped without crash.",
+      "value": 100.0,
+      "unit": "percent",
+      "sample_size": 4,
+      "handled_correctly": 4,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:53.679204+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    },
+    "multilingual_response_consistency": {
+      "metric_name": "multilingual_response_consistency",
+      "metric_definition": "Semantic and risk recommendation invariance across identical queries posed in English, Tamil, Hindi, and Telugu.",
+      "value": 100.0,
+      "unit": "percent",
+      "sample_size": 4,
+      "consistent_triplets": 4,
+      "test_conditions": {
+        "platform": "Windows-11-10.0.26200-SP0",
+        "python_version": "3.14.3",
+        "processor": "Intel64 Family 6 Model 183 Stepping 1, GenuineIntel",
+        "environment": "test",
+        "runner_mode": "deterministic_offline",
+        "timestamp_utc": "2026-09-25T16:58:52.764102+00:00"
+      },
+      "timestamp": "2026-09-25T16:58:53.679224+00:00",
+      "disclaimer": "DISCLAIMER: Benchmark results recorded under controlled local test conditions with deterministic inputs. These metrics validate software regression invariance and architecture readiness; they do NOT claim real-world production accuracy."
+    }
+  }
+}

@@ -19,7 +19,6 @@ from ai.models import (
     WeatherReasoningResult,
     WeatherRecord,
 )
-from backend.services.nwp_schemas import NormalizedNWPForecastItem, NWPModelComparison
 from ai.reasoner.agreement import (
     build_consistency_factors,
     calculate_consistency_score,
@@ -167,8 +166,9 @@ class WeatherReasoner:
         ]
 
         # 6b. Integrate NWP Guidance Hazards (Advisory Only - Never Overrides Official Warnings)
-        nwp_items: List[NormalizedNWPForecastItem] = []
+        nwp_items = []
         if nwp_guidance is not None:
+            from backend.services.nwp_schemas import NormalizedNWPForecastItem
             if isinstance(nwp_guidance, list):
                 nwp_items = [item for item in nwp_guidance if isinstance(item, NormalizedNWPForecastItem)]
             elif isinstance(nwp_guidance, NormalizedNWPForecastItem):
