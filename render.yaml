@@ -23,7 +23,7 @@ services:
       - key: ALLOWED_ORIGINS
         value: "*"
       - key: DEMO_MODE
-        value: "true"
+        value: "false"
       # The following sensitive credentials should be supplied via the Render Dashboard:
       - key: SECRET_KEY
         generateValue: true

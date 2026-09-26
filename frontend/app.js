@@ -5009,7 +5009,7 @@ function appendBotMessage(data) {
       }
       const alertTitle = escapeHTML(alert.title || "Weather Warning");
       const alertDesc = escapeHTML(alert.description || "");
-      const isImdLive = Boolean(alert.source && alert.source.toUpperCase().includes("IMD") && alert.is_official === true && !isFixture);
+      const isImdLive = Boolean(alert.source && alert.source.includes("IMD Official (Live)") && alert.is_official === true && !isFixture);
       
       if (isFixture) {
         warningsHtml += `
@@ -6800,7 +6800,7 @@ function renderMapSelectionCard(payload, lat, lon) {
       const alertArea = document.getElementById("mapAlertPriorityArea");
       const alertValid = document.getElementById("mapAlertPriorityValid");
 
-      const isImdLive = (alert.source || "").toUpperCase().includes("IMD") && alert.is_official === true && !isFixture;
+      const isImdLive = Boolean((alert.source || "").includes("IMD Official (Live)") && alert.is_official === true && !isFixture);
       if (alertTitle) alertTitle.textContent = isFixture ? "[SIMULATED TEST FIXTURE]" : locDyn(isImdLive ? "OFFICIAL IMD WARNING" : "WEATHER WARNING");
       if (alertSev) {
         alertSev.textContent = isFixture ? "TEST DATA" : locDyn(severity);
@@ -6894,7 +6894,7 @@ function renderOfficialAlertGeometry(alerts, centerLat, centerLon) {
           }
         });
         const isFixture = alert.state === "FIXTURE" || (alert.source || "").includes("Fixture");
-        const isImdLive = (alert.source || "").toUpperCase().includes("IMD") && alert.is_official === true && !isFixture;
+        const isImdLive = Boolean((alert.source || "").includes("IMD Official (Live)") && alert.is_official === true && !isFixture);
         const heading = isFixture ? "[SIMULATED TEST FIXTURE]" : (isImdLive ? "OFFICIAL IMD WARNING" : "WEATHER WARNING");
         geoLayer.bindPopup(`
           <div style="font-family:'Inter',sans-serif; font-size:12px;">
@@ -7252,7 +7252,7 @@ function switchWeatherMapLayer(layerName) {
   let layerOpacity = 0.75;
 
   if (isRadar) {
-    layerAttribution = "Radar Reflectivity &copy; RainViewer (IMD Doppler Radar)";
+    layerAttribution = "Radar Reflectivity &copy; RainViewer";
     layerOpacity = 0.85;
     // Check if we have past radar frames available from timeline scrubber
     if (radarTimelineFrames.length > 0 && currentRadarFrameIndex >= 0 && currentRadarFrameIndex < radarTimelineFrames.length) {
@@ -8956,7 +8956,7 @@ function renderMinuteRainTimeline(data) {
   const isAlertFromImd = hasOfficialAlert && Boolean(
     activeAlert &&
     activeAlert.source &&
-    activeAlert.source.toUpperCase().includes("IMD") &&
+    activeAlert.source.includes("IMD Official (Live)") &&
     activeAlert.is_official === true &&
     activeAlert.state !== "FIXTURE" &&
     !(activeAlert.source || "").includes("Fixture")

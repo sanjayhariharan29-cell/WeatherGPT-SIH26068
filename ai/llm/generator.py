@@ -643,7 +643,7 @@ class GroundedLLMGenerator:
         score_val = getattr(reasoning, "consistency_score", None) if reasoning else 85
         if score_val is None:
             score_val = 85
-        src_val = (weather.source if weather and weather.source else "IMD")
+        src_val = (weather.source if weather and weather.source else "OpenWeather / Open-Meteo")
 
         if target_lang in (LanguageEnum.TA, LanguageEnum.TANGLISH):
             meta_str = f"(ஆதாரம்: {src_val} | தர நம்பகத்தன்மை: முன்னறிவிப்பு நிலைத்தன்மை: {score_val}/100)"

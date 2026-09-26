@@ -471,7 +471,7 @@ class WeatherGPTPipeline:
                     EvidenceLink(
                         field_or_entity="weather.forecast",
                         observed_or_rule_value=val_str,
-                        source=getattr(fc, "source", "IMD"),
+                        source=getattr(fc, "source", None) or (weather.source if weather and weather.source else "Open-Meteo"),
                         temporal_scope="forecast",
                         decision_impact="Outlook trend informing planning and multi-hour advisory",
                         timestamp=fc_dt_str,
@@ -678,10 +678,10 @@ class WeatherGPTPipeline:
         # 2. Source Agreement
         agreement_val = reasoning.source_agreement.value if hasattr(reasoning.source_agreement, "value") else str(reasoning.source_agreement)
         if agreement_val in ("high", "consistent"):
-            sources_str = ", ".join(reasoning.sources_used) if reasoning.sources_used else "IMD & Open-Meteo"
+            sources_str = ", ".join(reasoning.sources_used) if reasoning.sources_used else ((weather.source if weather and weather.source else "OpenWeather") + " & Open-Meteo")
             explanation_points.append(f"Multiple sources agree on forecast consistency ({sources_str})")
         elif agreement_val == "single_source":
-            src_name = reasoning.sources_used[0] if reasoning.sources_used else "IMD"
+            src_name = reasoning.sources_used[0] if reasoning.sources_used else (weather.source if weather and weather.source else "Open-Meteo")
             explanation_points.append(f"Authoritative ground-truth data verified from {src_name}")
         elif agreement_val == "moderate":
             explanation_points.append("Forecast sources show moderate agreement across temperature and precipitation")
@@ -691,7 +691,9 @@ class WeatherGPTPipeline:
         # 3. Official Warning Status
         if reasoning.active_warnings:
             warn_titles = [getattr(w, "title", "Alert") for w in reasoning.active_warnings]
-            explanation_points.append(f"Official IMD Warning active: {', '.join(warn_titles[:2])}")
+            w_src = getattr(reasoning.active_warnings[0], "source", None) or "Official"
+            prefix = w_src if "official" in w_src.lower() else f"Official {w_src}"
+            explanation_points.append(f"{prefix} Warning active: {', '.join(warn_titles[:2])}")
         else:
             explanation_points.append("No active severe warning")
 
@@ -787,7 +789,7 @@ class WeatherGPTPipeline:
             persona_context=persona_context,
             final_recommendation=final_recommendation,
             explanation_points=explanation_points,
-            sources=reasoning.sources_used or ["IMD"],
+            sources=reasoning.sources_used or ([weather.source] if weather and weather.source else ["Open-Meteo"]),
             confidence_level=conf_lvl_str,
             consistency_factors=getattr(reasoning, "consistency_factors", None),
             historical_context=historical_context_dict,

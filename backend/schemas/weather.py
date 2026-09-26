@@ -205,7 +205,7 @@ class HistoricalWeatherResponse(BaseModel):
     summary: Dict[str, Any] = Field(default_factory=dict, description="Aggregated statistics (averages, totals, extremes)")
     records: List[HistoricalRecordItemSchema] = Field(default_factory=list, description="Historical observations list")
     count: int = Field(default=0, description="Total number of observation records returned")
-    source: str = Field(default="NASA POWER / IMD Archive", description="Historical provider attribution")
+    source: str = Field(default="NASA POWER", description="Historical provider attribution")
     units: WeatherUnitsSchema = Field(default_factory=WeatherUnitsSchema)
     retrieved_at: str = Field(description="Data retrieval ISO 8601 UTC timestamp")
 
