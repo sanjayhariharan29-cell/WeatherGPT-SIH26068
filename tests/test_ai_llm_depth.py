@@ -469,7 +469,9 @@ def test_empty_weather_data_safety():
 # =====================================================================
 
 def test_full_ai_pipeline_integration(base_weather, base_forecast):
-    pipeline = WeatherGPTPipeline()
+    from ai.resilience import CircuitBreaker
+    fresh_cb = CircuitBreaker("fresh_test_cb")
+    pipeline = WeatherGPTPipeline(llm_circuit_breaker=fresh_cb)
     # Inject a deterministic mock provider into the pipeline
     pipeline.llm.provider = MockLLMProvider(
         canned_response="In Nagapattinam, current temperature is 29°C with a 75% chance of rain. Carry an umbrella."

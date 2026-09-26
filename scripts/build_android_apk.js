@@ -57,7 +57,7 @@ try {
 // Step 2: Build release APK with Gradle
 console.log('[Step 2/2] Building Android Release APK via Gradle...');
 try {
-  execSync(`${GRADLE_CMD} assembleRelease -x lintVitalRelease`, {
+  execSync(`${GRADLE_CMD} clean assembleRelease -x lintVitalRelease`, {
     cwd: ANDROID_DIR,
     stdio: 'inherit'
   });
@@ -82,8 +82,14 @@ if (fs.existsSync(apkPath)) {
   const rootApkPath = path.join(ROOT_DIR, 'SkyZen-release.apk');
   try {
     fs.copyFileSync(apkPath, rootApkPath);
+    const downloadsPath = path.join(process.env.USERPROFILE || 'C:\\Users\\sanja', 'Downloads', 'SkyZen-release.apk');
+    fs.copyFileSync(apkPath, downloadsPath);
+    const devPath = 'C:\\Dev\\WeatherGPT-SIH26068\\SkyZen-release.apk';
+    if (fs.existsSync(path.dirname(devPath))) {
+      fs.copyFileSync(apkPath, devPath);
+    }
   } catch (copyErr) {
-    console.warn(' Could not copy to root SkyZen-release.apk:', copyErr.message);
+    console.warn(' Notice on secondary copy:', copyErr.message);
   }
   const stats = fs.statSync(apkPath);
   const sizeMB = (stats.size / (1024 * 1024)).toFixed(2);

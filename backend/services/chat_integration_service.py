@@ -209,11 +209,19 @@ class ChatIntegrationService:
                 else ("Respond in natural, fluent Telugu script." if norm_lang in ("te", "telugu")
                 else "Respond in concise, natural English.")))
             )
+            active_app_loc = (
+                (resolved.resolved_location if resolved.resolved_location and resolved.resolved_location != "Unspecified" else None)
+                or (cur_state.active_location if cur_state else None)
+                or explicit_loc
+                or "Coimbatore"
+            )
             system_prompt = (
-                "You are SkyZen, a helpful, knowledgeable personal AI assistant for weather and general topics.\n"
+                "You are SkyZen, a helpful, knowledgeable personal AI assistant for weather, climate, and daily planning.\n"
+                f"The user's currently selected location in the SkyZen application is: {active_app_loc}.\n"
+                f"If the user asks 'where am I' or asks about their location, state that their current app location is set to {active_app_loc} and offer to check the weather or forecasts there.\n"
                 "Answer the user's question directly, accurately, and naturally in 2-3 concise sentences.\n"
                 f"{lang_inst}\n"
-                "Do NOT invent live weather data or fabricate official warnings. Explain scientific or general concepts clearly."
+                "Do NOT invent live weather data or fabricate official warnings. Explain concepts clearly."
             )
             gen_answer = None
             try:

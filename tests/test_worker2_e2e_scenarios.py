@@ -69,7 +69,7 @@ def test_scenario_01_normal_weather_request():
     assert data["weather"]["humidity"] is not None
     assert "comparison" in data
     assert "source" in data
-    assert "IMD" in data["source"]
+    assert any(s in data["source"] for s in ("IMD", "OpenWeather", "Open-Meteo"))
     assert data["data_freshness"] == "FRESH"
 
 

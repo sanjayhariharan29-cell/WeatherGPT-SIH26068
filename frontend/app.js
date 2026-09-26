@@ -2081,6 +2081,7 @@ async function restoreSessionOrShowAuth() {
 
       if (user && user.id) {
         currentUser = user;
+        window.currentUser = user;
         if (user.language) {
           currentLanguage = user.language;
           if (window.I18N) window.I18N.setLanguage(user.language, true);
@@ -2412,6 +2413,7 @@ function setupAuthPortalEngine() {
 
         if (res && res.user) {
           currentUser = res.user;
+          window.currentUser = res.user;
 
           if (res.user.is_verified === false) {
             pendingAuthEmail = email;

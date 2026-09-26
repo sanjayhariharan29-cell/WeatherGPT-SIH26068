@@ -9,7 +9,7 @@ class WeatherGPTApiClient {
   constructor() {
     // Canonical Production Backend (Default for all platforms: web preview, production, and Android APK)
     const PRODUCTION_DEFAULT = "https://skyzen-backend.onrender.com/api/v1";
-    const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.PRODUCTION_API_BASE || window.ENV.API_BASE)) || PRODUCTION_DEFAULT;
+    const envBase = (typeof window !== "undefined" && window.ENV && (window.ENV.API_BASE || window.ENV.PRODUCTION_API_BASE)) || PRODUCTION_DEFAULT;
 
     // Check for explicit user/developer override stored in localStorage
     let savedBase = typeof localStorage !== "undefined" ? localStorage.getItem("weathergpt_api_base") : null;

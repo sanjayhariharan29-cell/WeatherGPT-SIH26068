@@ -646,7 +646,7 @@ class PersonalDecisionEngine:
             warn_name = ev.active_warnings[0] if ev.active_warnings else "Marine Warning"
             action = f"Fishermen are strictly advised not to venture into the sea off {loc} because an official marine warning is active ({warn_name})."
             primary = f"Official marine warning active ({warn_name})"
-            ans_en = f"I wouldn't recommend taking your fishing boat out to sea during that period because an official warning is active ({warn_name}). Fishermen should strictly avoid venturing into the sea."
+            ans_en = "I wouldn't recommend going during that period because an official marine warning is active."
             ans_ta = f"அதிகாரப்பூர்வ எச்சரிக்கை ({warn_name}) செயலில் உள்ளதால், இந்த நேரத்தில் கடலுக்கு மீன்பிடிக்க படகை எடுத்துச் செல்ல வேண்டாம் என்றும் தவிர்ப்பது நல்லது என்றும் பரிந்துரைக்கப்படுகிறது."
             ans_hi = f"इस अवधि के दौरान समुद्र में मछली पकड़ने की नाव ले जाने की सलाह नहीं दी जाती है क्योंकि एक आधिकारिक चेतावनी ({warn_name}) सक्रिय है। समुद्र में जाने से बचें।"
             ans_mr = f"अधिकृत चेतावणी ({warn_name}) सक्रिय असल्याने या काळात समुद्रात मासेमारीची बोट नेणे टाळावे."

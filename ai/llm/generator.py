@@ -305,6 +305,8 @@ class GroundedLLMGenerator:
             else:
                 dec_ans = personal_dec.get("concise_answer") if personal_dec else ""
                 if dec_ans and (personal_dec.get("decision_type") in ("fishing_marine", "marine_safety") or alert.title.lower() in dec_ans.lower()):
+                    if personal_dec.get("decision_type") in ("fishing_marine", "marine_safety"):
+                        return f"{user_prefix}{dec_ans} Fishermen should strictly avoid venturing into the sea."
                     return f"{user_prefix}{dec_ans}"
                 
                 sev_tag = "CRITICAL" if "CRITICAL" in sev else ("EXTREME" if "EXTREME" in sev else sev)
@@ -469,6 +471,8 @@ class GroundedLLMGenerator:
                 if ans:
                     if temp_str and "°C" not in ans:
                         ans = f"{ans}{temp_str}"
+                    if (str(p_type).lower() in ("fishing_marine", "decisiontypeenum.fishing_marine")) and (str(personal_dec.get("verdict")).lower() in ("no_go", "decisionverdictenum.no_go")):
+                        ans = f"{ans} Fishermen should strictly avoid venturing into the sea."
                     return f"{user_prefix}{ans}"
 
         # -----------------------------------------------------------------

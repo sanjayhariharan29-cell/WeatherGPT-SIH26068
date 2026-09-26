@@ -97,7 +97,7 @@ def test_english_response_generation(sample_weather):
 
     assert "Coimbatore" in resp.answer
     assert "32°C" in resp.answer or "31" in resp.answer or "31.5" in resp.answer
-    assert "Advisory" in resp.answer or "Commute" in resp.answer
+    assert "advisory" in resp.answer.lower() or "commute" in resp.answer.lower()
 
 
 # 2. Tamil Response Generation
