@@ -10,6 +10,10 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Database URL configuration (PostgreSQL or SQLite fallback for hackathon MVP)
 raw_db_url = os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db")
+# Render / Heroku compatibility: SQLAlchemy 2.0 requires postgresql:// instead of postgres://
+if raw_db_url.startswith("postgres://"):
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+
 if raw_db_url.startswith("sqlite:///") and not raw_db_url.startswith("sqlite:////"):
     after_prefix = raw_db_url[10:]
     if not (len(after_prefix) >= 2 and after_prefix[1] == ":"):
