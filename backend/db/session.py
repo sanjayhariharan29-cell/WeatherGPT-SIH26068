@@ -10,9 +10,11 @@ BASE_DIR = Path(__file__).resolve().parent.parent.parent
 
 # Database URL configuration (PostgreSQL or SQLite fallback for hackathon MVP)
 raw_db_url = os.getenv("DATABASE_URL", "sqlite:///./weathergpt.db")
-# Render / Heroku compatibility: SQLAlchemy 2.0 requires postgresql:// instead of postgres://
+# Render / Heroku compatibility: SQLAlchemy 2.0+ requires postgresql+psycopg2:// when psycopg2 is installed
 if raw_db_url.startswith("postgres://"):
-    raw_db_url = raw_db_url.replace("postgres://", "postgresql://", 1)
+    raw_db_url = raw_db_url.replace("postgres://", "postgresql+psycopg2://", 1)
+elif raw_db_url.startswith("postgresql://") and not raw_db_url.startswith("postgresql+"):
+    raw_db_url = raw_db_url.replace("postgresql://", "postgresql+psycopg2://", 1)
 
 if raw_db_url.startswith("sqlite:///") and not raw_db_url.startswith("sqlite:////"):
     after_prefix = raw_db_url[10:]
@@ -34,14 +36,29 @@ if DATABASE_URL.startswith("sqlite:///"):
     except Exception:
         pass
 
-# SQLite specific connect_args
-connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-
-engine = create_engine(
-    DATABASE_URL,
-    connect_args=connect_args,
-    pool_pre_ping=True
-)
+# Initialize engine with graceful fallback if PostgreSQL connection/driver fails
+try:
+    connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args=connect_args,
+        pool_pre_ping=True
+    )
+    # Validate DBAPI connection immediately
+    with engine.connect() as conn:
+        pass
+except Exception as e:
+    import logging
+    logging.getLogger("weathergpt.db").warning(
+        f"Failed to connect to primary database ({DATABASE_URL}): {e}. Initializing local SQLite fallback."
+    )
+    fallback_path = (BASE_DIR / "weathergpt.db").resolve()
+    DATABASE_URL = f"sqlite:///{fallback_path.as_posix()}"
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args={"check_same_thread": False},
+        pool_pre_ping=True
+    )
 
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 
